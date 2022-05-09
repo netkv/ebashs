@@ -28,103 +28,89 @@ modified=false # Tracking whether a file was modified
 enable_mouse=true # Xterm mouse support
 reservedlines=2 # Number of lines not displaying file
 
-editkey[up]=$'\E[A'
-editkey[down]=$'\E[B'
-editkey[right]=$'\E[C'
-editkey[left]=$'\E[D'
-editkey[pgup]=$'\E[5~'
-editkey[pgdown]=$'\E[5~'
-
-stroke[18 0]='quit'
-stroke[7 0]='menuhelp'
-stroke[10 0]='up'
-stroke[e 0]='down'
-stroke[6 0]='right'
-stroke[2 0]='left'
-stroke[19 0]='page_down'
-stroke[16 0]='page_up'
-stroke[0]='new_line'
-stroke[c 0]='new_line'
-stroke[f 0]='write_buffer'
-stroke[12 0]='read_buffer'
-stroke[1b 72 0]='set_buffer_file'
-stroke[14 0]='execute'
-stroke[4 0]='delete_line'
-stroke[13 0]='shell'
-stroke[5 0]='mtoggle'
-stroke[7f 0]='backspace'
-#	case "${hexkey[@]}" in
-#		${BANO_KEY_EXIT:='18 0'}) quit; return;;
-#		${BANO_KEY_PREVIOUS:=10}) up; redraw; return;;
-#		${BANO_KEY_NEXT:=e}) down; redraw; return;;
-#		${BANO_KEY_FORTH:=6}) right; redraw; return;;
-#		${BANO_KEY_BACK:=2}) left; redraw; return;;
-#		${BANO_KEY_PGPREVIOUS:=19}) page_down; redraw; return;;
-#		${BANO_KEY_PGNEXT:=16}) page_up; redraw; return;;
-#		${BANO_KEY_NEWLINE:=0}) new_line; return;;
-#		${BANO_KEY_NEWLINEALT:=c}) new_line; return;;
-#		${BANO_KEY_HELP:=7}) menuhelp; return;;
-#		${BANO_KEY_SAVE:=f}) write_buffer; return;;
-#		${BANO_KEY_READ:=12}) read_buffer; return;;
-#		${BANO_KEY_READ:=1b}) set_buffer_file; return;;
-#		${BANO_KEY_EXECUTE:=14}) execute; return;;
-#		${BANO_KEY_DELETE:=4}) delete_line; redraw; return;;
-#		${BANO_KEY_SHELL:=13}) shell; return;;
-#		${BANO_KEY_MOUSE_TOGGLE:=5}) mtoggle; return;;
-#		${BANO_KEY_SCROLL:=1b}) mouse=true;;
-#		${BANO_KEY_BACKSPACE:=7f}) backspace; return;; #delete last char when backspace is pressed
-#	esac
-
-style[TODO]='\e[0;45m'
-style[NOTE]='\e[0;47m'
-style[menuline]='\e[107;30m'
-style[windowline]='\e[107;30m'
-style[menuitem]='\e[107;30m'
-style[windowcontent]='\e[30;47m'
-style[menuitemselected]='\e[30;47m'
-style[infoline]='\e[107;30m'
-style[number]='\e[0;90m'
-style[numberselected]='\e[0;97m'
-
-windowkey[up]=$'\E[A'
-windowkey[down]=$'\E[B'
-windowkey[right]=$'\E[C'
-windowkey[left]=$'\E[D'
-windowkey[hsizep]='*'
-windowkey[hsizem]='/'
-windowkey[vsizep]='+'
-windowkey[vsizem]='-'
-
-menuline[File]=menufile
-menuline[Help]=menuhelp
-menuline[Keybindings]=menukey
-menuline[Redraw]=refresh
-
-menufile[Close   C-x ]="quit"
-menufile[Open    M-r ]="set_buffer_file"
-menufile[Execute C-t ]="execute"
-menufile[Save    C-o ]="write_buffer"
-menufile[Info        ]="wininfo"
-
-menuhelp[Keybinding          ]=menukey
-menuhelp[About float windows ]=winhelpf
-menuhelp[About               ]=about
-
-menukey[Exit         C-x ]="quit"
-menukey[New Line C-l | ⏎ ]="new_line"
-menukey[Set target   M-r ]="set_buffer_file"
-menukey[Read File    C-r ]="read_buffer"
-menukey[Write Out    C-o ]="write_buffer"
-menukey[Delete Line  C-d ]="delete_line"
-menukey[Toggle Mouse C-e ]="mtoggle"
-menukey[Prev Line    C-p ]="up"
-menukey[Next Line    C-n ]="down"
-menukey[Prev Page    C-y ]="page_up"
-menukey[Next Page    C-v ]="page_down"
-menukey[Execute      C-t ]="execute"
-menukey[Shell        C-s ]="shell"
-
-
+editkey=(
+	[up]=$'\E[A'
+	[down]=$'\E[B'
+	[right]=$'\E[C'
+	[left]=$'\E[D'
+	[pgup]=$'\E[5~'
+	[pgdown]=$'\E[5~'
+)
+stroke=(
+	[18 0]='quit'
+	[7 0]='menuhelp'
+	[10 0]='up'
+	[e 0]='down'
+	[6 0]='right'
+	[2 0]='left'
+	[19 0]='page_down'
+	[16 0]='page_up'
+	[0]='new_line'
+	[c 0]='new_line'
+	[f 0]='write_buffer'
+	[12 0]='read_buffer'
+	[1b 72 0]='set_buffer_file'
+	[14 0]='execute'
+	[4 0]='delete_line'
+	[13 0]='shell'
+	[5 0]='mtoggle'
+	[7f 0]='backspace'
+)
+style=(
+	[TODO]='\e[0;45m'
+	[NOTE]='\e[0;47m'
+	[menuline]='\e[107;30m'
+	[windowline]='\e[107;30m'
+	[menuitem]='\e[107;30m'
+	[windowcontent]='\e[30;47m'
+	[menuitemselected]='\e[30;47m'
+	[infoline]='\e[107;30m'
+	[number]='\e[0;90m'
+	[numberselected]='\e[0;97m'
+)
+windowkey=(
+	[up]=$'\E[A'
+	[down]=$'\E[B'
+	[right]=$'\E[C'
+	[left]=$'\E[D'
+	[hsizep]='*'
+	[hsizem]='/'
+	[vsizep]='+'
+	[vsizem]='-'
+)
+menuline=(
+	[File]=menufile
+	[Help]=menuhelp
+	[Keybindings]=menukey
+	[Redraw]=refresh
+)
+menufile=(
+	[Close   C-x ]="quit"
+	[Open    M-r ]="set_buffer_file"
+	[Execute C-t ]="execute"
+	[Save    C-o ]="write_buffer"
+	[Info        ]="wininfo"
+)
+menuhelp=(
+	[Keybinding          ]=menukey
+	[About float windows ]=winhelpf
+	[About               ]=about
+)
+menukey=(
+	[Exit         C-x ]="quit"
+	[New Line C-l | ⏎ ]="new_line"
+	[Set target   M-r ]="set_buffer_file"
+	[Read File    C-r ]="read_buffer"
+	[Write Out    C-o ]="write_buffer"
+	[Delete Line  C-d ]="delete_line"
+	[Toggle Mouse C-e ]="mtoggle"
+	[Prev Line    C-p ]="up"
+	[Next Line    C-n ]="down"
+	[Prev Page    C-y ]="page_up"
+	[Next Page    C-v ]="page_down"
+	[Execute      C-t ]="execute"
+	[Shell        C-s ]="shell"
+)
 menufile() {
 	unset menucon
 	declare -n menucon=menufile
@@ -140,31 +126,34 @@ menukey() {
 	declare -n menucon=menukey
 	menu
 }
-
-syntax[bash]=builtin_syntax_bash
-syntax[sh]=builtin_syntax_bash #there isnt anything really bash specific currently
-syntax[ksh]=builtin_syntax_bash
-syntax[mksh]=builtin_syntax_bash
-syntax[dash]=builtin_syntax_bash
-syntax[zsh]=builtin_syntax_bash
-syntax[conf]=builtin_syntax_conf
-syntax[unknown]=builtin_syntax_unknown
-
-about[sizex]="60"
-about[sizey]="20"
-about[title]=" About Ebashe "
-about[content]="Ebashe is text editor made in bash trying to copy Emacs. It is based on Bed editor"
-
-winhelp[sizex]="60"
-winhelp[sizey]="20"
-winhelp[title]=" Floating window help "
-winhelp[content]="Use arrow keys to move the window and / to decrease its width, * to increase, + to increase its height and - to decrease"
-
-wininfo[sizex]="60"
-wininfo[sizey]="20"
-wininfo[title]=" File info "
-#content is set in fucntion, so it can dynamicaly update
-
+syntax=(
+	[bash]=builtin_syntax_bash
+	[sh]=builtin_syntax_bash #there isnt anything really bash specific currently
+	[ksh]=builtin_syntax_bash
+	[mksh]=builtin_syntax_bash
+	[dash]=builtin_syntax_bash
+	[zsh]=builtin_syntax_bash
+	[conf]=builtin_syntax_conf
+	[unknown]=builtin_syntax_unknown
+)
+about=(
+	[sizex]="60"
+	[sizey]="20"
+	[title]=" About Ebashe "
+	[content]="Ebashe is text editor made in bash trying to copy Emacs. It is based on Bed editor"
+)
+winhelp=(
+	[sizex]="60"
+	[sizey]="20"
+	[title]=" Floating window help "
+	[content]="Use arrow keys to move the window and / to decrease its width, * to increase, + to increase its height and - to decrease"
+)
+wininfo=(
+	[sizex]="60"
+	[sizey]="20"
+	[title]=" File info "
+	#content is set in fucntion, so it can dynamicaly update
+)
 about() {
 	unset window
 	declare -n window=about
@@ -256,7 +245,7 @@ builtin_syntax_bash() {
 		   
 	[[ "${word: -2}" = '()' ]] && colour 0 30 44 "${word}" && return
 	case "${word}" in
-		'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|'declare'|'typeset'|'local'|'let'|'shopt'|'trap'|'set') colour 0 91 108 "${word}" && return
+		'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|'declare'|'typeset'|'local'|'let'|'shopt'|'trap'|'set'|'eval') colour 0 91 108 "${word}" && return
 	esac
 	colour 0 0 0 "${word}"
 }
@@ -289,6 +278,7 @@ filetype(){
 	IFS='.'
 	filename="${1%/}"
 	filename="${filename##*/}"
+	[ "$filename" = 'COMMIT_EDITMSG' ] && echo conf && return
 	filenamesplit=($filename)
 	extension="${filenamesplit[-1]}"
 	[ "${#filenamesplit[@]}" -gt 1 ] && echo "$extension" && return
