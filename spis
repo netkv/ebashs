@@ -323,6 +323,7 @@ pickprep() {
 }
 filepick() {
 	dc=0
+	offsetst=0
 	local -i ik=1
 	pickprep
 	pickdraw
@@ -337,6 +338,7 @@ filepick() {
 					#return to starting dir
 					if [ -d "${direc[dc]}" ]; then
 						cd "${direc[dc]}"
+						offsetst=0
 						pickprep
 					else
 						printf '\e[?1047h' # Switch to alternative buffer
@@ -350,6 +352,8 @@ filepick() {
 			esac
 			(( "$dc" > ( "${#direc[@]}" - 1))) && ((dc--)) && continue
 			(( "$dc" < 0 )) && ((dc++)) && continue
+			(( "$dc" > ( LINES - 5 + offsetst ) )) && ((offsetst++))
+		    (( "$dc" < ( 2 + offsetst ) )) && ((offsetst--))
 		fi
 		kb=()
 		pickdraw
@@ -359,19 +363,24 @@ filepick() {
 	done
 }
 pickdraw() {
-	printf "\033[2;0H"
+	printf "\033[1;0H"
+	printf "${style[windowline]}%s\e[?25l%*s\r" "Open file..." "$(( $COLUMNS - 12 ))"
+	printf "${style[windowcontent]}\n"
 	direc=($(pickls))
+	offseten=$(( offsetst + ( LINES - 2 ) ))
 	for il in "${!direc[@]}"; do
-		if [ $dc = $il ]; then
-			printf "${style[selected]}\e[?25l%*s\r" "$COLUMNS"
-			printf "%s\n" "${direc[il]}"
-		else
-			if [ -d "${direc[il]}" ]; then
-				printf "${style[interactive]}\e[?25l%*s\r" "$COLUMNS"
+		if [ $il -ge $offsetst ] && [ $il -lt $offseten ]; then
+			if [ $dc = $il ]; then
+				printf "${style[selected]}\e[?25l%*s\r" "$COLUMNS"
 				printf "%s\n" "${direc[il]}"
 			else
-				printf "${style[windowcontent]}\e[?25l%*s\r" "$COLUMNS"
-				printf "%s\n" "${direc[il]}"
+				if [ -d "${direc[il]}" ]; then
+					printf "${style[interactive]}\e[?25l%*s\r" "$COLUMNS"
+					printf "%s\n" "${direc[il]}"
+				else
+					printf "${style[windowcontent]}\e[?25l%*s\r" "$COLUMNS"
+					printf "%s\n" "${direc[il]}"
+				fi
 			fi
 		fi
 	done
