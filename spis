@@ -65,6 +65,7 @@ style=(
 	[menuitem]='\e[0;35;40m'
 	[windowcontent]='\e[97;40m'
 	[selected]='\e[105;30m'
+	[interactive]='\e[95;40m'
 	[menuitemselected]='\e[45;97m'
 	[infoline]='\e[45;30m'
 	[number]='\e[0;90m'
@@ -365,8 +366,13 @@ pickdraw() {
 			printf "${style[selected]}\e[?25l%*s\r" "$COLUMNS"
 			printf "%s\n" "${direc[il]}"
 		else
-			printf "${style[windowcontent]}\e[?25l%*s\r" "$COLUMNS"
-			printf "%s\n" "${direc[il]}"
+			if [ -d "${direc[il]}" ]; then
+				printf "${style[interactive]}\e[?25l%*s\r" "$COLUMNS"
+				printf "%s\n" "${direc[il]}"
+			else
+				printf "${style[windowcontent]}\e[?25l%*s\r" "$COLUMNS"
+				printf "%s\n" "${direc[il]}"
+			fi
 		fi
 	done
 	printf "${style[windowcontent]}\e[?25l%*s\r" "$COLUMNS" #fixes some stuff
