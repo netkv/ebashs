@@ -1,4 +1,4 @@
-# ebashe
+# Spis
 
 text editor made in bash because insanity
 TODO: config docs

@@ -13,28 +13,25 @@ declare -A syntax menuline menufile menuhelp menukey style about winhelp windowk
 declare -a buffer buffersyntax hexkey
 declare -i line base rl
 declare -n menucon window
-declare file message modified filetype enable_mouse comment stringone stringtwo reservedlines
+declare file message modified filetype enable_mouse comment stringone stringtwo reservedlines recmd
 
 printf "\e[?1049h" #switch to alternative buffer
 
+version="Spis dev"
 buffer=() # File contents
 buffersyntax=() # File contents
 line=0 # Currently selected line (0 means the buffer is empty)
 base=1 # Top-most line shown
 rl=0 # how left or right the cursor is
 file= # Currently addressed file
-message="ebashe version insanity" # Feedback text in the status bar
+message="${version}: insanity" # Feedback text in the status bar
 modified=false # Tracking whether a file was modified
 enable_mouse=true # Xterm mouse support
 reservedlines=2 # Number of lines not displaying file
 
 editkey=(
-	[up]=$'\E[A'
-	[down]=$'\E[B'
-	[right]=$'\E[C'
-	[left]=$'\E[D'
-	[pgup]=$'\E[5~'
-	[pgdown]=$'\E[5~'
+	[up]=$'\E[A'	[down]=$'\E[B'	[right]=$'\E[C'
+	[left]=$'\E[D'	[pgup]=$'\E[5~'	[pgdown]=$'\E[5~'
 )
 stroke=(
 	[18 0]='quit'
@@ -57,8 +54,8 @@ stroke=(
 	[7f 0]='backspace'
 )
 style=(
-	[TODO]='\e[0;45m'
-	[NOTE]='\e[0;47m'
+	[TODO]='\e[3;45m'
+	[NOTE]='\e[3;47m'
 	[menuline]='\e[107;30m'
 	[windowline]='\e[107;30m'
 	[menuitem]='\e[107;30m'
@@ -69,21 +66,15 @@ style=(
 	[numberselected]='\e[0;97m'
 )
 windowkey=(
-	[up]=$'\E[A'
-	[down]=$'\E[B'
-	[right]=$'\E[C'
-	[left]=$'\E[D'
-	[hsizep]='*'
-	[hsizem]='/'
-	[vsizep]='+'
-	[vsizem]='-'
+	[up]=$'\E[A'	[down]=$'\E[B'	[right]=$'\E[C'	[left]=$'\E[D'
+	[hsizep]='*'	[hsizem]='/'	[vsizep]='+'	[vsizem]='-'
 )
 menuline=(
-	[File]=menufile
-	[Help]=menuhelp
-	[Keybindings]=menukey
-	[Redraw]=refresh
+	[File]=menufile	[Help]=menuhelp
+	[Keys]=menukey	[Redraw]=refresh
 )
+
+menufile() { unset menucon; declare -n menucon=menufile; menu; }
 menufile=(
 	[Close   C-x ]="quit"
 	[Open    M-r ]="set_buffer_file"
@@ -91,11 +82,15 @@ menufile=(
 	[Save    C-o ]="write_buffer"
 	[Info        ]="wininfo"
 )
+
+menuhelp() { unset menucon; declare -n menucon=menuhelp; menu; }
 menuhelp=(
 	[Keybinding          ]=menukey
 	[About float windows ]=winhelpf
 	[About               ]=about
 )
+
+menukey() { unset menucon; declare -n menucon=menukey; menu; }
 menukey=(
 	[Exit         C-x ]="quit"
 	[New Line C-l | ⏎ ]="new_line"
@@ -111,65 +106,43 @@ menukey=(
 	[Execute      C-t ]="execute"
 	[Shell        C-s ]="shell"
 )
-menufile() {
-	unset menucon
-	declare -n menucon=menufile
-	menu
-}
-menuhelp() {
-	unset menucon
-	declare -n menucon=menuhelp
-	menu
-}
-menukey() {
-	unset menucon
-	declare -n menucon=menukey
-	menu
-}
+
 syntax=(
-	[bash]=builtin_syntax_bash
-	[sh]=builtin_syntax_bash #there isnt anything really bash specific currently
-	[ksh]=builtin_syntax_bash
-	[mksh]=builtin_syntax_bash
-	[dash]=builtin_syntax_bash
-	[zsh]=builtin_syntax_bash
-	[conf]=builtin_syntax_conf
-	[unknown]=builtin_syntax_unknown
+	[bash]=builtin_syntax_bash	[sh]=builtin_syntax_bash
+	[ksh]=builtin_syntax_bash	[mksh]=builtin_syntax_bash
+	[dash]=builtin_syntax_bash	[zsh]=builtin_syntax_bash
+	[conf]=builtin_syntax_conf	[unknown]=builtin_syntax_unknown
 )
+
+about() { unset window; declare -n window=about; float; }
 about=(
-	[sizex]="60"
-	[sizey]="20"
-	[title]=" About Ebashe "
-	[content]="Ebashe is text editor made in bash trying to copy Emacs. It is based on Bed editor"
+	[sizex]="60"	[sizey]="20"
+	[title]=" About ${version} "
+	[content]="${version}, text editor (insanity) in bash. repo: https://github.com/Pan00Pernicek/spis; based on https://github.com/comfies/bed"
 )
+
+winhelpf() { unset window; declare -n window=winhelp; float; }
 winhelp=(
-	[sizex]="60"
-	[sizey]="20"
+	[sizex]="60"	[sizey]="20"
 	[title]=" Floating window help "
 	[content]="Use arrow keys to move the window and / to decrease its width, * to increase, + to increase its height and - to decrease"
 )
+
+wininfo() { unset window; declare -n window=wininfo; wininfo[content]="type: $filetype"; float; }
 wininfo=(
-	[sizex]="60"
-	[sizey]="20"
+   	[sizex]="60"	[sizey]="20"
 	[title]=" File info "
 	#content is set in fucntion, so it can dynamicaly update
 )
-about() {
-	unset window
-	declare -n window=about
-	makefloatwin
-}
-winhelpf() {
-	unset window
-	declare -n window=winhelp
-	makefloatwin
-}
-wininfo() {
-	unset window
-	declare -n window=wininfo
-	wininfo[content]="type: $filetype"
-	makefloatwin
-}
+
+dialogquit() { unset window; declare -n window=wininfo; float; }
+dialogquit=(
+	[sizex]="60"	[sizey]="20"
+	[title]=" Quit? "
+	[type]="choose"
+	[interact]="quitmenu"
+	[content]="Quit and save?"
+)
 
 #internal
 
@@ -177,41 +150,55 @@ refresh() {
 	megaredraw
 	redraw
 }
-makefloatwin() {
+float() {
+   change=true
 	floatsizex="${window[sizex]}"
 	floatsizey="${window[sizey]}"
 	floatpositionx=$(( ( COLUMNS / 2 ) - ( floatsizex / 2 )  ))
 	floatpositiony=$(( ( LINES / 2 ) - ( floatsizey / 2 ) ))
-	floatwin
+	case "${window[type]}" in
+		'yesno') recmd='floatyesno' ;;
+		*) recmd='floatwin' ;;
+	esac
+	"$recmd"
 }
 floatwin() {
-	printf '\e[?25l'
-	printf '\e[%s;%sH' $floatpositiony $floatpositionx
-	printf "${style[windowline]}%*s\r" $floatsizex
-	printf '\e[%s;%sH' $floatpositiony $floatpositionx
-	printf '%s\e[m' "${window[title]}"
-	local -i rsizey=$(( floatsizey - 1 ))
-	local -i csizex=0
-	for ((i=1;i<=rsizey;i++)); do
-		printf "\e[%s;%sH${style[windowcontent]}%*s\r" $(( floatpositiony + i )) $floatpositionx "$floatsizex"
-		printf '\e[%s;%sH%s\n' $(( floatpositiony + i )) $floatpositionx "${window[content]:csizex:floatsizex}"
-		csizex=$(( csizex + floatsizex ))
+	while true; do
+		[ "$change" = true ] && {
+			redraw
+			printf '\e[%s;%sH' $floatpositiony $floatpositionx
+			printf "${style[windowline]}%*s\r" $floatsizex
+			printf '\e[%s;%sH' $floatpositiony $floatpositionx
+			printf '%s\e[m' "${window[title]}"
+			local -i rsizey=$(( floatsizey - 1 ))
+			local -i csizex=0
+			for ((i=1;i<=rsizey;i++)); do
+				printf "\e[%s;%sH${style[windowcontent]}%*s\r" $(( floatpositiony + i )) $floatpositionx "$floatsizex"
+				printf '\e[%s;%sH%s\n' $(( floatpositiony + i )) $floatpositionx "${window[content]:csizex:floatsizex}"
+				csizex=$(( csizex + floatsizex ))
+			done
+		}
+		winkey
+		[ $? = 69 ] && return
 	done
+}
+winkey() {
+	change=true
 	printf '\e[m'
 	local -a kbd=()
     if read -rsN1 kbd[0]; then # Check for ready input
 		while read -rsN1 -t0.0001 kbd[$i]; do ((i++)); done # Multibyte hack
 		case "$(printf '%s' "${kbd[@]}")" in
-			"${windowkey[up]}"*) (redraw); ((floatpositiony--)); floatwin ;;
-			"${windowkey[down]}"*) (redraw); ((floatpositiony++)); floatwin ;;
-			"${windowkey[right]}"*) (redraw); ((floatpositionx++)); floatwin ;;
-			"${windowkey[left]}"*) (redraw); ((floatpositionx--)); floatwin ;;
-			
-			"${windowkey[vsizem]}") (redraw); ((floatsizey--)); floatwin ;;
-		    "${windowkey[vsizep]}") (redraw); ((floatsizey++)); floatwin ;;
-		    "${windowkey[hsizem]}") (redraw); ((floatsizex--)); floatwin ;;
-			"${windowkey[hsizep]}") (redraw); ((floatsizex++)); floatwin ;;
-			*) redraw; printf '\e[?25h'; return ;;
+			"${windowkey[up]}"*) ((floatpositiony--)) && (( floatpositiony < 1 )) && floatpositiony=1 && change=false ;;
+			"${windowkey[down]}"*) ((floatpositiony++)) && (( floatpositiony > LINES - floatsizey )) && floatpositiony=$(( LINES - floatsizey )) && change=false ;;
+			"${windowkey[right]}"*) ((floatpositionx++)) && (( floatpositionx > 1 + COLUMNS - floatsizex )) && floatpositionx=$(( 1 + COLUMNS - floatsizex )) && change=false ;;
+			"${windowkey[left]}"*) ((floatpositionx--)) && (( floatpositionx < 1 )) && floatpositionx=1 && change=false ;;
+			"${windowkey[vsizem]}") ((floatsizey--)) ;;
+		    "${windowkey[vsizep]}") ((floatsizey++)) ;;
+		    "${windowkey[hsizem]}") ((floatsizex--)) ;;
+			"${windowkey[hsizep]}") ((floatsizex++)) ;;
+			*)	redraw
+				return 69 ;;
 		esac
 	fi
 }
@@ -221,7 +208,7 @@ builtin_syntax_bash() {
 		'"$') colour 0 36 48 "${word}"; return ;;
 	esac
 	case "${word:0:1}" in
-		'#') colour 0 37 48 "${word}" && comment=true; return;;
+		'#') colour 3 37 48 "${word}" && comment=true; return;;
 		'$') colour 0 96 108 "${word}"; return ;;
 		'-') colour 0 93 108 "${word}"; return ;;
 	esac
