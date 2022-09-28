@@ -9,14 +9,15 @@ trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
 trap quit INT
 trap quit SIGTERM
 
-declare -A syntax menuline menufile menuhelp menukey style about winhelp windowkey editkey wininfo stroke
+declare -A syntax menuline menufile menuhelp menukey style about winhelp windowkey editkey wininfo stroke options
 declare -a buffer buffersyntax hexkey
 declare -i line base rl
 declare -n menucon window
-declare file message modified filetype enable_mouse comment stringone stringtwo reservedlines recmd
+declare file message modified filetype comment stringone stringtwo reservedlines recmd pickedfile
 
 printf "\e[?1049h" #switch to alternative buffer
 
+cwd="$PWD"
 version="Spis dev"
 buffer=() # File contents
 buffersyntax=() # File contents
@@ -26,9 +27,12 @@ rl=0 # how left or right the cursor is
 file= # Currently addressed file
 message="${version}: insanity" # Feedback text in the status bar
 modified=false # Tracking whether a file was modified
-enable_mouse=true # Xterm mouse support
 reservedlines=2 # Number of lines not displaying file
 
+options=(
+	[mouse]=true
+	[todonote]=false
+)
 editkey=(
 	[up]=$'\E[A'	[down]=$'\E[B'	[right]=$'\E[C'
 	[left]=$'\E[D'	[pgup]=$'\E[5~'	[pgdown]=$'\E[5~'
@@ -56,12 +60,13 @@ stroke=(
 style=(
 	[TODO]='\e[3;45m'
 	[NOTE]='\e[3;47m'
-	[menuline]='\e[107;30m'
-	[windowline]='\e[107;30m'
-	[menuitem]='\e[107;30m'
-	[windowcontent]='\e[30;47m'
-	[menuitemselected]='\e[30;47m'
-	[infoline]='\e[107;30m'
+	[menuline]='\e[0;35;40m'
+	[windowline]='\e[0;45;30m'
+	[menuitem]='\e[0;35;40m'
+	[windowcontent]='\e[97;40m'
+	[selected]='\e[105;30m'
+	[menuitemselected]='\e[45;97m'
+	[infoline]='\e[45;30m'
 	[number]='\e[0;90m'
 	[numberselected]='\e[0;97m'
 )
@@ -76,11 +81,12 @@ menuline=(
 
 menufile() { unset menucon; declare -n menucon=menufile; menu; }
 menufile=(
-	[Close   C-x ]="quit"
-	[Open    M-r ]="set_buffer_file"
-	[Execute C-t ]="execute"
-	[Save    C-o ]="write_buffer"
-	[Info        ]="wininfo"
+	[Close    C-x ]="quit"
+	[Open loc M-r ]="set_buffer_file"
+	[Execute  C-t ]="execute"
+	[Save     C-o ]="write_buffer"
+	[File picker  ]="filepick"
+	[Info         ]="wininfo"
 )
 
 menuhelp() { unset menucon; declare -n menucon=menuhelp; menu; }
@@ -128,7 +134,7 @@ winhelp=(
 	[content]="Use arrow keys to move the window and / to decrease its width, * to increase, + to increase its height and - to decrease"
 )
 
-wininfo() { unset window; declare -n window=wininfo; wininfo[content]="type: $filetype"; float; }
+wininfo() { unset window; declare -n window=wininfo; wininfo[content]="name: $file; type: $filetype"; float; }
 wininfo=(
    	[sizex]="60"	[sizey]="20"
 	[title]=" File info "
@@ -288,10 +294,10 @@ set_buffer_file() {
     fi
     bind 'set disable-completion on' 2>/dev/null
 }
-
 read_buffer() {
 	filetype="$(filetype "$1")"
-    set_buffer_file "$1" # Update target file (pass on default if present)
+    #set_buffer_file "$1" # Update target file (pass on default if present)
+	file="$1"
     mapfile -t -O 1 buffer <"$file" # Read file into an array
     pipesyntax < "$file" | mapfile -t -O 1 buffersyntax  # Read file into an array
     if [[ "${buffer[1]}" ]]; then # Ensure that something was actually read into the file
@@ -301,6 +307,73 @@ read_buffer() {
     else
         message="{$file}: empty"
     fi
+}
+pickprep() {
+	printf "\033c" # clear the screen
+    printf "${style[windowline]}%s\e[?25l%*s\r" "Open file..." "$(( $COLUMNS - 12 ))"
+	printf "${style[windowcontent]}\n"
+	for ((i=3;i<=$LINES;i+=1)); do
+		printf '%*s\n' "$COLUMNS"
+	done
+	printf "${style[infoline]}\e[?25l%*s\r" "$COLUMNS"
+	printf 'bottom info bar'
+	printf "${style[windowcontent]}"
+	printf "\033[2;0H"
+}
+filepick() {
+	dc=0
+	local -i ik=1
+	pickprep
+	pickdraw
+	local -a kb=()
+	while true; do
+		if read -rsN1 -t"${BED_REFRESH_TIMEOUT:=0.01}" kb[0]; then # Check for ready input
+			while read -rsN1 -t0.0001 kb[$ik]; do ((ik++)); done # Multibyte hack
+			case "$(printf '%s' "${kb[@]}")" in
+				${editkey[up]}*) ((dc--)) ;;
+				${editkey[down]}*) ((dc++)) ;;
+				'')
+					#return to starting dir
+					if [ -d "${direc[dc]}" ]; then
+						cd "${direc[dc]}"
+						pickprep
+					else
+						printf '\e[?1047h' # Switch to alternative buffer
+						echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
+						read_buffer "${direc[dc]}"
+						redraw
+						break
+					fi
+					;;
+				*) continue;;
+			esac
+			(( "$dc" > ( "${#direc[@]}" - 1))) && ((dc--)) && continue
+			(( "$dc" < 0 )) && ((dc++)) && continue
+		fi
+		kb=()
+		pickdraw
+		printf "\033[%s;0H" $LINES
+		printf "${style[infoline]}\e[?25l%*s\r" "$COLUMNS"
+		printf '%s:%s' "$dc" "${direc[dc]}"
+	done
+}
+pickdraw() {
+	printf "\033[2;0H"
+	direc=($(pickls))
+	for il in "${!direc[@]}"; do
+		if [ $dc = $il ]; then
+			printf "${style[selected]}\e[?25l%*s\r" "$COLUMNS"
+			printf "%s\n" "${direc[il]}"
+		else
+			printf "${style[windowcontent]}\e[?25l%*s\r" "$COLUMNS"
+			printf "%s\n" "${direc[il]}"
+		fi
+	done
+	printf "${style[windowcontent]}\e[?25l%*s\r" "$COLUMNS" #fixes some stuff
+}
+pickls() {
+	printf '..\n'
+	printf '%s\n' *
 }
 
 write_buffer() {
@@ -445,8 +518,8 @@ die() {
     exit "${errno:-0}" # Assume that we are exiting without an error
 }
 mtoggle() {
-	[ "$enable_mouse" = true ] && echo -ne "\e[?1000;1006;1015l" && enable_mouse=false && return
-	[ "$enable_mouse" = false ] && echo -ne "\e[?1000;1006;1015h" && enable_mouse=true && return
+	[ "${options[mouse]}" = true ] && echo -ne "\e[?1000;1006;1015l" && options[mouse]=false && return
+	[ "${options[mouse]}" = false ] && echo -ne "\e[?1000;1006;1015h" && options[mouse]=true && return
 }
 menuclick() {
 	#determine which item should be triggered
@@ -504,11 +577,15 @@ redraw() {
     for ((i = base; i - base < LINES - reservedlines; i++)); do # Iterate over shown lines
         ((i != line)) && printf "${style[number]}" # Fade line number if not selected
         ((i > ${#buffer[@]})) && printf "\n${style[number]}\e[K   ~\e[m" || \
-            case "${buffer[i]}" in
-                *"TODO: "*|*TODO:) printf "\n\e[K%4s\e[m ${style[TODO]}%s\033[0;0m" "$i" "$(printf '%s' "${buffer[i]}" | tabrenderraw)";;
-                *"NOTE: "*|*NOTE:) printf "\n\e[K%4s\e[m ${style[NOTE]}%s\033[0;0m" "$i" "$(printf '%s' "${buffer[i]}" | tabrenderraw)";;
-				*) printf "\n\e[K%4s\e[m %s" "$i" "${buffersyntax[i]}";;
-            esac
+			if [ "${options[todonote]}" = true ]; then
+				case "${buffer[i]}" in
+					*"TODO: "*|*TODO:) printf "\n\e[K%4s\e[m ${style[TODO]}%s\033[0;0m" "$i" "$(printf '%s' "${buffer[i]}" | tabrenderraw)";;
+					*"NOTE: "*|*NOTE:) printf "\n\e[K%4s\e[m ${style[NOTE]}%s\033[0;0m" "$i" "$(printf '%s' "${buffer[i]}" | tabrenderraw)";;
+					*) printf "\n\e[K%4s\e[m %s" "$i" "${buffersyntax[i]}";;
+				esac
+			else
+				printf "\n\e[K%4s\e[m %s" "$i" "${buffersyntax[i]}"
+			fi
             #TODO: make proper coloring based on variable for future config
 	done
 	(printf "\n\e[?25l${style[infoline]}%*s\r %s (%s,%s)\e[m" \
@@ -592,9 +669,11 @@ main() {
     printf '\e[?1047h' # Switch to alternative buffer
     echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
     if [[ "$1" ]]; then # If a file was provided in the terminal pre-load it
-        redraw # Draw out the UI before loading file
+        #redraw # Draw out the UI before loading file
         read_buffer "$1"
-    fi
+    else
+		filepick
+	fi
     redraw
     while true; do
         local -a k=()
