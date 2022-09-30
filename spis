@@ -9,7 +9,7 @@ trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
 trap quit INT
 trap quit SIGTERM
 
-declare -A syntax menuline menufile menuhelp menukey style about winhelp windowkey editkey wininfo stroke options
+declare -A syntax menuline menufile menuhelp menukey menudebug style about winhelp windowkey editkey wininfo stroke options
 declare -a buffer buffersyntax hexkey
 declare -i line base rl offsetst offseten
 declare -n menucon window
@@ -79,6 +79,7 @@ windowkey=(
 menuline=(
 	[File]=menufile	[Help]=menuhelp
 	[Keys]=menukey	[Redraw]=refresh
+	[Debug]=menudebug
 )
 
 menufile() { unset menucon; declare -n menucon=menufile; menu; }
@@ -113,6 +114,19 @@ menukey=(
 	[Next Page    C-v ]="page_down"
 	[Execute      C-t ]="execute"
 	[Shell        C-s ]="shell"
+)
+
+menudebug() { unset menucon; declare -n menucon=menudebug; menu; }
+menudebug=(
+	[clear      ]=clr
+	[refresh    ]=refresh
+	[screen init]=scrinit
+	[pickdraw **]=pickdraw
+	[die      **]=die
+	[main     **]=main
+	[backspace  ]=backspace
+	[right      ]=right
+	[left       ]=left
 )
 
 syntax=(
@@ -171,8 +185,9 @@ scrinit() {
 	printf '\e[?1047h' # Switch to alternative buffer
     [ "${options[mouse]}" = true ] && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
 }
+
 float() {
-   change=true
+	change=true
 	floatsizex="${window[sizex]}"
 	floatsizey="${window[sizey]}"
 	floatpositionx=$(( ( COLUMNS / 2 ) - ( floatsizex / 2 )  ))
