@@ -13,11 +13,10 @@ declare -A syntax menuline menufile menuhelp menukey style about winhelp windowk
 declare -a buffer buffersyntax hexkey
 declare -i line base rl offsetst offseten
 declare -n menucon window
-declare file message modified filetype comment stringone stringtwo reservedlines recmd pickedfile
+declare file message modified filetype comment stringone stringtwo reservedlines recmd
 
 printf "\e[?1049h" #switch to alternative buffer
 
-cwd="$PWD"
 version="Spis dev"
 buffer=() # File contents
 buffersyntax=() # File contents
@@ -32,6 +31,8 @@ reservedlines=2 # Number of lines not displaying file
 options=(
 	[mouse]=true
 	[todonote]=false
+	[defx]=$(( COLUMNS / 2 ))
+	[defy]=$(( LINES / 2 ))
 )
 editkey=(
 	[up]=$'\E[A'	[down]=$'\E[B'	[right]=$'\E[C'
@@ -123,28 +124,28 @@ syntax=(
 
 about() { unset window; declare -n window=about; float; }
 about=(
-	[sizex]="60"	[sizey]="20"
+	[sizex]="${options[defx]}"	[sizey]="${options[defy]}"
 	[title]=" About ${version} "
 	[content]="${version}, text editor (insanity) in bash. repo: https://github.com/Pan00Pernicek/spis; based on https://github.com/comfies/bed"
 )
 
 winhelpf() { unset window; declare -n window=winhelp; float; }
 winhelp=(
-	[sizex]="60"	[sizey]="20"
+	[sizex]="${options[defx]}"	[sizey]="${options[defy]}"
 	[title]=" Floating window help "
 	[content]="Use arrow keys to move the window and / to decrease its width, * to increase, + to increase its height and - to decrease"
 )
 
 wininfo() { unset window; declare -n window=wininfo; wininfo[content]="name: $file; type: $filetype"; float; }
 wininfo=(
-   	[sizex]="60"	[sizey]="20"
+   	[sizex]="${options[defx]}"	[sizey]="${options[defy]}"
 	[title]=" File info "
 	#content is set in fucntion, so it can dynamicaly update
 )
 
 dialogquit() { unset window; declare -n window=wininfo; float; }
 dialogquit=(
-	[sizex]="60"	[sizey]="20"
+	[sizex]="${options[defx]}"	[sizey]="${options[defy]}"
 	[title]=" Quit? "
 	[type]="choose"
 	[interact]="quitmenu"
@@ -153,9 +154,22 @@ dialogquit=(
 
 #internal
 
+clr() {
+	printf "\033c" # clear
+}
 refresh() {
+	clr
+	message="reloaded..."
+	hasrefresh=true
 	megaredraw
 	redraw
+	scrinit
+	hasrefresh=false
+	message=
+}
+scrinit() {
+	printf '\e[?1047h' # Switch to alternative buffer
+    [ "${options[mouse]}" = true ] && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
 }
 float() {
    change=true
@@ -310,7 +324,7 @@ read_buffer() {
     fi
 }
 pickprep() {
-	printf "\033c" # clear the screen
+	clr
     printf "${style[windowline]}%s\e[?25l%*s\r" "Open file..." "$(( $COLUMNS - 12 ))"
 	printf "${style[windowcontent]}\n"
 	for ((i=3;i<=$LINES;i+=1)); do
@@ -587,7 +601,11 @@ menu() {
 	done
 }
 redraw() {
-	printf "\e[0m\e[H${style[menuline]}\e[?25l%*s\r" "$COLUMNS" 
+	if [ "$hasrefresh" = true ]; then
+		printf "\e[0m\e[H${style[windowline]}\e[?25l%*s\r" "$COLUMNS"
+	else
+		printf "\e[0m\e[H${style[menuline]}\e[?25l%*s\r" "$COLUMNS"
+	fi
 	printf '%s ' "${!menuline[@]}"
 	printf '\e[0m'
     for ((i = base; i - base < LINES - reservedlines; i++)); do # Iterate over shown lines
@@ -635,9 +653,10 @@ keytype() {
 		hexkey[i]="$(printf "%x\n" "'${1:$i}")"
 		((i++))
 	done
-#	clear        #stuff for debugging
-#	echo "${hexkey[@]}" #stuff for debugging
-#	read -rsn1         #stuff for debugging
+	#clear        #stuff for debugging
+	#echo "${hexkey[@]}" #stuff for debugging
+	#message="${hexkey[@]}"
+	#read -rsn1         #stuff for debugging
 	
 	for str in "${!stroke[@]}"; do
 		[ "$str" = "${hexkey[*]}" ] && "${stroke[$str]}" && return
@@ -666,7 +685,18 @@ keytype() {
 		}
 		#limitations of movenment
 		[ $y = 1 ] && menuclick $x && return #handle menuline
-		[ $x -lt 6 ] && return
+		[ $x -lt 6 ] && {
+			if [ "$mode" = 0 ]; then
+				line=$(( base + ( y - 2 ) ))
+				redraw
+			elif [ "$mode" = 2 ]; then #VERY BAD SOLUTION, TODO: FIX
+				clr
+				echo enter line number
+				read -r line
+				redraw
+			fi
+			return
+		}
 		line=$(( base + ( y - 2 ) ))
 		rl=$(( x - 6 ))
 		((line > ${#buffer[@]})) && line=${#buffer[@]}
@@ -682,8 +712,7 @@ keytype() {
 	modified=true
 }
 main() {
-    printf '\e[?1047h' # Switch to alternative buffer
-    echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
+	scrinit
     if [[ "$1" ]]; then # If a file was provided in the terminal pre-load it
         #redraw # Draw out the UI before loading file
         read_buffer "$1"
