@@ -30,7 +30,7 @@ reservedlines=2 # Number of lines not displaying file
 
 options=(
 	[mouse]=true
-	[todonote]=false
+	[todonote]=true
 	[defx]=$(( COLUMNS / 2 ))
 	[defy]=$(( LINES / 2 ))
 )
@@ -717,13 +717,12 @@ main() {
         #redraw # Draw out the UI before loading file
         read_buffer "$1"
     else
-		filepick
+		filepick # enter the file selector
 	fi
     redraw
     while true; do
         local -a k=()
-        local -i i=1
-        
+        local -i i=1    
         if read -rsN1 -t"${BED_REFRESH_TIMEOUT:=1}" k[0]; then # Check for ready input
            while read -rsN1 -t0.0001 k[$i]; do ((i++)); done # Multibyte hack
             keytype "$(printf '%s' "${k[@]}")" # Handle keypress event
@@ -732,8 +731,8 @@ main() {
 }
 pipesyntax() {
 	comment=false
-	stringone=false
-	stringtwo=false
+	#stringone=false
+	#stringtwo=false
 	word=
 	bckIFS="${IFS}"
 	IFS=
