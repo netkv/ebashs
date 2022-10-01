@@ -140,7 +140,7 @@ about() { unset window; declare -n window=about; float; }
 about=(
 	[sizex]="${options[defx]}"	[sizey]="${options[defy]}"
 	[title]=" About ${version} "
-	[content]="${version}, text editor (insanity) in bash. repo: https://github.com/Pan00Pernicek/spis; based on https://github.com/comfies/bed"
+	[content]="${version}, text editor (insanity) in bash. repo: https://github.com/nyeta/spis; based on https://github.com/comfies/bed"
 )
 
 winhelpf() { unset window; declare -n window=winhelp; float; }
