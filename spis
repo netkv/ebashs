@@ -9,8 +9,8 @@ trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
 trap quit INT
 trap quit SIGTERM
 
-declare -A syntax menuline menufile menuhelp menukey menudebug style about winhelp windowkey editkey wininfo stroke options
-declare -a buffer buffersyntax hexkey
+declare -A syntax menuline menufile menuhelp menukey menudebug style about winhelp windowkey editkey wininfo stroke options dialogquit dialogquitmenu
+declare -a buffer buffersyntax hexkey optdc
 declare -i line base rl offsetst offseten
 declare -n menucon window
 declare file message modified filetype comment stringone stringtwo reservedlines recmd rst
@@ -28,12 +28,20 @@ message="${version}: insanity" # Feedback text in the status bar
 modified=false # Tracking whether a file was modified
 reservedlines=2 # Number of lines not displaying file
 
+## config options
+
 options=(
 	[mouse]=true
 	[todonote]=true
 	[defx]=$(( COLUMNS / 2 ))
-	[defy]=$(( LINES / 2 ))
+	[defy]=$(( LINES /2 ))
 	[timeout]=0.01
+	[tabchar]="."
+	[tabchar_alt]=" "
+	[refresh_timeout]=1
+	[file_prompt]="Path: "
+	[button_margin]=2
+	[button_padding]=4
 )
 editkey=(
 	[up]=$'\E[A'	[down]=$'\E[B'	[right]=$'\E[C'
@@ -67,6 +75,7 @@ style=(
 	[menuitem]='\e[0;35;40m'
 	[windowcontent]='\e[97;40m'
 	[selected]='\e[105;30m'
+	[button]='\e[0;97;100m'
 	[interactive]='\e[95;40m'
 	[menuitemselected]='\e[45;97m'
 	[infoline]='\e[45;30m'
@@ -140,6 +149,7 @@ menudebug=(
 	[backspace  ]=backspace
 	[right      ]=right
 	[left       ]=left
+	[dialogquit ]=dialogquit
 )
 
 syntax=(
@@ -160,7 +170,7 @@ winhelpf() { unset window; declare -n window=winhelp; float; }
 winhelp=(
 	[sizex]="${options[defx]}"	[sizey]="${options[defy]}"
 	[title]=" Floating window help "
-	[content]="Use arrow keys to move the window and / to decrease its width, * to increase, + to increase its height and - to decrease"
+	[content]="Use tab key to switch focus. When focused on window itself use arrow keys to move the window and / to decrease its width, * to increase, + to increase its height and - to decrease. When focused on choose menu, use left and right arrow to select."
 )
 
 wininfo() { unset window; declare -n window=wininfo; wininfo[content]="name: $file; type: $filetype"; float; }
@@ -170,17 +180,23 @@ wininfo=(
 	#content is set in fucntion, so it can dynamicaly update
 )
 
-dialogquit() { unset window; declare -n window=wininfo; float; }
+dialogquit() { unset window; declare -n window=dialogquit; float; }
 dialogquit=(
 	[sizex]="${options[defx]}"	[sizey]="${options[defy]}"
-	[title]=" Quit? "
+	[title]="Unsaved work"
+	[content]="Buffer modified, save before close?"
 	[type]="choose"
-	[interact]="quitmenu"
-	[content]="Quit and save?"
+	[options]="dialogquitmenu"
+	[default]="save"
+	[focus]="choose"
+)
+dialogquitmenu=(
+	[save]="write_buffer; die"
+	[quit]="die"
+	[cancel]="redraw; return 69"
 )
 
-#internal
-
+## rest of this garbageware
 
 rst='\e[0;0m'
 clr() {
@@ -202,16 +218,32 @@ scrinit() {
 }
 
 float() {
+	local -i dci=0
 	change=true
 	floatsizex="${window[sizex]}"
 	floatsizey="${window[sizey]}"
 	floatpositionx=$(( ( COLUMNS / 2 ) - ( floatsizex / 2 )  ))
 	floatpositiony=$(( ( LINES / 2 ) - ( floatsizey / 2 ) ))
+	if [ -z "${window[focus]}" ]; then
+		focus=window
+	else
+		focus="${window[focus]}"
+	fi
 	case "${window[type]}" in
-		'yesno') recmd='floatyesno' ;;
-		*) recmd='floatwin' ;;
+		'choose')
+			unset chooseopt
+			declare -n chooseopt="${window[options]}"
+			selopt="${window[default]}"
+			for is in "${!chooseopt[@]}"; do
+				optdc[dci]="$is"
+				if [ "$is" = "${selopt}" ]; then
+					   seloptdc=$dci
+				   fi
+				((dci++))
+			done
+			;;
 	esac
-	"$recmd"
+	floatwin
 }
 floatwin() {
 	while true; do
@@ -228,9 +260,54 @@ floatwin() {
 				printf '\e[%s;%sH%s\n' $(( floatpositiony + i )) $floatpositionx "${window[content]:csizex:floatsizex}"
 				csizex=$(( csizex + floatsizex ))
 			done
+			#draw selection menu
+			case "${window[type]}" in
+				'choose')
+					floatchoose;;
+			esac
 		}
 		winkey
 		[ $? = 69 ] && return
+	done
+}
+floatchoose() {
+	local -i bm=${options[button_margin]}
+	local -i bp=${options[button_padding]}
+	local all="${!chooseopt[*]}"
+	local -i stx=$((floatpositionx + floatsizex - ${#all} - ${#chooseopt[*]} * 2 * bp - ${#chooseopt[*]} * ( bm - 1 ) - 1 ))
+	local -i sty=$((floatpositiony + floatsizey - 2))
+	(
+		for opt in ${!chooseopt[@]}; do
+			printf '\e[%s;%sH' $sty $stx
+			if [ "$opt" = "$selopt" ]; then
+				printf "${style[selected]}%*s" $(( ${#opt} + bp * 2 ))
+			else
+				printf "${style[button]}%*s" $(( ${#opt} + bp * 2 ))
+			fi
+			stx=$((stx + ${#opt} + bp * 2 + bm))
+		done
+	)
+	((sty--))
+	(
+		for opt in ${!chooseopt[@]}; do
+			printf '\e[%s;%sH' $sty $stx
+			if [ "$opt" = "$selopt" ]; then
+				printf "${style[selected]}%*s${opt}%*s" $bp ' ' $bp ' '
+			else
+				printf "${style[button]}%*s${opt}%*s" $bp ' ' $bp ' '
+			fi
+		    stx=$((stx + ${#opt} + bp * 2 + bm))
+		done
+	)
+	((sty--))
+	for opt in ${!chooseopt[@]}; do
+		printf '\e[%s;%sH' $sty $stx
+		if [ "$opt" = "$selopt" ]; then
+			printf "${style[selected]}%*s" $(( ${#opt} + bp * 2 ))
+		else
+			printf "${style[button]}%*s" $(( ${#opt} + bp * 2 ))
+		fi
+		stx=$((stx + ${#opt} + bp * 2 + bm))
 	done
 }
 winkey() {
@@ -239,17 +316,45 @@ winkey() {
 	local -a kbd=()
     if read -rsN1 kbd[0]; then # Check for ready input
 		while read -rsN1 -t0.0001 kbd[$i]; do ((i++)); done # Multibyte hack
+		case "$focus" in
+			window)
+				case "$(printf '%s' "${kbd[@]}")" in
+					"${windowkey[up]}"*) ((floatpositiony--)) && (( floatpositiony < 1 )) && floatpositiony=1 && change=false ;;
+					"${windowkey[down]}"*) ((floatpositiony++)) && (( floatpositiony > LINES - floatsizey )) && floatpositiony=$(( LINES - floatsizey )) && change=false ;;
+					"${windowkey[right]}"*) ((floatpositionx++)) && (( floatpositionx > 1 + COLUMNS - floatsizex )) && floatpositionx=$(( 1 + COLUMNS - floatsizex )) && change=false ;;
+					"${windowkey[left]}"*) ((floatpositionx--)) && (( floatpositionx < 1 )) && floatpositionx=1 && change=false ;;
+					"${windowkey[vsizem]}") ((floatsizey--)) ;;
+					"${windowkey[vsizep]}") ((floatsizey++)) ;;
+					"${windowkey[hsizem]}") ((floatsizex--)) ;;
+					"${windowkey[hsizep]}") ((floatsizex++)) ;;
+					'	') true;;
+					*) redraw; return 69;;
+				esac
+				;;
+			choose)
+				case "$(printf '%s' "${kbd[@]}")" in
+					"${windowkey[right]}"*) ((seloptdc++)); (( seloptdc > ( ${#chooseopt[*]} - 1 ) )) && seloptdc=$(( ${#chooseopt[*]} - 1 ));;
+					"${windowkey[left]}"*) ((seloptdc--)); ((seloptdc<0)) && seloptdc=0;;
+					'')
+						eval "${chooseopt[$selopt]}";;
+				esac
+				selopt="${optdc[seloptdc]}"
+				;;
+		esac
 		case "$(printf '%s' "${kbd[@]}")" in
-			"${windowkey[up]}"*) ((floatpositiony--)) && (( floatpositiony < 1 )) && floatpositiony=1 && change=false ;;
-			"${windowkey[down]}"*) ((floatpositiony++)) && (( floatpositiony > LINES - floatsizey )) && floatpositiony=$(( LINES - floatsizey )) && change=false ;;
-			"${windowkey[right]}"*) ((floatpositionx++)) && (( floatpositionx > 1 + COLUMNS - floatsizex )) && floatpositionx=$(( 1 + COLUMNS - floatsizex )) && change=false ;;
-			"${windowkey[left]}"*) ((floatpositionx--)) && (( floatpositionx < 1 )) && floatpositionx=1 && change=false ;;
-			"${windowkey[vsizem]}") ((floatsizey--)) ;;
-		    "${windowkey[vsizep]}") ((floatsizey++)) ;;
-		    "${windowkey[hsizem]}") ((floatsizex--)) ;;
-			"${windowkey[hsizep]}") ((floatsizex++)) ;;
-			*)	redraw
-				return 69 ;;
+			'	')
+				case "${window[type]}" in
+					'choose')
+						if [ $focus = window ]; then
+							focus=choose
+							selopt="${optdc[seloptdc]}"
+						else
+							focus=window
+							selopt=''
+						fi
+						;;
+				esac
+				;;
 		esac
 	fi
 }
@@ -334,7 +439,7 @@ set_buffer_file() {
 	printf '\e[D\033[1;93;108m' #make prompt nicer
     bind 'set disable-completion off' 2>/dev/null # Enable completion
     printf '\e[?25h' # Enable cursor
-    if read -rei "$1$file" -p "${BED_FILE_PROMPT:=Path: }" file; then
+    if read -rei "$1$file" -p "${file_prompt}" file; then
         modified=true
     fi
     bind 'set disable-completion on' 2>/dev/null
@@ -456,7 +561,7 @@ tabrender(){
 	while read -rsn1 char
 	do
 		[ "$char" = " " ] && printf ' ' && continue
-		[ "$char" = "	" ] && printf '\033[0;37;48m%s\033[0;0m' "${BANO_RENDER_TAB:=.}" && continue
+		[ "$char" = "	" ] && printf '\033[0;37;48m%s\033[0;0m' "${options[tabchar]}" && continue
 		printf '%s' "$char"
 	done
 	IFS="$IFSbck"
@@ -467,7 +572,7 @@ tabrenderraw(){
 	while read -rsn1 char
 	do
 		[ "$char" = " " ] && printf ' ' && continue
-		[ "$char" = "	" ] && printf '%s' "${BANO_RENDER_TAB_ALT:= }" && continue
+		[ "$char" = "	" ] && printf '%s' "${options[tabchar_alt]}" && continue
 		printf '%s' "$char"
 	done
 	IFS="$IFSbck"
@@ -491,6 +596,14 @@ delete_line() {
 }
 
 quit() {
+	if [[ "$modified" == "true" ]]; then
+		dialogquit
+	else
+		die
+	fi
+
+}
+quit_old() {
 	printf '\e[%s;0H' "${LINES}"
 	printf '\e[D\033[1;93;108m' #make prompt nicer
     if [[ "$modified" == "true" ]]; then
@@ -754,7 +867,7 @@ main() {
     while true; do
         local -a k=()
         local -i i=1    
-        if read -rsN1 -t"${BED_REFRESH_TIMEOUT:=1}" k[0]; then # Check for ready input
+        if read -rsN1 -t${options[refresh_timeout]} k[0]; then # Check for ready input
            while read -rsN1 -t0.0001 k[$i]; do ((i++)); done # Multibyte hack
             keytype "$(printf '%s' "${k[@]}")" # Handle keypress event
         fi

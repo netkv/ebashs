@@ -1,36 +1,5 @@
 #!/bin/bash
-n
-
-fsfsklfsflksmfslksfklmfllfkmfssfmklmfklsfmklsfdkfssfbabsdklmsfdkae
-
-asss -e -ueioo
-
-
-
-NOTE: what
-++++++++++++++++hi
-		TODO: do fucking something nice
-																									ae
-hello i do echhello i do echo
-$pwd
-
-
-${ls}
-"$ae"
-
-Linux
-[B
-"${tf}"
-'idk'"ls" "ls" 'tf'idk'"ls" "ls" 'tf'
-a=n
-oe() {
-			pwd
-
+wtf() {
+	true
+	return $(( 0 + 1))
 }
-idk
-
-$a 
-"$e"
-"ae"
-'ea'
-
