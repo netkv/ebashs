@@ -70,17 +70,18 @@ stroke=(
 style=(
 	[TODO]='\e[3;45m'
 	[NOTE]='\e[3;47m'
-	[menuline]='\e[0;35;40m'
-	[windowline]='\e[0;45;30m'
-	[menuitem]='\e[0;35;40m'
+	[menuline]='\e[0;37;40m'
+	[windowline]='\e[0;97;100m'
+	[menuitem]='\e[0;37;40m'
 	[windowcontent]='\e[97;40m'
-	[selected]='\e[105;30m'
+	[selected]='\e[30;41m'
 	[button]='\e[0;97;100m'
 	[interactive]='\e[95;40m'
-	[menuitemselected]='\e[45;97m'
-	[infoline]='\e[45;30m'
-	[number]='\e[0;90m'
-	[numberselected]='\e[0;97m'
+	[menuitemselected]='\e[30;41m'
+	[infoline]='\e[40;97m'
+	[number]='\e[0;37m'
+	[numberempty]='\e[0;90m'
+	[numberselected]='\e[0;91m'
 	#syntax
 	[quotevar]='\e[0;36;48m'
 	[comment]='\e[3;37;48m'
@@ -182,11 +183,12 @@ wininfo=(
 
 dialogquit() { unset window; declare -n window=dialogquit; float; }
 dialogquit=(
-	[sizex]="${options[defx]}"	[sizey]="${options[defy]}"
+	[sizex]=46 [sizey]=8
 	[title]="Unsaved work"
 	[content]="Buffer modified, save before close?"
 	[type]="choose"
 	[options]="dialogquitmenu"
+	[layout]="center"
 	[default]="save"
 	[focus]="choose"
 )
@@ -233,6 +235,7 @@ float() {
 		'choose')
 			unset chooseopt
 			declare -n chooseopt="${window[options]}"
+			declare -n layout="${window[layout]}"
 			selopt="${window[default]}"
 			for is in "${!chooseopt[@]}"; do
 				optdc[dci]="$is"
@@ -274,19 +277,16 @@ floatchoose() {
 	local -i bm=${options[button_margin]}
 	local -i bp=${options[button_padding]}
 	local all="${!chooseopt[*]}"
-	local -i stx=$((floatpositionx + floatsizex - ${#all} - ${#chooseopt[*]} * 2 * bp - ${#chooseopt[*]} * ( bm - 1 ) - 1 ))
+	case "${window[layout]}" in
+		right)
+			local -i stx=$((floatpositionx + floatsizex - ${#all} - ${#chooseopt[*]} * 2 * bp - ${#chooseopt[*]} * ( bm - 1 ) - 1));;
+		left)
+			local -i stx=$((floatpositionx + bm));;
+		center)
+			local -i stx=$((floatpositionx + (floatsizex / 2) - ( (${#all} + ${#chooseopt[*]} * 2 * bp + ${#chooseopt[*]} * (bm - 1) ) / 2 ) ));;
+	esac
 	local -i sty=$((floatpositiony + floatsizey - 2))
-	(
-		for opt in ${!chooseopt[@]}; do
-			printf '\e[%s;%sH' $sty $stx
-			if [ "$opt" = "$selopt" ]; then
-				printf "${style[selected]}%*s" $(( ${#opt} + bp * 2 ))
-			else
-				printf "${style[button]}%*s" $(( ${#opt} + bp * 2 ))
-			fi
-			stx=$((stx + ${#opt} + bp * 2 + bm))
-		done
-	)
+	floatchbpbm
 	((sty--))
 	(
 		for opt in ${!chooseopt[@]}; do
@@ -300,15 +300,20 @@ floatchoose() {
 		done
 	)
 	((sty--))
-	for opt in ${!chooseopt[@]}; do
-		printf '\e[%s;%sH' $sty $stx
-		if [ "$opt" = "$selopt" ]; then
-			printf "${style[selected]}%*s" $(( ${#opt} + bp * 2 ))
-		else
-			printf "${style[button]}%*s" $(( ${#opt} + bp * 2 ))
-		fi
-		stx=$((stx + ${#opt} + bp * 2 + bm))
-	done
+	floatchbpbm
+}
+floatchbpbm() {
+	(
+		for opt in ${!chooseopt[@]}; do
+			printf '\e[%s;%sH' $sty $stx
+			if [ "$opt" = "$selopt" ]; then
+				printf "${style[selected]}%*s" $(( ${#opt} + bp * 2 ))
+			else
+				printf "${style[button]}%*s" $(( ${#opt} + bp * 2 ))
+			fi
+			stx=$((stx + ${#opt} + bp * 2 + bm))
+		done
+	)
 }
 winkey() {
 	change=true
@@ -752,8 +757,9 @@ redraw() {
 	printf '%s ' "${!menuline[@]}"
 	printf '\e[0m'
     for ((i = base; i - base < LINES - reservedlines; i++)); do # Iterate over shown lines
+		printf "${style[numberselected]}"
         ((i != line)) && printf "${style[number]}" # Fade line number if not selected
-        ((i > ${#buffer[@]})) && printf "\n${style[number]}\e[K   ~\e[m" || \
+        ((i > ${#buffer[@]})) && printf "\n${style[numberempty]}\e[K   ~\e[m" || \
 			if [ "${options[todonote]}" = true ]; then
 				case "${buffer[i]}" in
 					*"TODO: "*|*TODO:) printf "\n\e[K%4s\e[m ${style[TODO]}%s\033[0;0m" "$i" "$(printf '%s' "${buffer[i]}" | tabrenderraw)";;
