@@ -42,6 +42,7 @@ options=(
 	[file_prompt]="Path: "
 	[button_margin]=2
 	[button_padding]=4
+	[cancelhex]='18 0'
 )
 editkey=(
 	[up]=$'\E[A'	[down]=$'\E[B'	[right]=$'\E[C'
@@ -151,6 +152,7 @@ menudebug=(
 	[right      ]=right
 	[left       ]=left
 	[dialogquit ]=dialogquit
+	[inputcodes ]=inputcodes
 )
 
 syntax=(
@@ -415,6 +417,47 @@ syntax() {
 #colour(){
 #	printf "\033[%s;%s;%sm%s\033[0;0m" "$1" "$2" "$3" "$4"
 #}
+
+topline() {
+	local -i ln=${#1}
+	printf "${style[windowline]}%s\e[?25l%*s\r" "$1" "$(( $COLUMNS - ln ))"
+}
+
+inputcodes() {
+	debuginput
+	while true; do
+	#	local -a k=()
+	#	local -i i=1    
+		if read -rsN1 -t${options[refresh_timeout]} k[0]; then # Check for ready input
+			while read -rsN1 -t0.0001 k[$i]; do ((i++)); done # Multibyte hack
+			debuginput "$(printf '%s' "${k[@]}")" # Handle keypress event
+			[ $? = 69 ] && break
+		fi
+	done
+	redraw
+}
+debuginput() {
+	hexkey=()	
+	i=0
+	echo "$1" | while read -rn1; do
+		hexkey[i]="$(printf "%x\n" "'${1:$i}")"
+		((i++))
+	done
+	if [ "${hexkey[*]}" = "${options[cancelhex]}" ]; then
+	   return 69
+	fi
+	clr
+	topline "Input codes (exit keybind is ${options[cancelhex]})"
+	printf "${style[windowcontent]}"
+	printf "\033[2;0H"
+	for ((i=2;i<=LINES;i+=1)); do
+		printf '\033[%s;0H' $i
+		printf '%*s' "$COLUMNS"
+	done
+	printf "\033[2;0H"
+	echo "${hexkey[@]}"
+}
+
 basenam() {
 	for file in "$@"; do
 	    file="${file%/}"
@@ -465,7 +508,7 @@ read_buffer() {
 }
 pickprep() {
 	clr
-    printf "${style[windowline]}%s\e[?25l%*s\r" "Open file..." "$(( $COLUMNS - 12 ))"
+    topline "Open file..."
 	printf "${style[windowcontent]}\n"
 	for ((i=3;i<=$LINES;i+=1)); do
 		printf '%*s\n' "$COLUMNS"
@@ -799,10 +842,6 @@ keytype() {
 		hexkey[i]="$(printf "%x\n" "'${1:$i}")"
 		((i++))
 	done
-	#clear        #stuff for debugging
-	#echo "${hexkey[@]}" #stuff for debugging
-	#message="${hexkey[@]}"
-	#read -rsn1         #stuff for debugging
 	
 	for str in "${!stroke[@]}"; do
 		[ "$str" = "${hexkey[*]}" ] && "${stroke[$str]}" && return
