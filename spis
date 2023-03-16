@@ -608,23 +608,6 @@ quit() {
 	fi
 
 }
-quit_old() {
-	printf '\e[%s;0H' "${LINES}"
-	printf '\e[D\033[1;93;108m' #make prompt nicer
-    if [[ "$modified" == "true" ]]; then
-        while :; do
-            read -rsN1 -p "Buffer modified, save before close? [Y/n/c]" choice
-            case "$choice" in
-            Y|y) write_buffer; die;;
-            N|n) die;;
-            C|c) message="Quit canceled"; break;;
-            *) continue;;
-            esac
-        done
-    else
-        die
-    fi
-}
 
 up() {
     for ((i = 0; i < ${1:-1}; i++)); do
@@ -777,9 +760,12 @@ redraw() {
     printf '\e[?25h\e[%s;%sH' $((line + 2 - base)) $(( rl + 6 )) # move cursor to the line
 }
 backspace() {
-	while [ "${#buffer[line]}" = 0 ]; do
+	if [ "${#buffer[line]}" = 0 ]; then
 		delete_line
-	done
+		rl="${#buffer[line]}"
+		redraw
+		return 0
+	fi
 	buffer[line]="${buffer[line]:0:$(( rl - 1 ))}${buffer[line]:${rl}}" #add the key at $rl (cursor position)
 	left #go left with cursor
 	megaredrawline #not sure why this is needed but it prevents duplication of the letter
