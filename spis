@@ -586,6 +586,9 @@ new_line() {
     buffer=("" "${buffer[@]:1:line}" "" "${buffer[@]:line+1}")
     unset 'buffer[0]'
     modified=true
+	buffer[line+1]=${buffer[line]:rl:${#buffer[line]}}
+	buffer[line]=${buffer[line]:0:rl}
+	rl=0
 	megaredraw
 	down
 	redraw
@@ -598,6 +601,27 @@ delete_line() {
     modified=true
     megaredraw
 	redraw
+}
+
+backspace() {
+	if [ "${#buffer[line]}" = 0 ]; then
+		delete_line
+		rl="${#buffer[line]}"
+		redraw
+		return 0
+	fi
+	if [ $rl = 0 ]; then
+		buffer[line-1]="${buffer[line-1]}${buffer[line]}"
+		delete_line
+		rl=${#buffer[line]}
+		redraw
+		return 0
+	fi
+	buffer[line]="${buffer[line]:0:$(( rl - 1 ))}${buffer[line]:${rl}}" #add the key at $rl (cursor position)
+	left #go left with cursor
+	megaredrawline #not sure why this is needed but it prevents duplication of the letter
+	redraw #draw it
+	modified=true
 }
 
 quit() {
@@ -758,19 +782,6 @@ redraw() {
 			"$COLUMNS" "$message" \
 			"$(basenam "$file") ($filetype)" "$line" "${rl}") # Status line, among others
     printf '\e[?25h\e[%s;%sH' $((line + 2 - base)) $(( rl + 6 )) # move cursor to the line
-}
-backspace() {
-	if [ "${#buffer[line]}" = 0 ]; then
-		delete_line
-		rl="${#buffer[line]}"
-		redraw
-		return 0
-	fi
-	buffer[line]="${buffer[line]:0:$(( rl - 1 ))}${buffer[line]:${rl}}" #add the key at $rl (cursor position)
-	left #go left with cursor
-	megaredrawline #not sure why this is needed but it prevents duplication of the letter
-	redraw #draw it
-	modified=true
 }
 keytype() {
 	hexkey=()
