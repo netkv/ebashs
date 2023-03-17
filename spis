@@ -9,9 +9,9 @@ trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
 trap quit INT
 trap quit SIGTERM
 
-declare -A syntax menuline menufile menuhelp menukey menudebug style about winhelp windowkey editkey wininfo stroke options dialogquit dialogquitmenu
+declare -A syntax menuline menufile menuhelp menukey menudebug style windowkey editkey stroke options
 declare -a buffer buffersyntax hexkey optdc
-declare -i line base rl offsetst offseten
+declare -i line base rl offsetst offseten menulinep menulinepy
 declare -n menucon window
 declare file message modified filetype comment stringone stringtwo reservedlines recmd rst
 
@@ -23,6 +23,7 @@ buffersyntax=() # File contents
 line=0 # Currently selected line (0 means the buffer is empty)
 base=1 # Top-most line shown
 rl=0 # how left or right the cursor is
+menulinepy=0 # menus by default should be from top
 file= # Currently addressed file
 message="${version}: insanity" # Feedback text in the status bar
 modified=false # Tracking whether a file was modified
@@ -83,6 +84,7 @@ style=(
 	[number]='\e[0;37m'
 	[numberempty]='\e[0;90m'
 	[numberselected]='\e[0;91m'
+	[tab]='\e[0;37m'
 	#syntax
 	[quotevar]='\e[0;36;48m'
 	[comment]='\e[3;37;48m'
@@ -153,6 +155,7 @@ menudebug=(
 	[left       ]=left
 	[dialogquit ]=dialogquit
 	[inputcodes ]=inputcodes
+	[debugmenu  ]=debugmenutest
 )
 
 syntax=(
@@ -162,6 +165,7 @@ syntax=(
 	[conf]=builtin_syntax_conf	[unknown]=builtin_syntax_unknown
 )
 
+declare -A about
 about() { unset window; declare -n window=about; float; }
 about=(
 	[sizex]="${options[defx]}"	[sizey]="${options[defy]}"
@@ -169,6 +173,7 @@ about=(
 	[content]="${version}, text editor (insanity) in bash. repo: https://github.com/nyeta/spis; based on https://github.com/comfies/bed"
 )
 
+declare -A winhelp
 winhelpf() { unset window; declare -n window=winhelp; float; }
 winhelp=(
 	[sizex]="${options[defx]}"	[sizey]="${options[defy]}"
@@ -176,6 +181,7 @@ winhelp=(
 	[content]="Use tab key to switch focus. When focused on window itself use arrow keys to move the window and / to decrease its width, * to increase, + to increase its height and - to decrease. When focused on choose menu, use left and right arrow to select."
 )
 
+declare -A wininfo
 wininfo() { unset window; declare -n window=wininfo; wininfo[content]="name: $file; type: $filetype"; float; }
 wininfo=(
    	[sizex]="${options[defx]}"	[sizey]="${options[defy]}"
@@ -183,6 +189,7 @@ wininfo=(
 	#content is set in fucntion, so it can dynamicaly update
 )
 
+declare -A dialogquit dialogquitmenu
 dialogquit() { unset window; declare -n window=dialogquit; float; }
 dialogquit=(
 	[sizex]=46 [sizey]=8
@@ -200,12 +207,44 @@ dialogquitmenu=(
 	[cancel]="redraw; return 69"
 )
 
+declare -A debugmenutest debugmenutestch
+debugmenutest() { unset window; declare -n window=debugmenutest; float; }
+debugmenutest=(
+	[sizex]="${options[defx]}" [sizey]="${options[defy]}"
+	[title]="Test"
+	[content]="Pick!"
+	[type]="choose"
+	[options]="debugmenutestch"
+	[layout]="right"
+	[default]="menudebug"
+	[focus]="choose"
+)
+debugmenutestch=(
+	[menudebug]="menulinepy=menudebug"
+	[menukey]="menukey"
+	[menuhelp]="menuhelp"
+)
+
 ## rest of this garbageware
 
 rst='\e[0;0m'
 clr() {
 	printf "\033c" # clear
 }
+
+# getting the cursor position
+getcy() {
+	local pos
+	IFS='[;' read -p $'\e[6n' -d R -a pos -rs || echo "failed with error: $? ; ${pos[*]}"
+	echo "${pos[1]}"
+}
+getcx() {
+	local pos
+	IFS='[;' read -p $'\e[6n' -d R -a pos -rs || echo "failed with error: $? ; ${pos[*]}"
+	echo "${pos[2]}"
+}
+
+
 refresh() {
 	clr
 	message="reloaded..."
@@ -303,6 +342,18 @@ floatchoose() {
 	)
 	((sty--))
 	floatchbpbm
+	((sty++))
+	(
+		for opt in ${!chooseopt[@]}; do
+			printf '\e[%s;%sH' $sty $stx
+			if [ "$opt" = "$selopt" ]; then
+			    printf '\e[%sC' $bp
+				break
+			fi
+			stx=$((stx + ${#opt} + bp * 2 + bm))
+		done
+	)
+	
 }
 floatchbpbm() {
 	(
@@ -343,6 +394,8 @@ winkey() {
 					"${windowkey[right]}"*) ((seloptdc++)); (( seloptdc > ( ${#chooseopt[*]} - 1 ) )) && seloptdc=$(( ${#chooseopt[*]} - 1 ));;
 					"${windowkey[left]}"*) ((seloptdc--)); ((seloptdc<0)) && seloptdc=0;;
 					'')
+						menulinepy=$(getcy)
+						menulinep=$(getcx)
 						eval "${chooseopt[$selopt]}";;
 				esac
 				selopt="${optdc[seloptdc]}"
@@ -364,6 +417,26 @@ winkey() {
 				;;
 		esac
 	fi
+}
+
+pipesyntax() {
+	comment=false
+	#stringone=false
+	#stringtwo=false
+	word=
+	bckIFS="${IFS}"
+	IFS=
+	readstuff() {
+		while read -rsn1 char
+		do
+			[ "$char" = " " ] && syntax && word='' && printf ' ' && continue
+			[ "$char" = "	" ] && syntax && word='' && printf '\033[0;37;48m%s\033[0;0m' "${BANO_RENDER_TAB:=.}" && continue
+			[ -z "$char" ] && syntax && word='' comment='false' && echo && continue
+			word="${word}${char}" && printf '%s\e[%sD' "$word" "${#word}"
+		done
+	}
+	readstuff
+	IFS="${bckIFS}"
 }
 
 builtin_syntax_bash() {
@@ -439,7 +512,7 @@ inputcodes() {
 debuginput() {
 	hexkey=()	
 	i=0
-	echo "$1" | while read -rn1; do
+	echo "$1" | while read -rsn1; do
 		hexkey[i]="$(printf "%x\n" "'${1:$i}")"
 		((i++))
 	done
@@ -604,27 +677,29 @@ megaredrawline(){
 	buffersyntax[line]="$(printf '%s' "${buffer[line]}" | pipesyntax)"
 }
 tabrender(){
+	[ -z "$tabch" ] && local tabch="${options[tabchar]}"
+	[ -z "$tabstyle" ] && local tabstyle="${style[tab]}"
+	[ -z "$tabreset" ] && local tabreset='\e[0;0m'
+	[ "$tabstyle" = none ] && tabstyle=''
+	[ "$tabreset" = none ] && tabreset=''
+	
 	IFSbck="$IFS"
 	IFS=
 	while read -rsn1 char
 	do
 		[ "$char" = " " ] && printf ' ' && continue
-		[ "$char" = "	" ] && printf '\033[0;37;48m%s\033[0;0m' "${options[tabchar]}" && continue
+		[ "$char" = "	" ] && printf "${tabstyle}%s${tabreset}" "$tabch" && continue
 		printf '%s' "$char"
 	done
 	IFS="$IFSbck"
 }
 tabrenderraw(){
-	IFSbck="$IFS"
-	IFS=
-	while read -rsn1 char
-	do
-		[ "$char" = " " ] && printf ' ' && continue
-		[ "$char" = "	" ] && printf '%s' "${options[tabchar_alt]}" && continue
-		printf '%s' "$char"
-	done
-	IFS="$IFSbck"
+	tabch="${options[tabchar_alt]}"
+	tabstyle='none'
+	tabreset='none'
+	tabrender
 }
+
 new_line() {
     buffer=("" "${buffer[@]:1:line}" "" "${buffer[@]:line+1}")
     unset 'buffer[0]'
@@ -751,11 +826,11 @@ mtoggle() {
 }
 menuclick() {
 	#determine which item should be triggered
-	local p=$1
+	[ -z $1 ] && menulinep=0 || menulinep=$1
 	local cx=0
 	for a in "${!menuline[@]}"; {
 		la="${#a}"
-		((p>cx)) && ((p<(cx + la + 1))) && ${menuline[$a]}
+		((menulinep>cx)) && ((menulinep<(cx + la + 1))) && ${menuline[$a]}
 		cx=$(( cx + la + 1 ))
 	}
 }
@@ -765,13 +840,13 @@ menu() {
 	while true; do
 		local -a k=()
 		local -i i=1
-		printf '\e[0;0H'
+		printf '\e[%s;0H' $menulinepy
 		local mi=0
 		for action in "${!menucon[@]}"; do
 			if [ $mi = $dc ]; then
-				printf "${style[menuitemselected]}%s\e[0;0m\n" "$action"  
+				printf "\e[%sC${style[menuitemselected]}%s\e[0;0m\n" $menulinep "$action"  
 			else
-				printf "${style[menuitem]}%s\e[0;0m\n" "$action"
+				printf "\e[%sC${style[menuitem]}%s\e[0;0m\n" $menulinep "$action"
 			fi
 			((mi++))
 		done
@@ -789,7 +864,6 @@ menu() {
 						((mi++))
 					done
 					return
-					redraw
 					;;
 				*) redraw; return ;;
 			esac
@@ -838,7 +912,7 @@ keytype() {
 	esac
 	
 	i=0
-	echo "$1" | while read -rn1; do
+	echo "$1" | while read -rsn1; do
 		hexkey[i]="$(printf "%x\n" "'${1:$i}")"
 		((i++))
 	done
@@ -915,24 +989,6 @@ main() {
         fi
     done
 }
-pipesyntax() {
-	comment=false
-	#stringone=false
-	#stringtwo=false
-	word=
-	bckIFS="${IFS}"
-	IFS=
-	readstuff() {
-		while read -rsn1 char
-		do
-			[ "$char" = " " ] && syntax && word='' && printf ' ' && continue
-			[ "$char" = "	" ] && syntax && word='' && printf '\033[0;37;48m%s\033[0;0m' "${BANO_RENDER_TAB:=.}" && continue
-			[ -z "$char" ] && syntax && word='' comment='false' && echo && continue
-			word="${word}${char}" && printf '%s\e[%sD' "$word" "${#word}"
-		done
-	}
-	readstuff
-	IFS="${bckIFS}"
-}
+
 main "$@"
 printf '\e[?7h'
