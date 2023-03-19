@@ -23,7 +23,7 @@ buffersyntax=() # File contents
 line=0 # Currently selected line (0 means the buffer is empty)
 base=1 # Top-most line shown
 rl=0 # how left or right the cursor is
-menulinepy=0 # menus by default should be from top
+menulinepy=0; menulinep=0 # menu positions
 file= # Currently addressed file
 message="${version}: insanity" # Feedback text in the status bar
 modified=false # Tracking whether a file was modified
@@ -50,7 +50,7 @@ editkey=(
 )
 stroke=(
 	[18 0]='quit'
-	[7 0]='menuhelp'
+	[7 0]='menulinemenu'
 	[10 0]='up'
 	[e 0]='down'
 	[6 0]='right'
@@ -106,15 +106,17 @@ windowkey=(
 	[up]=$'\E[A'	[down]=$'\E[B'	[right]=$'\E[C'	[left]=$'\E[D'
 	[hsizep]='*'	[hsizem]='/'	[vsizep]='+'	[vsizem]='-'
 )
+
+menulinemenu() { unset menucon; declare -n menucon=menuline; menu; }
 menuline=(
 	[File]=menufile	[Help]=menuhelp
-	[Keys]=menukey	[Redraw]=refresh
+	[Keys]=menukey	    [Redraw]=refresh
 	[Debug]=menudebug
 )
 
 menufile() { unset menucon; declare -n menucon=menufile; menu; }
 menufile=(
-	[Close    C-x ]="quit"
+	[Close   C-x  ]="quit"
 	[Open loc M-r ]="set_buffer_file"
 	[Execute  C-t ]="execute"
 	[Save     C-o ]="write_buffer"
@@ -923,7 +925,7 @@ redraw() {
             #TODO: make proper coloring based on variable for future config
 	done
 	(printf "\n\e[?25l${style[infoline]}%*s\r %s (%s,%s)\e[m" \
-			"$COLUMNS" "$message" \
+			"$COLUMNS" "(C-g to open top menu) $message" \
 			"$(basenam "$file") ($filetype)" "$line" "${rl}") # Status line, among others
     printf '\e[?25h\e[%s;%sH' $((line + 2 - base)) $(( rl + 6 )) # move cursor to the line
 }
