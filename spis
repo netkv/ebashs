@@ -69,20 +69,20 @@ stroke=(
 	[7f 0]='backspace'
 )
 style=(
-	[TODO]='\e[3;45m'
-	[NOTE]='\e[3;47m'
+	[TODO]='\e[0;97;45m'
+	[NOTE]='\e[0;97;100m'
 	[menuline]='\e[0;37;40m'
 	[windowline]='\e[0;97;100m'
 	[menuitem]='\e[0;37;40m'
 	[windowcontent]='\e[97;40m'
-	[selected]='\e[30;41m'
+	[selected]='\e[30;45m'
 	[button]='\e[0;97;100m'
 	[interactive]='\e[95;40m'
-	[menuitemselected]='\e[30;41m'
+	[menuitemselected]='\e[30;45m'
 	[infoline]='\e[40;97m'
 	[number]='\e[0;37m'
 	[numberempty]='\e[0;90m'
-	[numberselected]='\e[0;91m'
+	[numberselected]='\e[0;93m'
 	[tab]='\e[0;90m'
 	#syntax
 	[quotevar]='\e[0;36;48m'
@@ -174,7 +174,7 @@ about() { unset window; declare -n window=about; float; }
 about=(
 	[sizex]="${options[defx]}"	[sizey]="${options[defy]}"
 	[title]=" About ${version} "
-	[content]="${version}, text editor (insanity) in bash. repo: https://github.com/nyeta/spis; based on https://github.com/comfies/bed"
+	[content]="${version}, text \"editor\" written bash. git repo: https://github.com/nyeta/spis; originally based on https://github.com/comfies/bed"
 )
 
 declare -A winhelp
@@ -182,7 +182,7 @@ winhelpf() { unset window; declare -n window=winhelp; float; }
 winhelp=(
 	[sizex]="${options[defx]}"	[sizey]="${options[defy]}"
 	[title]=" Floating window help "
-	[content]="Use tab key to switch focus. When focused on window itself use arrow keys to move the window and / to decrease its width, * to increase, + to increase its height and - to decrease. When focused on choose menu, use left and right arrow to select."
+	[content]="Use tab key to switch focus. When focused on window itself use arrow keys to move the window and / to decrease its width, * to increase, + to increase its height and - to decrease. When focused on choose menu, use left and right arrow to select.  -- for now this is absolutelly useless"
 )
 
 declare -A wininfo
@@ -496,9 +496,6 @@ syntax() {
 	}
 	"${syntax[unknown]}"
 }
-#colour(){
-#	printf "\033[%s;%s;%sm%s\033[0;0m" "$1" "$2" "$3" "$4"
-#}
 
 topline() {
 	local -i ln=${#1}
