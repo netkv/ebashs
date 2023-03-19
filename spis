@@ -1,13 +1,8 @@
 #!/bin/bash
 printf '\e[?7l'
-
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
-shopt -s checkwinsize; (:) # Enable and then trigger a terminal size refresh
-trap redraw WINCH ALRM # Attach WINCH and ALRM to redraw the screen
-trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
-trap quit INT
-trap quit SIGTERM
+shopt -s checkwinsize; (redraw) # Enable and then trigger a terminal size refresh
 
 declare -A syntax menuline menufile menuhelp menukey menudebug style windowkey editkey stroke options charmap
 declare -a buffer buffersyntax bufferexpand hexkey optdc
@@ -46,7 +41,7 @@ options=(
 )
 editkey=(
 	[up]=$'\E[A'	[down]=$'\E[B'	[right]=$'\E[C'
-	[left]=$'\E[D'	[pgup]=$'\E[5~'	[pgdown]=$'\E[5~'
+	[left]=$'\E[D'	[pgup]=$'\E[5~'	[pgdown]=$'\E[6~'
 )
 stroke=(
 	[18 0]='quit'
@@ -55,8 +50,8 @@ stroke=(
 	[e 0]='down'
 	[6 0]='right'
 	[2 0]='left'
-	[19 0]='page_down'
-	[16 0]='page_up'
+	[10 0]='page_up'
+	[16 0]='page_down'
 	[0]='new_line'
 	[c 0]='new_line'
 	[f 0]='write_buffer'
@@ -933,13 +928,12 @@ keytype() {
 	hexkey=()
 	case "$1" in
 		${editkey[pgup]}) page_up; return;;
-		${editkey[pgup]}) page_down; return;;
+		${editkey[pgdown]}) page_down; return;;
 		${editkey[up]}*) up; return;;
 		${editkey[down]}*) down; return;;
 		${editkey[right]}*) right; return;;
 		${editkey[left]}*) left; return;;
 	esac
-	
 	i=0
 	echo "$1" | while read -rsn1; do
 		hexkey[i]="$(printf "%x\n" "'${1:$i}")"
@@ -1025,6 +1019,15 @@ main() {
         fi
     done
 }
+
+redrawa() {
+	redraw #i have no idea why it has to be twice to work
+	redraw
+}
+trap redrawa WINCH ALRM # Attach WINCH and ALRM to redraw the screen
+trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
+trap quit INT
+trap quit SIGTERM
 
 main "$@"
 printf '\e[?7h'
