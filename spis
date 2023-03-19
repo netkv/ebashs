@@ -987,6 +987,7 @@ keytype() {
 		redraw
 		return
 	}
+	[ "${hexkey[*]:0:3}" = '1b 5b 3c' ] && return
 	local -i rlr
 	unset ta
 	local ta
