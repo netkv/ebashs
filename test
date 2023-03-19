@@ -1,11 +1,21 @@
 #!/bin/bash
 wtf() {
-	true
+	{
+		pwd
+	}
 	return $(( 0 + 1))
 }
-
-
+	ae
 
 NOTE: an	tab	spaces
+	TODO: stuff &	stuf
 potato
 salad
+
+				bbbbbbbbbb	bbbbbbbbbbbbbb
+			bbbbbb	bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+		bbbbbbbbbbbbbbbbbbbbb	bbbbbbbbbb
+	bbbbbbbbb	bbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbbb	bbbbbbbbbbb
+bbbbb	bbbbbbbbbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbbbbb	bbbbbbbbbbbbbb

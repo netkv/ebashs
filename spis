@@ -10,7 +10,7 @@ trap quit INT
 trap quit SIGTERM
 
 declare -A syntax menuline menufile menuhelp menukey menudebug style windowkey editkey stroke options
-declare -a buffer buffersyntax hexkey optdc
+declare -a buffer buffersyntax bufferexpand hexkey optdc
 declare -i line base rl offsetst offseten menulinep menulinepy
 declare -n menucon window
 declare file message modified filetype comment stringone stringtwo reservedlines recmd rst
@@ -37,8 +37,7 @@ options=(
 	[defx]=$(( COLUMNS / 2 ))
 	[defy]=$(( LINES /2 ))
 	[timeout]=0.01
-	[tabchar]="."
-	[tabchar_alt]=" "
+	[tabchar]=' →  '
 	[refresh_timeout]=1
 	[file_prompt]="Path: "
 	[button_margin]=2
@@ -84,7 +83,7 @@ style=(
 	[number]='\e[0;37m'
 	[numberempty]='\e[0;90m'
 	[numberselected]='\e[0;91m'
-	[tab]='\e[0;37m'
+	[tab]='\e[0;90m'
 	#syntax
 	[quotevar]='\e[0;36;48m'
 	[comment]='\e[3;37;48m'
@@ -430,7 +429,12 @@ pipesyntax() {
 		while read -rsn1 char
 		do
 			[ "$char" = " " ] && syntax && word='' && printf ' ' && continue
-			[ "$char" = "	" ] && syntax && word='' && printf '\033[0;37;48m%s\033[0;0m' "${BANO_RENDER_TAB:=.}" && continue
+			[ "$char" = "	" ] && {
+				syntax
+				word=''
+				printf "${style[tab]}%s\e[0;0m" "${options[tabchar]}"
+				continue
+			}
 			[ -z "$char" ] && syntax && word='' comment='false' && echo && continue
 			word="${word}${char}" && printf '%s\e[%sD' "$word" "${#word}"
 		done
@@ -570,7 +574,8 @@ read_buffer() {
     #set_buffer_file "$1" # Update target file (pass on default if present)
 	file="$1"
     mapfile -t -O 1 buffer <"$file" # Read file into an array
-    pipesyntax < "$file" | mapfile -t -O 1 buffersyntax  # Read file into an array
+    pipesyntax < "$file" | mapfile -t -O 1 buffersyntax
+    charexpand < "$file" | mapfile -t -O 1 bufferexpand
     if [[ "${buffer[1]}" ]]; then # Ensure that something was actually read into the file
         line=1 # Indicate that we have a buffer loaded
         modified=false
@@ -670,34 +675,41 @@ write_buffer() {
     modified=false
     message="Wrote ${#buffer[@]} lines to '$file'"
 }
+
 megaredraw(){
 	printf '%s\n' "${buffer[@]}" | pipesyntax | mapfile -t -O 1 buffersyntax
+	printf '%s\n' "${buffer[@]}" | charexpand | mapfile -t -O 1 bufferexpand
 }
 megaredrawline(){
 	buffersyntax[line]="$(printf '%s' "${buffer[line]}" | pipesyntax)"
+	bufferexpand[line]="$(printf '%s' "${charexpand[line]}" | pipesyntax)"
 }
-tabrender(){
-	[ -z "$tabch" ] && local tabch="${options[tabchar]}"
-	[ -z "$tabstyle" ] && local tabstyle="${style[tab]}"
-	[ -z "$tabreset" ] && local tabreset='\e[0;0m'
-	[ "$tabstyle" = none ] && tabstyle=''
-	[ "$tabreset" = none ] && tabreset=''
-	
+
+charexpand() {
+	bckIFS="${IFS}"
+	IFS=
+	while read -rsn1 char
+	do
+	#	[ "$char" = " " ] && printf '' && continue
+		[ "$char" = "	" ] && {
+			printf "${options[tabchar]}"
+			continue
+		}
+		[ -z "$char" ] && echo && continue
+		printf '%s' "$char"
+	done
+	IFS="${bckIFS}"
+}
+tabrenderraw(){
 	IFSbck="$IFS"
 	IFS=
 	while read -rsn1 char
 	do
 		[ "$char" = " " ] && printf ' ' && continue
-		[ "$char" = "	" ] && printf "${tabstyle}%s${tabreset}" "$tabch" && continue
+		[ "$char" = "	" ] && printf '%s' "${options[tabchar]}" && continue
 		printf '%s' "$char"
 	done
 	IFS="$IFSbck"
-}
-tabrenderraw(){
-	tabch="${options[tabchar_alt]}"
-	tabstyle='none'
-	tabreset='none'
-	tabrender
 }
 
 new_line() {
@@ -797,13 +809,13 @@ right() {
 	case "${buffer[line]}" in
 		*)((rl++));;
 	esac
-	[ "$rl" -gt "${#buffer[line]}" ] && { rl=0; down; }
+	[ "$rl" -gt "${#bufferexpand[line]}" ] && { rl=0; down; }
 	bckrl=
 	redraw
 }
 left() {
 	((rl--))
-	[ "$rl" -lt 0 ] && { up; rl="${#buffer[line]}"; }
+	[ "$rl" -lt 0 ] && { up; rl="${#bufferexpand[line]}"; }
 	bckrl=
 	redraw
 }
@@ -969,6 +981,7 @@ keytype() {
 	#go right with cursor
 	megaredrawline #not sure why this is needed but it prevents duplication of the letter
 	right
+	[ "$1" = '	' ] && printf '\e[%sC' $((${#options[tabchar]} - 1))
 	modified=true
 }
 main() {
