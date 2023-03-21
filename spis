@@ -3,7 +3,7 @@ printf '\e[?7l'
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
 
-declare -A syntax menuline menufile menuhelp menukey menudebug style windowkey editkey stroke options charmap
+declare -A syntax menuline menufile menuhelp menukey menudebug style windowkey editkey keys_edit keys_def options charmap menufancy
 declare -a buffer buffersyntax bufferexpand hexkey optdc
 declare -i line base rl offsetst offseten menulinep menulinepy
 declare -n menucon window
@@ -26,7 +26,7 @@ reservedlines=2 # Number of lines not displaying file
 ## config options
 
 options=(
-	[mouse]=true
+	[mouse]=false
 	[todonote]=true
 	[defx]=$(( COLUMNS / 2 ))
 	[defy]=$(( LINES /2 ))
@@ -38,11 +38,23 @@ options=(
 	[button_padding]=4
 	[cancelhex]='18 0'
 )
-editkey=(
-	[up]=$'\E[A'	[down]=$'\E[B'	[right]=$'\E[C'
-	[left]=$'\E[D'	[pgup]=$'\E[5~'	[pgdown]=$'\E[6~'
+keys_def=(
+	[up]='1b 5b 41 0'
+	[down]='1b 5b 42 0'
+	[right]='1b 5b 43 0'
+	[left]='1b 5b 44 0'
+	[select]='0'
 )
-stroke=(
+keys_edit=(
+	[${keys_def[up]}]='up'
+	[${keys_def[down]}]='down'
+	[${keys_def[right]}]='right'
+	[${keys_def[left]}]='left'
+	[1b 5b 42 0]='down'
+	[1b 5b 43 0]='right'
+	[1b 5b 44 0]='left'
+	[1b 5b 35 7e 0]='page_up'
+	[1b 5b 36 7e 0]='page_down'
 	[18 0]='quit'
 	[7 0]='menulinemenu'
 	[10 0]='up'
@@ -61,6 +73,8 @@ stroke=(
 	[13 0]='shell'
 	[5 0]='mtoggle'
 	[7f 0]='backspace'
+	[1b 71 0]='die'
+	[1b 67 0]='menukey'
 )
 style=(
 	[TODO]='\e[0;97;45m'
@@ -91,6 +105,7 @@ style=(
 	[fn]='\e[0;30;44m'
 	[keyword]='\e[0;91m'
 )
+#TODO: this will be usesfull for later implementation of ligatures and stuff
 charmap=(
 	#[0] is reserved for any unmapped char
 	[	]='t'
@@ -101,16 +116,26 @@ windowkey=(
 	[hsizep]='*'	[hsizem]='/'	[vsizep]='+'	[vsizem]='-'
 )
 
-menulinemenu() { unset menucon; declare -n menucon=menuline; menu; }
+menulinemenu() {
+	unset menucon
+	declare -n menucon=menufancy
+	#menulinepy=$(( LINES - ${#menufancy[@]} ))
+	menu
+}
 menuline=(
 	[File]=menufile	[Help]=menuhelp
 	[Keys]=menukey	    [Redraw]=refresh
 	[Debug]=menudebug
 )
 
+for item in "${!menuline[@]}"; do
+	menufancy+=(["$(printf '%-12s' "$item")"]="${menuline["$item"]}")
+done
+menufancy+=([Quit        ]=quit)
+
 menufile() { unset menucon; declare -n menucon=menufile; menu; }
 menufile=(
-	[Close   C-x  ]="quit"
+	[Quit    C-x  ]="quit"
 	[Open loc M-r ]="set_buffer_file"
 	[Execute  C-t ]="execute"
 	[Save     C-o ]="write_buffer"
@@ -140,6 +165,7 @@ menukey=(
 	[Next Page    C-v ]="page_down"
 	[Execute      C-t ]="execute"
 	[Shell        C-s ]="shell"
+	[Exit no save M-q ]="die"
 )
 
 menudebug() { unset menucon; declare -n menucon=menudebug; menu; }
@@ -147,9 +173,6 @@ menudebug=(
 	[clear      ]=clr
 	[refresh    ]=refresh
 	[screen init]=scrinit
-	[pickdraw **]=pickdraw
-	[die      **]=die
-	[main     **]=main
 	[backspace  ]=backspace
 	[right      ]=right
 	[left       ]=left
@@ -372,7 +395,7 @@ winkey() {
 	change=true
 	printf '\e[m'
 	local -a kbd=()
-    if read -rsN1 kbd[0]; then # Check for ready input
+	if read -rsN1 kbd[0]; then # Check for ready input
 		while read -rsN1 -t0.0001 kbd[$i]; do ((i++)); done # Multibyte hack
 		case "$focus" in
 			window)
@@ -605,10 +628,11 @@ filepick() {
 	while true; do
 		if read -rsN1 -t"${options[timeout]}" kb[0]; then # Check for ready input
 			while read -rsN1 -t0.0001 kb[$ik]; do ((ik++)); done # Multibyte hack
-			case "$(printf '%s' "${kb[@]}")" in
-				${editkey[up]}*) ((dc--)) ;;
-				${editkey[down]}*) ((dc++)) ;;
-				'')
+			makehexkey "$(printf '%s' "${kb[@]}")"
+			case "${hexkey[*]}" in
+				"${keys_def[up]}") ((dc--)) ;;
+				"${keys_def[down]}") ((dc++)) ;;
+				"${keys_def[select]}")
 					#return to starting dir
 					if [ -d "${direc[dc]}" ]; then
 						cd "${direc[dc]}"
@@ -877,10 +901,11 @@ menu() {
 		local -a kb=()
         if read -rsN1 -t"${options[timeout]}" kb[0]; then # Check for ready input
 			while read -rsN1 -t0.0001 kb[$i]; do ((i++)); done # Multibyte hack
-			case "$(printf '%s' "${kb[@]}")" in
-				${editkey[up]}*) ((dc--)) ;;
-				${editkey[down]}*) ((dc++)) ;;
-				'')
+			makehexkey "$(printf '%s' "${kb[@]}")"
+			case "${hexkey[*]}" in
+				"${keys_def[up]}") ((dc--)) ;;
+				"${keys_def[down]}") ((dc++)) ;;
+				"${keys_def[select]}")
 					mi=0
 					for action in "${!menucon[@]}"; do
 						[ $mi = $dc ] && ${menucon[$action]}
@@ -924,24 +949,23 @@ redraw() {
 			"$(basenam "$file") ($filetype)" "$line" "${rl}") # Status line, among others
     printf '\e[?25h\e[%s;%sH' $((line + 2 - base)) $(( rl + 6 )) # move cursor to the line
 }
-keytype() {
+
+makehexkey() {
 	hexkey=()
-	case "$1" in
-		${editkey[pgup]}) page_up; return;;
-		${editkey[pgdown]}) page_down; return;;
-		${editkey[up]}*) up; return;;
-		${editkey[down]}*) down; return;;
-		${editkey[right]}*) right; return;;
-		${editkey[left]}*) left; return;;
-	esac
-	i=0
-	echo "$1" | while read -rsn1; do
-		hexkey[i]="$(printf "%x\n" "'${1:$i}")"
-		((i++))
-	done
-	
-	for str in "${!stroke[@]}"; do
-		[ "$str" = "${hexkey[*]}" ] && "${stroke[$str]}" && return
+	local -i i=0
+	echo "$1" | {
+		while read -rsn1; do
+			hexkey[i]="$(printf "%x\n" "'${1:$i}")"
+			((i++))
+		done
+	}
+}
+keytype() {
+	makehexkey "$1"
+
+	#handle all keybindings for edit mode
+	for str in "${!keys_edit[@]}"; do
+		[ "$str" = "${hexkey[*]}" ] && "${keys_edit[$str]}" && return
 	done
 
 	#parse mouse stuff somewhatish weirdly
