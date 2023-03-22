@@ -271,11 +271,9 @@ getcx() {
 refresh() {
 	clr
 	message="reloaded..."
-	hasrefresh=true
 	megaredraw
 	redraw
 	scrinit
-	hasrefresh=false
 	message=
 }
 scrinit() {
@@ -510,9 +508,17 @@ builtin_syntax_conf(){
 }
 
 syntax() {
-	for s in "${!syntax[@]}"; {
-		[ "$s" = "$filetype" ] && "${syntax[$s]}" && return
-	}
+	for s in "${!syntax[@]}"; do
+		[ "$s" = "$filetype" ] && {
+			[ "${options[todonote]}" = true ] && {
+				case "$word" in
+					'NOTE:') printf "${style[NOTE]}%s${rst}" "${word}"; return ;;
+					'TODO:') printf "${style[TODO]}%s${rst}" "${word}"; return ;;
+				esac
+			}
+			"${syntax[$s]}"
+		} && return
+	done
 	"${syntax[unknown]}"
 }
 
@@ -662,7 +668,7 @@ filepick() {
 	done
 }
 pickdraw() {
-	printf "\033[1;0H"
+	printf "\e[1;0H"
 	printf "${style[windowline]}%s\e[?25l%*s\r" "Open file..." "$(( $COLUMNS - 12 ))"
 	printf "${style[windowcontent]}\n"
 	direc=($(pickls))
@@ -798,7 +804,7 @@ quit() {
 up() {
     for ((i = 0; i < ${1:-1}; i++)); do
         ((line > 1)) && ((line--)) # As long as we can keep going up, go up
-        ((line < base)) && ((base--)) # Push back the top if we need to
+        ((line < base)) && ((base--)) && # Push back the top if we need to
         ((base <= 0)) && base=1 # Don't push back if our base is at 1
         [ -z "$bckrl" ] && bckrl="${rl}"
         (( "${#buffer[line]}" < "${rl}" )) && rl="${#buffer[line]}"
@@ -814,7 +820,7 @@ page_up() {
 down() {
     for ((i = 0; i < ${1:-1}; i++)); do
         ((line < ${#buffer[@]})) && ((line++)) # If we can go down, go down
-        ((line > base + LINES - 3)) && ((base++)) # Move window down if needed
+        ((line > base + LINES - 3)) && ((base++)) && # Move window down if needed
         [ -z "$bckrl" ] && bckrl="${rl}"
         (( "${#buffer[line]}" < "${rl}" )) && rl="${#buffer[line]}"
         (( "${#buffer[line]}" > "${rl}" )) && rl=bckrl
@@ -837,6 +843,9 @@ execute() {
     megaredraw
     redraw
 }
+drawc() {
+	printf '\e[?25h\e[%s;%sH' $((line + 2 - base)) $(( rl + 6 )) # move cursor to the line
+}
 right() {
 	case "${bufferexpand[line]:rl+1:1}" in
 		't') rl=$(( rl + ${#options[tabchar]}));;
@@ -844,7 +853,8 @@ right() {
 	esac
 	[ "$rl" -gt "${#bufferexpand[line]}" ] && { rl=0; down; }
 	bckrl=
-	redraw
+	#redraw
+	drawc
 }
 left() {
 	case "${bufferexpand[line]:rl-1:1}" in
@@ -853,7 +863,7 @@ left() {
 	esac
 	[ "$rl" -lt 0 ] && { up; rl="${#bufferexpand[line]}"; }
 	bckrl=
-	redraw
+	drawc
 }
 shell() {
 	printf "\033c"
@@ -922,31 +932,19 @@ menu() {
 	done
 }
 redraw() {
-	if [ "$hasrefresh" = true ]; then
-		printf "\e[0m\e[H${style[windowline]}\e[?25l%*s\r" "$COLUMNS"
-	else
-		printf "\e[0m\e[H${style[menuline]}\e[?25l%*s\r" "$COLUMNS"
-	fi
-	printf '%s ' "${!menuline[@]}"
-	printf '\e[0m'
+	printf "\e[0m\e[H${style[menuline]}\e[?25l%*s\r" "$COLUMNS"
+	printf '%s\e[0m' "${!menuline[*]}"
+	
     for ((i = base; i - base < LINES - reservedlines; i++)); do # Iterate over shown lines
 		printf "${style[numberselected]}"
         ((i != line)) && printf "${style[number]}" # Fade line number if not selected
-        ((i > ${#buffer[@]})) && printf "\n${style[numberempty]}\e[K   ~\e[m" || \
-			if [ "${options[todonote]}" = true ]; then
-				case "${buffer[i]}" in
-					*"TODO: "*|*TODO:) printf "\n\e[K%4s\e[m ${style[TODO]}%s\033[0;0m" "$i" "$(printf '%s' "${buffer[i]}" | tabrenderraw)";;
-					*"NOTE: "*|*NOTE:) printf "\n\e[K%4s\e[m ${style[NOTE]}%s\033[0;0m" "$i" "$(printf '%s' "${buffer[i]}" | tabrenderraw)";;
-					*) printf "\n\e[K%4s\e[m %s" "$i" "${buffersyntax[i]}";;
-				esac
-			else
-				printf "\n\e[K%4s\e[m %s" "$i" "${buffersyntax[i]}"
-			fi
-            #TODO: make proper coloring based on variable for future config
+        ((i > ${#buffer[@]})) && printf "\n${style[numberempty]}\e[K   ~\e[m"\
+				|| printf "\n\e[K%4s\e[m %s" "$i" "${buffersyntax[i]}"
 	done
-	(printf "\n\e[?25l${style[infoline]}%*s\r %s (%s,%s)\e[m" \
+	
+	printf "\n\e[?25l${style[infoline]}%*s\r %s (%s,%s)\e[m" \
 			"$COLUMNS" "(C-g to open top menu) $message" \
-			"$(basenam "$file") ($filetype)" "$line" "${rl}") # Status line, among others
+			"$(basenam "$file") ($filetype)" "$line" "${rl}" # Status line, among others
     printf '\e[?25h\e[%s;%sH' $((line + 2 - base)) $(( rl + 6 )) # move cursor to the line
 }
 
@@ -1023,6 +1021,7 @@ keytype() {
 	#go right with cursor
 	megaredrawline #not sure why this is needed but it prevents duplication of the letter
 	right
+	redraw
 	[ "$1" = '	' ] && printf '\e[%sC' $((${#options[tabchar]} - 1))
 	modified=true
 }
