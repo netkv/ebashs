@@ -959,6 +959,7 @@ makehexkey() {
 	}
 }
 keytype() {
+	local -i x y
 	makehexkey "$1"
 
 	#handle all keybindings for edit mode
@@ -971,15 +972,22 @@ keytype() {
 	[ "${hexkey[*]:0:5}" = '1b 5b 3c 36 35' ] && down && return
 	[ "${hexkey[*]:0:5}" = '1b 5b 3c 38 30' ] && up 9 && return
 	[ "${hexkey[*]:0:5}" = '1b 5b 3c 38 31' ] && down 9 && return
-	[ "${hexkey[0]}" = '1b' ] && [ "${1: -1}" = 'm' ] && {
+	
+	[ "${hexkey[*]:0:2}" = '1b 5b' ] && {
+		local -i value
 		value=0
 		echo "$1" | while read -rsn1 mchar; do
 			case "$mchar" in
-				'0'|'1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|9)tmp="${tmp}${mchar}";;
 				'm'|'M'|';') {
-					[ "$value" = '0' ] && mode="${tmp}" && tmp=
-					[ "$value" = '1' ] && x="${tmp}" && tmp=
-					[ "$value" = '2' ] && y="${tmp}" && tmp=
+					case $value in
+						'0') mode="${tmp}" && tmp= ;;
+						'1') x="${tmp}" && tmp= ;;
+						'2') y="${tmp}" && tmp= ;;
+					esac
+				};;
+				*) {
+					((value>2)) && return
+					tmp=${tmp}${mchar//[!0-9]/}
 				};;
 			esac
 			case "$mchar" in
@@ -987,6 +995,7 @@ keytype() {
 				'm'|'M')value=0 && break;;
 			esac
 		done
+		
 		#limitations of movenment
 		[ $y = 1 ] && menuclick $x && return #handle menuline
 		[ $x -lt 6 ] && {
