@@ -3,11 +3,11 @@ printf '\e[?7l'
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
 
-declare -A syntax menuline menufile menuhelp menukey menudebug style windowkey editkey keys_edit keys_def options charmap menufancy
+declare -A syntax menuline menufile menuhelp menukey menudebug style windowkey keys_edit keys_def options charmap menufancy
 declare -a buffer buffersyntax bufferexpand hexkey optdc
-declare -i line base rl offsetst offseten menulinep menulinepy
+declare -i line base rl offsetst offseten menulinep menulinepy fll
 declare -n menucon window
-declare file message modified filetype comment stringone stringtwo reservedlines recmd rst
+declare file message modified filetype comment reservedlines rst
 
 printf "\e[?1049h" #switch to alternative buffer
 
@@ -587,6 +587,10 @@ filetype(){
 	shebangsplit=($shebang)
 	printf '%s\n' "${shebangsplit[-1]}"	
 }
+filellenght() {
+	fll="${#buffer[@]}"
+	fll="${#fll}"
+}
 set_buffer_file() {
 	printf '\e[%s;0H' "${LINES}"
 	printf '\e[D\033[1;93;108m' #make prompt nicer
@@ -598,19 +602,20 @@ set_buffer_file() {
     bind 'set disable-completion on' 2>/dev/null
 }
 read_buffer() {
+	#set_buffer_file "$1" # Update target file (pass on default if present)
 	filetype="$(filetype "$1")"
-    #set_buffer_file "$1" # Update target file (pass on default if present)
 	file="$1"
-    mapfile -t -O 1 buffer <"$file" # Read file into an array
-    pipesyntax < "$file" | mapfile -t -O 1 buffersyntax
-    charexpand < "$file" | mapfile -t -O 1 bufferexpand
-    if [[ "${buffer[1]}" ]]; then # Ensure that something was actually read into the file
-        line=1 # Indicate that we have a buffer loaded
-        modified=false
-        message="${file}: ${#buffer[@]}"
-    else
-        message="{$file}: empty"
-    fi
+	mapfile -t -O 1 buffer <"$file" # Read file into an array
+	pipesyntax < "$file" | mapfile -t -O 1 buffersyntax # TODO: make fast
+	charexpand < "$file" | mapfile -t -O 1 bufferexpand # TODO: make fast
+	filellenght
+	if [[ "${buffer[1]}" ]]; then # Ensure that something was actually read into the file
+		line=1 # Indicate that we have a buffer loaded
+		modified=false
+		message="${file}: ${#buffer[@]}"
+	else
+		message="{$file}: empty"
+	fi
 }
 pickprep() {
 	clr
@@ -731,17 +736,7 @@ charexpand() {
 	done
 	IFS="${bckIFS}"
 }
-tabrenderraw(){
-	IFSbck="$IFS"
-	IFS=
-	while read -rsn1 char
-	do
-		[ "$char" = " " ] && printf ' ' && continue
-		[ "$char" = "	" ] && printf '%s' "${options[tabchar]}" && continue
-		printf '%s' "$char"
-	done
-	IFS="$IFSbck"
-}
+
 
 new_line() {
     buffer=("" "${buffer[@]:1:line}" "" "${buffer[@]:line+1}")
@@ -750,6 +745,7 @@ new_line() {
 	buffer[line+1]=${buffer[line]:rl:${#buffer[line]}}
 	buffer[line]=${buffer[line]:0:rl}
 	rl=0
+	filellenght
 	megaredraw
 	down
 	redraw
@@ -760,6 +756,7 @@ delete_line() {
     unset 'buffer[0]'
     ((line > ${#buffer[@]})) && up
     modified=true
+	filellenght
     megaredraw
 	redraw
 }
@@ -844,7 +841,7 @@ execute() {
     redraw
 }
 drawc() {
-	printf '\e[?25h\e[%s;%sH' $((line + 2 - base)) $(( rl + 6 )) # move cursor to the line
+	printf '\e[?25h\e[%s;%sH' $((line + 2 - base)) $(( rl + fll + 2 )) # move cursor to the line
 }
 right() {
 	case "${bufferexpand[line]:rl+1:1}" in
@@ -934,18 +931,19 @@ menu() {
 redraw() {
 	printf "\e[0m\e[H${style[menuline]}\e[?25l%*s\r" "$COLUMNS"
 	printf '%s\e[0m' "${!menuline[*]}"
-	
-    for ((i = base; i - base < LINES - reservedlines; i++)); do # Iterate over shown lines
+	# Iterate over shown lines
+	for ((i = base; i - base < LINES - reservedlines; i++)); do
 		printf "${style[numberselected]}"
-        ((i != line)) && printf "${style[number]}" # Fade line number if not selected
-        ((i > ${#buffer[@]})) && printf "\n${style[numberempty]}\e[K   ~\e[m"\
-				|| printf "\n\e[K%4s\e[m %s" "$i" "${buffersyntax[i]}"
+		((i != line)) && printf "${style[number]}" # Fade line number if not selected
+		((i > ${#buffer[@]})) && printf "\n${style[numberempty]}\e[K%$((fll/2))s~\e[m"\
+				|| printf "\n\e[K%${fll}s\e[m %s" "$i" "${buffersyntax[i]}"
 	done
-	
+	# Status line, among others
 	printf "\n\e[?25l${style[infoline]}%*s\r %s (%s,%s)\e[m" \
-			"$COLUMNS" "(C-g to open top menu) $message" \
-			"$(basenam "$file") ($filetype)" "$line" "${rl}" # Status line, among others
-    printf '\e[?25h\e[%s;%sH' $((line + 2 - base)) $(( rl + 6 )) # move cursor to the line
+			"$COLUMNS" "(C-g to open top menu) $message fll: $fll;" \
+			"$(basenam "$file") ($filetype)" "$line" "${rl}"
+	# move cursor to the line
+	printf '\e[?25h\e[%s;%sH' $((line + 2 - base)) $(( rl + fll + 2 ))
 }
 
 makehexkey() {
