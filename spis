@@ -1010,7 +1010,7 @@ keytype() {
 			return
 		}
 		line=$(( base + ( y - 2 ) ))
-		rl=$(( x - 6 ))
+		rl=$(( x - ( fll + 2 ) ))
 		((line > ${#buffer[@]})) && line=${#buffer[@]}
 		((rl > ${#buffer[line]})) && rl=${#buffer[line]}
 		redraw
