@@ -1,33 +1,21 @@
 #!/bin/bash
+#Spis: text editor written in pure (&mess) bash
 printf '\e[?7l'
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
 
-declare -A syntax menuline menufile menuhelp menukey menudebug style windowkey keys_edit keys_def options charmap menufancy
+declare -A syntax menuline menufile menuhelp menukey menudebug style windowkey keys_edit keys_def keys_view options charmap menufancy
 declare -a buffer buffersyntax bufferexpand hexkey optdc
-declare -i line base rl offsetst offseten menulinep menulinepy fll
+declare -i line base rl offsetst offseten menulinep menulinepy fll reservedlines #selsy selsx seley selex
 declare -n menucon window
-declare file message modified filetype comment reservedlines rst
-
-printf "\e[?1049h" #switch to alternative buffer
-
-version="Spis dev"
-buffer=() # File contents
-buffersyntax=() # File contents
-line=0 # Currently selected line (0 means the buffer is empty)
-base=1 # Top-most line shown
-rl=0 # how left or right the cursor is
-menulinepy=0; menulinep=0 # menu positions
-file= # Currently addressed file
-message="${version}: insanity" # Feedback text in the status bar
-modified=false # Tracking whether a file was modified
-reservedlines=2 # Number of lines not displaying file
+declare file message modified filetype comment rst mode
 
 ## config options
 
 options=(
 	[mouse]=false
 	[todonote]=true
+	[menuline]=true
 	[defx]=$(( COLUMNS / 2 ))
 	[defy]=$(( LINES /2 ))
 	[timeout]=0.01
@@ -37,6 +25,7 @@ options=(
 	[button_margin]=2
 	[button_padding]=4
 	[cancelhex]='18 0'
+	[default_mode]="edit"
 )
 keys_def=(
 	[up]='1b 5b 41 0'
@@ -45,16 +34,20 @@ keys_def=(
 	[left]='1b 5b 44 0'
 	[select]='0'
 )
+editmode() { mode=edit; statusline; }
 keys_edit=(
 	[${keys_def[up]}]='up'
 	[${keys_def[down]}]='down'
 	[${keys_def[right]}]='right'
 	[${keys_def[left]}]='left'
-	[1b 5b 42 0]='down'
-	[1b 5b 43 0]='right'
-	[1b 5b 44 0]='left'
 	[1b 5b 35 7e 0]='page_up'
 	[1b 5b 36 7e 0]='page_down'
+	#[1b 5b 31 3b 32 41 0]='select_up'
+	#[1b 5b 31 3b 32 42 0]='select_down'
+	#[1b 5b 31 3b 32 43 0]='select_right'
+	#[1b 5b 31 3b 32 44 0]='select_left'
+	# TODO: selection
+	[1b 0]='viewmode'
 	[18 0]='quit'
 	[7 0]='menulinemenu'
 	[10 0]='up'
@@ -76,6 +69,16 @@ keys_edit=(
 	[1b 71 0]='die'
 	[1b 67 0]='menukey'
 )
+viewmode() { mode=view; statusline; }
+keys_view=(
+	[${keys_def[up]}]='up'
+	[${keys_def[down]}]='down'
+	[${keys_def[right]}]='right'
+	[${keys_def[left]}]='left'
+	[1b 5b 35 7e 0]='page_up'
+	[1b 5b 36 7e 0]='page_down'
+	[69 0]='editmode'
+)
 style=(
 	[TODO]='\e[0;97;45m'
 	[NOTE]='\e[0;97;100m'
@@ -88,9 +91,9 @@ style=(
 	[interactive]='\e[95;40m'
 	[menuitemselected]='\e[30;45m'
 	[infoline]='\e[40;97m'
-	[number]='\e[0;37m'
+	[number]='\e[0;90m'
 	[numberempty]='\e[0;90m'
-	[numberselected]='\e[0;93m'
+	[numberselected]='\e[0;91m'
 	[tab]='\e[0;90m'
 	#syntax
 	[quotevar]='\e[0;36;48m'
@@ -275,6 +278,24 @@ refresh() {
 	redraw
 	scrinit
 	message=
+}
+varinit() {
+	version="Spis dev"
+	buffer=() # File contents
+	buffersyntax=() # File contents
+	line=1 # Currently selected line (0 means the buffer is empty)
+	base=1 # Top-most line shown
+	rl=0 # how left or right the cursor is
+	menulinepy=0; menulinep=0 # menu positions
+	file= # Currently addressed file
+	message="${version}: insanity" # Feedback text in the status bar
+	modified=false # Tracking whether a file was modified
+	mode="${options[default_mode]}"
+	
+	case "${options[menuline]}" in
+		"true") reservedlines=2;;
+		"false") reservedlines=1;;
+	esac
 }
 scrinit() {
 	printf '\e[?1047h' # Switch to alternative buffer
@@ -840,9 +861,6 @@ execute() {
     megaredraw
     redraw
 }
-drawc() {
-	printf '\e[?25h\e[%s;%sH' $((line + 2 - base)) $(( rl + fll + 2 )) # move cursor to the line
-}
 right() {
 	case "${bufferexpand[line]:rl+1:1}" in
 		't') rl=$(( rl + ${#options[tabchar]}));;
@@ -851,6 +869,7 @@ right() {
 	[ "$rl" -gt "${#bufferexpand[line]}" ] && { rl=0; down; }
 	bckrl=
 	#redraw
+	statusline
 	drawc
 }
 left() {
@@ -860,6 +879,7 @@ left() {
 	esac
 	[ "$rl" -lt 0 ] && { up; rl="${#bufferexpand[line]}"; }
 	bckrl=
+	statusline
 	drawc
 }
 shell() {
@@ -873,6 +893,7 @@ die() {
     printf '\e[?25h\e[?7h\e[?1047l' # Reset terminal to sane mode
     printf "\e[?1049l" # switch back to main buffer
     echo -e "\e[?1000;1006;1015l" #disable mouse tracking
+	clr # TODO fix the buffer switching
     exit "${errno:-0}" # Assume that we are exiting without an error
 }
 mtoggle() {
@@ -928,22 +949,29 @@ menu() {
 		fi
 	done
 }
+
 redraw() {
-	printf "\e[0m\e[H${style[menuline]}\e[?25l%*s\r" "$COLUMNS"
-	printf '%s\e[0m' "${!menuline[*]}"
+	[ "${options[menuline]}" = true ] && {
+		printf "\e[0m\e[H${style[menuline]}\e[?25l%*s\r%s" "$COLUMNS" "(C-g to open menu)"
+		printf '%s\e[0m\n' "${!menuline[*]}"
+	} || printf "\e[H"
 	# Iterate over shown lines
 	for ((i = base; i - base < LINES - reservedlines; i++)); do
 		printf "${style[numberselected]}"
 		((i != line)) && printf "${style[number]}" # Fade line number if not selected
-		((i > ${#buffer[@]})) && printf "\n${style[numberempty]}\e[K%$((fll/2))s~\e[m"\
-				|| printf "\n\e[K%${fll}s\e[m %s" "$i" "${buffersyntax[i]}"
+		((i > ${#buffer[@]})) && printf "${style[numberempty]}\e[K%$((fll/2))s~\e[m\n"\
+				|| printf "\e[K%${fll}s\e[m %s\n" "$i" "${buffersyntax[i]}"
 	done
-	# Status line, among others
-	printf "\n\e[?25l${style[infoline]}%*s\r %s (%s,%s)\e[m" \
-			"$COLUMNS" "(C-g to open top menu) $message fll: $fll;" \
-			"$(basenam "$file") ($filetype)" "$line" "${rl}"
-	# move cursor to the line
-	printf '\e[?25h\e[%s;%sH' $((line + 2 - base)) $(( rl + fll + 2 ))
+	statusline
+	drawc
+}
+drawc() {
+	printf '\e[?25h\e[%s;%sH' $((line + reservedlines - base)) $(( rl + fll + 2 )) # move cursor to the line
+}
+statusline() {
+	printf "\e[%s;%sH\n\e[?25l${style[infoline]}%*s\r %s %s (%s,%s)\e[m" \
+	       "$((LINES-1))" "$COLUMNS" "$COLUMNS" "$message" \
+	       "$mode" "$(basenam "$file")[$filetype]" "$line" "${rl}"
 }
 
 makehexkey() {
@@ -960,79 +988,89 @@ keytype() {
 	local -i x y
 	makehexkey "$1"
 
-	#handle all keybindings for edit mode
-	for str in "${!keys_edit[@]}"; do
-		[ "$str" = "${hexkey[*]}" ] && "${keys_edit[$str]}" && return
-	done
-
-	#parse mouse stuff somewhatish weirdly
-	[ "${hexkey[*]:0:5}" = '1b 5b 3c 36 34' ] && up && return
-	[ "${hexkey[*]:0:5}" = '1b 5b 3c 36 35' ] && down && return
-	[ "${hexkey[*]:0:5}" = '1b 5b 3c 38 30' ] && up 9 && return
-	[ "${hexkey[*]:0:5}" = '1b 5b 3c 38 31' ] && down 9 && return
+	case "$mode" in
+		edit)
+			for str in "${!keys_edit[@]}"; do
+				[ "$str" = "${hexkey[*]}" ] && "${keys_edit[$str]}" && return
+			done;;
+		view)
+			for str in "${!keys_view[@]}"; do
+				[ "$str" = "${hexkey[*]}" ] && "${keys_view[$str]}" && return
+			done;;
+	esac
+	[ "${options[mouse]}" = true ] && {
+		#parse mouse stuff somewhatish weirdly
+		[ "${hexkey[*]:0:5}" = '1b 5b 3c 36 34' ] && up && return
+		[ "${hexkey[*]:0:5}" = '1b 5b 3c 36 35' ] && down && return
+		[ "${hexkey[*]:0:5}" = '1b 5b 3c 38 30' ] && up 9 && return
+		[ "${hexkey[*]:0:5}" = '1b 5b 3c 38 31' ] && down 9 && return
 	
-	[ "${hexkey[*]:0:2}" = '1b 5b' ] && {
-		local -i value
-		value=0
-		echo "$1" | while read -rsn1 mchar; do
-			case "$mchar" in
-				'm'|'M'|';') {
+		[ "${hexkey[*]:0:2}" = '1b 5b' ] && {
+			local -i value
+			value=0
+			echo "$1" | while read -rsn1 mchar; do
+				case "$mchar" in
+					'm'|'M'|';') {
 					case $value in
 						'0') mode="${tmp}" && tmp= ;;
 						'1') x="${tmp}" && tmp= ;;
 						'2') y="${tmp}" && tmp= ;;
 					esac
 				};;
-				*) {
-					((value>2)) && return
-					tmp=${tmp}${mchar//[!0-9]/}
-				};;
-			esac
-			case "$mchar" in
-				';')((value++));;
-				'm'|'M')value=0 && break;;
-			esac
-		done
-		
-		#limitations of movenment
-		[ $y = 1 ] && menuclick $x && return #handle menuline
-		[ $x -lt 6 ] && {
-			if [ "$mode" = 0 ]; then
-				line=$(( base + ( y - 2 ) ))
-				redraw
-			elif [ "$mode" = 2 ]; then #VERY BAD SOLUTION, TODO: FIX
-				clr
-				echo enter line number
-				read -r line
-				scrinit
-				redraw
-			fi
+					*) {
+						((value>2)) && return
+						tmp=${tmp}${mchar//[!0-9]/}
+					};;
+				esac
+				case "$mchar" in
+					';')((value++));;
+					'm'|'M')value=0 && break;;
+				esac
+			done
+			
+			#limitations of movenment
+			[ $y = 1 ] && menuclick $x && return #handle menuline
+			[ $x -lt 6 ] && {
+				if [ "$mode" = 0 ]; then
+					line=$(( base + ( y - reservedlines ) ))
+					redraw
+				elif [ "$mode" = 2 ]; then #VERY BAD SOLUTION, TODO: FIX
+					clr
+					echo enter line number
+					read -r line
+					scrinit
+					redraw
+				fi
+				return
+			}
+			line=$(( base + ( y - 2 ) ))
+			rl=$(( x - ( fll + 2 ) ))
+			((line > ${#buffer[@]})) && line=${#buffer[@]}
+			((rl > ${#buffer[line]})) && rl=${#buffer[line]}
+			redraw
 			return
 		}
-		line=$(( base + ( y - 2 ) ))
-		rl=$(( x - ( fll + 2 ) ))
-		((line > ${#buffer[@]})) && line=${#buffer[@]}
-		((rl > ${#buffer[line]})) && rl=${#buffer[line]}
-		redraw
-		return
 	}
 	[ "${hexkey[*]:0:3}" = '1b 5b 3c' ] && return
-	local -i rlr
-	unset ta
-	local ta
-	ta=${bufferexpand[line]:0:rl}
-	ta=${ta//[^t]}
-	ta=${#ta}
-	rlr=$((rl + ta / 4 - ta))	
-	buffer[line]="${buffer[line]:0:${rlr}}$1${buffer[line]:${rlr}}" #add at cursor position - amount of tabs * tab size
-	#go right with cursor
-	megaredrawline #not sure why this is needed but it prevents duplication of the letter
-	right
-	redraw
-	[ "$1" = '	' ] && printf '\e[%sC' $((${#options[tabchar]} - 1))
-	modified=true
+	[ "$mode" = edit ] && {
+		local -i rlr
+		unset ta
+		local ta
+		ta=${bufferexpand[line]:0:rl}
+		ta=${ta//[^t]}
+		ta=${#ta}
+		rlr=$((rl + ta / 4 - ta))	
+		buffer[line]="${buffer[line]:0:${rlr}}$1${buffer[line]:${rlr}}" #add at cursor position - amount of tabs * tab size
+		#go right with cursor
+		megaredrawline #not sure why this is needed but it prevents duplication of the letter
+		right
+		redraw
+		[ "$1" = '	' ] && printf '\e[%sC' $((${#options[tabchar]} - 1))
+		modified=true
+	}
 }
 main() {
+	varinit
 	scrinit
     if [[ "$1" ]]; then # If a file was provided in the terminal pre-load it
         #redraw # Draw out the UI before loading file
