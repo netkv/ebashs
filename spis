@@ -1,14 +1,14 @@
 #!/bin/bash
-#Spis: text editor written in pure (&mess) bash
+# Spis: text editor written in pure (&mess) bash
 printf '\e[?7l'
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
 
-declare -A syntax menuline menufile menuhelp menukey menudebug style windowkey keys_edit keys_def keys_view options charmap menufancy
+declare -A syntax menuline menufile menuhelp menukey menudebug style windowkey keys_edit keys_def keys_command options charmap menufancy commands
 declare -a buffer buffersyntax bufferexpand hexkey optdc
 declare -i line base rl offsetst offseten menulinep menulinepy fll reservedlines #selsy selsx seley selex
 declare -n menucon window
-declare file message modified filetype comment rst mode
+declare file message info modified filetype comment rst mode command cmd_prompt
 
 ## config options
 
@@ -22,6 +22,7 @@ options=(
 	[tabchar]=' →  '
 	[refresh_timeout]=1
 	[file_prompt]="Path: "
+	[cmd_prompt]="M-x "
 	[button_margin]=2
 	[button_padding]=4
 	[cancelhex]='18 0'
@@ -34,7 +35,6 @@ keys_def=(
 	[left]='1b 5b 44 0'
 	[select]='0'
 )
-editmode() { mode=edit; statusline; }
 keys_edit=(
 	[${keys_def[up]}]='up'
 	[${keys_def[down]}]='down'
@@ -47,7 +47,7 @@ keys_edit=(
 	#[1b 5b 31 3b 32 43 0]='select_right'
 	#[1b 5b 31 3b 32 44 0]='select_left'
 	# TODO: selection
-	[1b 0]='viewmode'
+	[1b 0]='commandmode'
 	[18 0]='quit'
 	[7 0]='menulinemenu'
 	[10 0]='up'
@@ -68,16 +68,17 @@ keys_edit=(
 	[7f 0]='backspace'
 	[1b 71 0]='die'
 	[1b 67 0]='menukey'
+	[1b 78 0]='cmd'
 )
-viewmode() { mode=view; statusline; }
-keys_view=(
+keys_command=(
 	[${keys_def[up]}]='up'
 	[${keys_def[down]}]='down'
 	[${keys_def[right]}]='right'
 	[${keys_def[left]}]='left'
 	[1b 5b 35 7e 0]='page_up'
 	[1b 5b 36 7e 0]='page_down'
-	[69 0]='editmode'
+	[69 0]='insertmode'
+	[61 0]='ansertmode'
 )
 style=(
 	[TODO]='\e[0;97;45m'
@@ -251,6 +252,19 @@ debugmenutestch=(
 	[menuhelp]="menuhelp"
 )
 
+commands=(
+	[quit]="quit"
+	[newline]="new_line"
+	[set-buffer-file]="set_buffer_file"
+	[read-file]="read_buffer"
+	[write-file]="write_buffer"
+	[delete-line]="delete_line"
+	[toggle-mouse]="mtoggle"
+	[execute]="execute"
+	[shell]="shell"
+	[force-quit]="die"
+)
+
 ## rest of this garbageware
 
 rst='\e[0;0m'
@@ -270,6 +284,9 @@ getcx() {
 	echo "${pos[2]}"
 }
 
+commandmode() { mode="command"; statusline; }
+insertmode() { mode="edit"; statusline; drawc; }
+ansertmode() { mode="edit"; statusline; right; }
 
 refresh() {
 	clr
@@ -288,18 +305,28 @@ varinit() {
 	rl=0 # how left or right the cursor is
 	menulinepy=0; menulinep=0 # menu positions
 	file= # Currently addressed file
-	message="${version}: insanity" # Feedback text in the status bar
+	info="${version}: insanity" # Feedback text in the status bar
 	modified=false # Tracking whether a file was modified
 	mode="${options[default_mode]}"
 	
 	case "${options[menuline]}" in
-		"true") reservedlines=2;;
-		"false") reservedlines=1;;
+		"true") reservedlines=3;;
+		"false") reservedlines=2;;
 	esac
 }
 scrinit() {
 	printf '\e[?1047h' # Switch to alternative buffer
     [ "${options[mouse]}" = true ] && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
+}
+
+cmd() {
+	printf '\e[%s;0H' $LINES
+	printf '\e[?25h'
+	if read -re -p "${options[cmd_prompt]}" command; then
+		for lcmd in "${!commands[@]}"; {
+			[ "$command" = "$lcmd" ] && "${commands[$lcmd]}"
+		}
+	fi
 }
 
 float() {
@@ -508,6 +535,7 @@ builtin_syntax_bash() {
 		'{') printf "${style[bracket]}%s${rst}" "${word}"; return ;;
 		'}') printf "${style[bracket]}%s${rst}" "${word}"; return ;;
 		';') printf "${style[flow]}%s${rst}" "${word}"; return ;;
+		'function') printf "${style[fn]}%s${rst}" "${word}"; return ;;
 		*"'"*) printf "${style[quote]}%s${rst}" "${word}" && return ;;
 		*'"'*) printf "${style[dquote]}%s${rst}" "${word}"&& return ;;
 		*'='*) printf "${style[set]}%s${rst}" "${word}"; return ;;
@@ -591,6 +619,8 @@ basenam() {
 	done
 }
 filetype(){
+	local filename shebang extension
+	local -a filenamesplit shebangsplit
 	[ $# = 0 ] && return
 	IFS='.'
 	filename="${1%/}"
@@ -599,13 +629,13 @@ filetype(){
 	filenamesplit=($filename)
 	extension="${filenamesplit[-1]}"
 	[ "${#filenamesplit[@]}" -gt 1 ] && echo "$extension" && return
+	
 	mapfile -n 1 file_data < "$1"
 	shebang="$(echo -n "${file_data[@]}")"
 	[ ! "${shebang:0:1}" = '#' ] && echo unknown && return
 	shebang="${shebang%/}"
 	IFS=' '
-	shebang="${shebang##*/}"
-	shebangsplit=($shebang)
+	shebangsplit=("${shebang##*/}")
 	printf '%s\n' "${shebangsplit[-1]}"	
 }
 filellenght() {
@@ -633,9 +663,9 @@ read_buffer() {
 	if [[ "${buffer[1]}" ]]; then # Ensure that something was actually read into the file
 		line=1 # Indicate that we have a buffer loaded
 		modified=false
-		message="${file}: ${#buffer[@]}"
+		info="${file}: ${#buffer[@]}"
 	else
-		message="{$file}: empty"
+		info="{$file}: empty"
 	fi
 }
 pickprep() {
@@ -822,7 +852,7 @@ quit() {
 up() {
     for ((i = 0; i < ${1:-1}; i++)); do
         ((line > 1)) && ((line--)) # As long as we can keep going up, go up
-        ((line < base)) && ((base--)) && # Push back the top if we need to
+        ((line < base + 1)) && ((base--)) && # Push back the top if we need to
         ((base <= 0)) && base=1 # Don't push back if our base is at 1
         [ -z "$bckrl" ] && bckrl="${rl}"
         (( "${#buffer[line]}" < "${rl}" )) && rl="${#buffer[line]}"
@@ -838,7 +868,7 @@ page_up() {
 down() {
     for ((i = 0; i < ${1:-1}; i++)); do
         ((line < ${#buffer[@]})) && ((line++)) # If we can go down, go down
-        ((line > base + LINES - 3)) && ((base++)) && # Move window down if needed
+        ((line > base + LINES - 2 - reservedlines)) && ((base++)) && # Move window down if needed
         [ -z "$bckrl" ] && bckrl="${rl}"
         (( "${#buffer[line]}" < "${rl}" )) && rl="${#buffer[line]}"
         (( "${#buffer[line]}" > "${rl}" )) && rl=bckrl
@@ -963,15 +993,20 @@ redraw() {
 				|| printf "\e[K%${fll}s\e[m %s\n" "$i" "${buffersyntax[i]}"
 	done
 	statusline
+	commandline
 	drawc
 }
 drawc() {
-	printf '\e[?25h\e[%s;%sH' $((line + reservedlines - base)) $(( rl + fll + 2 )) # move cursor to the line
+	printf '\e[?25h\e[%s;%sH' $((line + 2 - base)) $(( rl + fll + 2 )) # move cursor to the line
 }
 statusline() {
 	printf "\e[%s;%sH\n\e[?25l${style[infoline]}%*s\r %s %s (%s,%s)\e[m" \
-	       "$((LINES-1))" "$COLUMNS" "$COLUMNS" "$message" \
+	       "$((LINES-2))" "$COLUMNS" "$COLUMNS" "$info" \
 	       "$mode" "$(basenam "$file")[$filetype]" "$line" "${rl}"
+}
+commandline() {
+	printf "\e[%s;%sH\n\e[?25l${style[commandline]}%s\e[m" \
+	       "$((LINES-1))" "$COLUMNS" "$message"
 }
 
 makehexkey() {
@@ -993,9 +1028,9 @@ keytype() {
 			for str in "${!keys_edit[@]}"; do
 				[ "$str" = "${hexkey[*]}" ] && "${keys_edit[$str]}" && return
 			done;;
-		view)
-			for str in "${!keys_view[@]}"; do
-				[ "$str" = "${hexkey[*]}" ] && "${keys_view[$str]}" && return
+		command)
+			for str in "${!keys_command[@]}"; do
+				[ "$str" = "${hexkey[*]}" ] && "${keys_command[$str]}" && return
 			done;;
 	esac
 	[ "${options[mouse]}" = true ] && {
@@ -1043,8 +1078,8 @@ keytype() {
 				fi
 				return
 			}
-			line=$(( base + ( y - 2 ) ))
-			rl=$(( x - ( fll + 2 ) ))
+			line=$(( base + ( y - 3 ) ))
+			rl=$(( x - ( fll + 3 ) ))
 			((line > ${#buffer[@]})) && line=${#buffer[@]}
 			((rl > ${#buffer[line]})) && rl=${#buffer[line]}
 			redraw
