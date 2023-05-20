@@ -3,21 +3,26 @@ printf '\e[?1049h'
 # Spis: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
+shopt -s checkwinsize; (:;:) # Enable and then trigger a terminal size refresh
+trap redrawa WINCH ALRM # Attach WINCH and ALRM to redraw the screen
+trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
+trap quit INT
+trap quit SIGTERM
 
-declare -A syntax menufile menulineedit menuhelp menukey menudebug style windowkey keys_edit keys_def keys_command keys_interact options charmap menufancy commands filepickmenu
+declare -A syntax menufile menulineedit menuhelp menukey menudebug style windowkey keys_edit keys_def keys_command keys_interact options charmap menufancy commands filepickmenu keys_view menulineabout
 declare -a buffer buffersyntax bufferexpand hexkey optdc
-declare -i line base rl offsetst offseten menulinep menulinepy fll reservedlines hidden #selsy selsx seley selex
+declare -i line base rl menulinep menulinepy fll reservedlines hidden offx offy sizx sizy update
 declare -n menucon window menuline
 declare file message info modified filetype comment rst mode command cmd_prompt help_message
 
-## config options
-
+### Config options
+## General options
 options=(
 	[mouse]=false
 	[todonote]=true
 	[menuline]=true
-	[defx]=$(( COLUMNS / 2 ))
-	[defy]=$(( LINES /2 ))
+	[defx]=$(( sizx / 2 ))
+	[defy]=$(( sizy /2 ))
 	[timeout]=0.01
 	[tabchar]='│   '
 	[refresh_timeout]=1
@@ -30,6 +35,10 @@ options=(
 	[help_message]="(F10 to open menu)"
 	[filepick_message]="Pick a file"
 )
+## Key bindings configuration
+#      A keybindings for a mode x have to be in array named keys_${x}, else spis won't see them
+#      keys_def is special case containing the common definitions.
+#      It isn't used by itself anywhere, it exists purely for simplification.
 keys_def=(
 	[up]='1b 5b 41 0'
 	[down]='1b 5b 42 0'
@@ -84,6 +93,15 @@ keys_interact=(
 	[${keys_def[select]}]='file_select'
 	[68 0]='toggle_hidden'
 )
+keys_view=(
+	[${keys_def[up]}]='up'
+	[${keys_def[down]}]='down'
+	[${keys_def[right]}]='right'
+	[${keys_def[left]}]='left'
+	[${keys_def[page_up]}]='page_up'
+	[${keys_def[page_down]}]='page_down'
+	[${keys_def[select]}]='view_exit'
+)
 keys_command=(
 	[${keys_def[up]}]='up'
 	[${keys_def[down]}]='down'
@@ -94,13 +112,13 @@ keys_command=(
 	[69 0]='insertmode'
 	[61 0]='ansertmode'
 )
+## Style
+#      Defined in escape codes.
 style=(
 	[TODO]='\e[0;97;45m'
 	[NOTE]='\e[0;97;100m'
 	[menuline]='\e[0;37;40m'
-	[windowline]='\e[0;97;100m'
 	[menuitem]='\e[0;37;40m'
-	[windowcontent]='\e[97;40m'
 	[selected]='\e[30;45m'
 	[button]='\e[0;97;100m'
 	[link]='\e[94m'
@@ -123,6 +141,7 @@ style=(
 	[fn]='\e[0;30;44m'
 	[keyword]='\e[0;91m'
 )
+## charmap
 #TODO: this will be usesfull for later implementation of ligatures and stuff
 charmap=(
 	#[0] is reserved for any unmapped char
@@ -137,7 +156,7 @@ windowkey=(
 menulinemenu() {
 	unset menucon
 	declare -n menucon=menufancy
-	#menulinepy=$(( LINES - ${#menufancy[@]} ))
+	#menulinepy=$(( sizy - ${#menufancy[@]} ))
 	menu
 }
 menulineedit=(
@@ -164,7 +183,6 @@ menufile=(
 menuhelp() { unset menucon; declare -n menucon=menuhelp; menu; }
 menuhelp=(
 	[Keybinding          ]=menukey
-	[About float windows ]=winhelpf
 	[About               ]=about
 )
 
@@ -196,7 +214,6 @@ menudebug=(
 	[left       ]=left
 	[dialogquit ]=dialogquit
 	[inputcodes ]=inputcodes
-	[debugmenu  ]=debugmenutest
 )
 
 syntax=(
@@ -206,77 +223,19 @@ syntax=(
 	[conf]=builtin_syntax_conf	[unknown]=builtin_syntax_unknown
 )
 
-declare -A about
-about() { unset window; declare -n window=about; float; }
-about=(
-	[sizex]="${options[defx]}"	[sizey]="${options[defy]}"
-	[title]=" About ${version} "
-	[content]="${version}, text \"editor\" written bash. git repo: https://github.com/nyeta/spis; originally based on https://github.com/comfies/bed"
-)
-
-declare -A winhelp
-winhelpf() { unset window; declare -n window=winhelp; float; }
-winhelp=(
-	[sizex]="${options[defx]}"	[sizey]="${options[defy]}"
-	[title]=" Floating window help "
-	[content]="Use tab key to switch focus. When focused on window itself use arrow keys to move the window and / to decrease its width, * to increase, + to increase its height and - to decrease. When focused on choose menu, use left and right arrow to select.  -- for now this is absolutelly useless"
-)
-
-declare -A wininfo
-wininfo() { unset window; declare -n window=wininfo; wininfo[content]="name: $file; type: $filetype"; float; }
-wininfo=(
-   	[sizex]="${options[defx]}"	[sizey]="${options[defy]}"
-	[title]=" File info "
-	#content is set in fucntion, so it can dynamicaly update
-)
-
-declare -A dialogquit dialogquitmenu
-dialogquit() { unset window; declare -n window=dialogquit; float; }
-dialogquit=(
-	[sizex]=46 [sizey]=8
-	[title]="Unsaved work"
-	[content]="Buffer modified, save before close?"
-	[type]="choose"
-	[options]="dialogquitmenu"
-	[layout]="center"
-	[default]="save"
-	[focus]="choose"
-)
-dialogquitmenu=(
-	[save]="write_buffer; die"
-	[quit]="die"
-	[cancel]="redraw; return 69"
-)
-
-declare -A debugmenutest debugmenutestch
-debugmenutest() { unset window; declare -n window=debugmenutest; float; }
-debugmenutest=(
-	[sizex]="${options[defx]}" [sizey]="${options[defy]}"
-	[title]="Test"
-	[content]="Pick!"
-	[type]="choose"
-	[options]="debugmenutestch"
-	[layout]="right"
-	[default]="menudebug"
-	[focus]="choose"
-)
-debugmenutestch=(
-	[menudebug]="menulinepy=menudebug"
-	[menukey]="menukey"
-	[menuhelp]="menuhelp"
-)
-
 commands=(
-	[quit]="quit"
-	[newline]="new_line"
-	[set-buffer-file]="set_buffer_file"
-	[read-file]="read_buffer"
-	[write-file]="write_buffer"
-	[delete-line]="delete_line"
-	[toggle-mouse]="mtoggle"
-	[execute]="execute"
-	[shell]="shell"
-	[force-quit]="die"
+	[quit]='quit'
+	[newline]='new_line'
+	[set-buffer-file]='set_buffer_file'
+	[read-file]='read_buffer'
+	[write-file]='write_buffer'
+	[delete-line]='delete_line'
+	[toggle-mouse]='mtoggle'
+	[execute]='execute'
+	[shell]='shell'
+	[force-quit]='die'
+	[about]='about'
+	[backspace]='backspace'
 )
 
 filepickmenu=(
@@ -328,184 +287,27 @@ varinit() {
 	mode="${options[default_mode]}"
 	menuline=menulineedit # Set default menuline for file editing
 	help_message="${options[help_message]}"
+	offx=0
+	offy=1
+	sizx=$COLUMNS
+	sizy=$((LINES - 1))
+	update=1
 	case "${options[menuline]}" in
 		"true") reservedlines=3;;
 		"false") reservedlines=2;;
 	esac
 }
 scrinit() {
-	printf '\e[?1047h' # Switch to alternative buffer
     [ "${options[mouse]}" = true ] && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
 }
 
 cmd() {
-	printf '\e[%s;0H' $LINES
+	printf '\e[%s;0H' $((sizy + offy))
 	printf '\e[?25h'
 	if read -re -p "${options[cmd_prompt]}" command; then
 		for lcmd in "${!commands[@]}"; {
 			[ "$command" = "$lcmd" ] && "${commands[$lcmd]}"
 		}
-	fi
-}
-
-float() {
-	local -i dci=0
-	change=true
-	floatsizex="${window[sizex]}"
-	floatsizey="${window[sizey]}"
-	floatpositionx=$(( ( COLUMNS / 2 ) - ( floatsizex / 2 )  ))
-	floatpositiony=$(( ( LINES / 2 ) - ( floatsizey / 2 ) ))
-	# focus to itself window if it doesn't define custom focus element
-	if [ -z "${window[focus]}" ]; then
-		focus=window
-	else
-		focus="${window[focus]}"
-	fi
-	
-	case "${window[type]}" in
-		'choose')
-			unset chooseopt
-			declare -n chooseopt="${window[options]}"
-			declare -n layout="${window[layout]}"
-			selopt="${window[default]}"
-			for is in "${!chooseopt[@]}"; do
-				optdc[dci]="$is"
-				if [ "$is" = "${selopt}" ]; then
-					   seloptdc=$dci
-				   fi
-				((dci++))
-			done
-			;;
-	esac
-	floatwin
-}
-floatwin() {
-	while true; do
-		[ "$change" = true ] && {
-			redraw
-			printf '\e[%s;%sH' $floatpositiony $floatpositionx
-			printf "${style[windowline]}%*s\r" $floatsizex
-			printf '\e[%s;%sH' $floatpositiony $floatpositionx
-			printf '%s\e[m' "${window[title]}"
-			local -i rsizey=$(( floatsizey - 1 ))
-			local -i csizex=0
-			for ((i=1;i<=rsizey;i++)); do
-				printf "\e[%s;%sH${style[windowcontent]}%*s\r" $(( floatpositiony + i )) $floatpositionx "$floatsizex"
-				printf '\e[%s;%sH%s\n' $(( floatpositiony + i )) $floatpositionx "${window[content]:csizex:floatsizex}"
-				csizex=$(( csizex + floatsizex ))
-			done
-			#draw selection menu
-			case "${window[type]}" in
-				'choose')
-					floatchoose;;
-			esac
-		}
-		winkey
-		[ $? = 69 ] && return
-	done
-}
-floatchoose() {
-	local -i bm=${options[button_margin]}
-	local -i bp=${options[button_padding]}
-	local all="${!chooseopt[*]}"
-	case "${window[layout]}" in
-		right)
-			local -i stx=$((floatpositionx + floatsizex - ${#all} - ${#chooseopt[*]} * 2 * bp - ${#chooseopt[*]} * ( bm - 1 ) - 1));;
-		left)
-			local -i stx=$((floatpositionx + bm));;
-		center)
-			local -i stx=$((floatpositionx + (floatsizex / 2) - ( (${#all} + ${#chooseopt[*]} * 2 * bp + ${#chooseopt[*]} * (bm - 1) ) / 2 ) ));;
-	esac
-	local -i sty=$((floatpositiony + floatsizey - 2))
-	floatchbpbm
-	((sty--))
-	(
-		for opt in ${!chooseopt[@]}; do
-			printf '\e[%s;%sH' $sty $stx
-			if [ "$opt" = "$selopt" ]; then
-				printf "${style[selected]}%*s${opt}%*s" $bp ' ' $bp ' '
-			else
-				printf "${style[button]}%*s${opt}%*s" $bp ' ' $bp ' '
-			fi
-		    stx=$((stx + ${#opt} + bp * 2 + bm))
-		done
-	)
-	((sty--))
-	floatchbpbm
-	((sty++))
-	(
-		for opt in ${!chooseopt[@]}; do
-			printf '\e[%s;%sH' $sty $stx
-			if [ "$opt" = "$selopt" ]; then
-			    printf '\e[%sC' $bp
-				break
-			fi
-			stx=$((stx + ${#opt} + bp * 2 + bm))
-		done
-	)
-	
-}
-floatchbpbm() {
-	(
-		for opt in ${!chooseopt[@]}; do
-			printf '\e[%s;%sH' $sty $stx
-			if [ "$opt" = "$selopt" ]; then
-				printf "${style[selected]}%*s" $(( ${#opt} + bp * 2 ))
-			else
-				printf "${style[button]}%*s" $(( ${#opt} + bp * 2 ))
-			fi
-			stx=$((stx + ${#opt} + bp * 2 + bm))
-		done
-	)
-}
-winkey() {
-	change=true
-	printf '\e[m'
-	local -a kbd=()
-	if read -rsN1 kbd[0]; then # Check for ready input
-		while read -rsN1 -t0.0001 kbd[$i]; do ((i++)); done # Multibyte hack
-		case "$focus" in
-			window)
-				case "$(printf '%s' "${kbd[@]}")" in
-					"${windowkey[up]}"*) ((floatpositiony--)) && (( floatpositiony < 1 )) && floatpositiony=1 && change=false ;;
-					"${windowkey[down]}"*) ((floatpositiony++)) && (( floatpositiony > LINES - floatsizey )) && floatpositiony=$(( LINES - floatsizey )) && change=false ;;
-					"${windowkey[right]}"*) ((floatpositionx++)) && (( floatpositionx > 1 + COLUMNS - floatsizex )) && floatpositionx=$(( 1 + COLUMNS - floatsizex )) && change=false ;;
-					"${windowkey[left]}"*) ((floatpositionx--)) && (( floatpositionx < 1 )) && floatpositionx=1 && change=false ;;
-					"${windowkey[vsizem]}") ((floatsizey--)) ;;
-					"${windowkey[vsizep]}") ((floatsizey++)) ;;
-					"${windowkey[hsizem]}") ((floatsizex--)) ;;
-					"${windowkey[hsizep]}") ((floatsizex++)) ;;
-					'	') true;;
-					*) redraw; return 69;;
-				esac
-				;;
-			choose)
-				case "$(printf '%s' "${kbd[@]}")" in
-					"${windowkey[right]}"*) ((seloptdc++)); (( seloptdc > ( ${#chooseopt[*]} - 1 ) )) && seloptdc=$(( ${#chooseopt[*]} - 1 ));;
-					"${windowkey[left]}"*) ((seloptdc--)); ((seloptdc<0)) && seloptdc=0;;
-					'')
-						menulinepy=$(getcy)
-						menulinep=$(getcx)
-						eval "${chooseopt[$selopt]}";;
-				esac
-				selopt="${optdc[seloptdc]}"
-				;;
-		esac
-		case "$(printf '%s' "${kbd[@]}")" in
-			'	')
-				case "${window[type]}" in
-					'choose')
-						if [ $focus = window ]; then
-							focus=choose
-							selopt="${optdc[seloptdc]}"
-						else
-							focus=window
-							selopt=''
-						fi
-						;;
-				esac
-				;;
-		esac
 	fi
 }
 
@@ -620,9 +422,9 @@ debuginput() {
 	topline "Input codes (exit keybind is ${options[cancelhex]})"
 	printf "${style[windowcontent]}"
 	printf "\033[2;0H"
-	for ((i=2;i<=LINES;i+=1)); do
+	for ((i=2;i<=sizy;i+=1)); do
 		printf '\033[%s;0H' $i
-		printf '%*s' "$COLUMNS"
+		printf '%*s' "$sizx"
 	done
 	printf "\033[2;0H"
 	echo "${hexkey[@]}"
@@ -659,7 +461,7 @@ filellenght() {
 	fll="${#fll}"
 }
 set_buffer_file() {
-	printf '\e[%s;0H' "${LINES}"
+	printf '\e[%s;0H' "${sizy}"
 	printf '\e[D\033[1;93;108m' #make prompt nicer
     bind 'set disable-completion off' 2>/dev/null # Enable completion
     printf '\e[?25h' # Enable cursor
@@ -693,7 +495,7 @@ clr_buffer() {
 
 topline() {
 	local -i ln=${#1}
-	printf "${style[windowline]}%s\e[?25l%*s" "$1" "$(( $COLUMNS - ln ))"
+	printf "${style[windowline]}%s\e[?25l%*s" "$1" "$(( $sizx - ln ))"
 }
 toggle_hidden() {
 	((hidden==0)) && hidden=1 || hidden=0
@@ -746,6 +548,71 @@ pickls() {
 	((hidden==1)) && printf '%s\n' .*
 	printf '%s\n' *
 }
+save() {
+	for idx in "${!buffer[@]}"; do
+		buffersave[idx]="${buffer[idx]}"
+	done
+	for idx in "${!buffersyntax[@]}"; do
+		buffersyntaxsave[idx]="${buffersyntax[idx]}"
+	done
+	for idx in "${!bufferexpand[@]}"; do
+		bufferexpandsave[idx]="${bufferexpand[idx]}"
+	done
+	help_messagesave="$help_message"
+	filetypesave="$filetype"
+	filesave="$filetype"
+	modesave="$mode"
+	menulinesave="${!menuline}"
+}
+restore() {
+	clr_buffer
+	for idx in "${!buffersave[@]}"; do
+		buffer[idx]="${buffersave[idx]}"
+	done
+	for idx in "${!buffersyntaxsave[@]}"; do
+		buffersyntax[idx]="${buffersyntaxsave[idx]}"
+	done
+	for idx in "${!bufferexpandsave[@]}"; do
+		bufferexpand[idx]="${bufferexpandsave[idx]}"
+	done
+	help_message="$help_messagesave"
+	filetype="$filetypesave"
+	file="$filesave"
+	mode="$modesave"
+	declare -gn menuline="$menulinesave"
+}
+
+about() {
+	save
+	update=0
+	#sizx=$((COLUMNS / 2))
+	#sizy=$((LINES / 3))
+	#offx=$((COLUMNS / 2 - COLUMNS / 4))
+	#offy=$((LINES / 2 - LINES / 6))
+	mode=view
+	filetype="i*"
+	file="about*"
+	help_message="About"
+	declare -gn menuline=menulineabout
+	menulineabout=(
+		[quit]='view_exit'
+	)
+	buffer=('This is Spis, one component of the Bash/Bash operating system.'
+			''
+			"${version}, text \"editor\" written bash. git repo: https://github.com/nyeta/spis"
+			'originally based on https://github.com/comfies/bed'
+			''
+			'https://github.com/nyeta/spis'
+		   )
+	megaredraw
+	clr
+	redraw
+}
+view_exit() {
+	restore
+	redraw
+}
+
 
 write_buffer() {
     true >"$file" # Set the file to an empty text file
@@ -837,7 +704,18 @@ backspace() {
 
 quit() {
 	if [[ "$modified" == "true" ]]; then
-		dialogquit
+		while true; do
+			printf '\e[%s;0H%s' $((sizy + offy)) "Save file ${file}? (y, n, c): "
+			printf '\e[?25h'
+			if read -rn 1  answer; then
+				case "$answer" in
+					'y') write_buffer; die;;
+					'n') die;;
+					'c') return;;
+					'*') continue;;
+				esac
+			fi
+		done
 	else
 		die
 	fi
@@ -857,13 +735,13 @@ up() {
 }
 
 page_up() {
-    up $((LINES - 3))
+    up $((sizy - 3))
 }
 
 down() {
     for ((i = 0; i < ${1:-1}; i++)); do
         ((line < ${#buffer[@]})) && ((line++)) # If we can go down, go down
-        ((line > base + LINES - 2 - reservedlines)) && ((base++)) && # Move window down if needed
+        ((line > base + sizy - 2 - reservedlines)) && ((base++)) && # Move window down if needed
         [ -z "$bckrl" ] && bckrl="${rl}"
         (( "${#buffer[line]}" < "${rl}" )) && rl="${#buffer[line]}"
         (( "${#buffer[line]}" > "${rl}" )) && rl=bckrl
@@ -872,7 +750,7 @@ down() {
 }
 
 page_down() {
-    down $((LINES - 3))
+    down $((sizy - 3))
 }
 
 execute() {
@@ -927,7 +805,7 @@ mtoggle() {
 menuclick() {
 	#determine which item should be triggered
 	[ -z $1 ] && menulinep=0 || menulinep=$1
-	local cx=0
+	local cx="$offx"
 	for a in "${!menuline[@]}"; {
 		la="${#a}"
 		((menulinep>cx)) && ((menulinep<(cx + la + 1))) && ${menuline[$a]}
@@ -975,32 +853,37 @@ menu() {
 }
 
 redraw() {
+	((update==1)) && {
+		sizx=$COLUMNS
+		sizy=$((LINES - 1))
+	}
 	[ "${options[menuline]}" = true ] && {
-		printf "\e[0m\e[H${style[menuline]}\e[?25l%*s\r%s" "$COLUMNS" "$help_message"
-		printf '%s\e[0m\n' "${!menuline[*]}"
-	} || printf "\e[H"
+		printf "\e[0m\e[%s;%sH${style[menuline]}\e[?25l%*s\r%s" "$offy" "$offx" "$sizx" "$help_message"
+		printf '\e[%sG%s\e[0m\n' "$offx" "${!menuline[*]}"
+	} || printf "\e[%s;%sH" "$offy" "$offx"
 	# Iterate over shown lines
-	for ((i = base; i - base < LINES - reservedlines; i++)); do
+	for ((i = base; i - base < sizy - reservedlines + 1; i++)); do
 		printf "${style[numberselected]}"
 		((i != line)) && printf "${style[number]}" # Fade line number if not selected
-		((i > ${#buffer[@]})) && printf "${style[numberempty]}\e[K%$((fll/2))s~\e[m\n"\
-				|| printf "\e[K%${fll}s\e[m %s\n" "$i" "${buffersyntax[i]}"
+		((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((fll/2))s~\e[m\n" "$offx"\
+				|| printf "\e[%sG\e[K%${fll}s\e[m %s\n" "$offx" "$i" "${buffersyntax[i]}"
 	done
 	statusline
 	commandline
 	drawc
 }
 drawc() {
-	printf '\e[?25h\e[%s;%sH' $((line + 2 - base)) $(( rl + fll + 2 )) # move cursor to the line
+	printf '\e[?25h\e[%s;%sH' $((line + 1 - base + offy)) $((rl + fll + 2 + offx)) # move cursor to the line
 }
 statusline() {
-	printf "\e[%s;%sH\n\e[?25l${style[infoline]}%*s\r %s %s (%s,%s)\e[m" \
-	       "$((LINES-2))" "$COLUMNS" "$COLUMNS" "$info" \
+	printf "\e[?25l\e[%s;%sH\n\e[%sG${style[infoline]}%*s\e[%sG%s %s (%s,%s)\e[m" \
+	       $((sizy-2 + offy)) $((sizx + offx)) "$offx" $((sizx)) "$info" "$offx" \
 	       "$mode" "$(basenam "$file")[$filetype]" "$line" "${rl}"
+	#printf "\e[?25l\e[%s;%sH\n
 }
 commandline() {
 	printf "\e[%s;%sH\n\e[?25l${style[commandline]}%s\e[m" \
-	       "$((LINES-1))" "$COLUMNS" "$message"
+	       $((sizy-2+offy)) $((sizx + offx)) "$message"
 }
 
 makehexkey() {
@@ -1017,20 +900,12 @@ keytype() {
 	local -i x y
 	makehexkey "$1"
 
-	case "$mode" in
-		'edit')
-			for str in "${!keys_edit[@]}"; do
-				[ "$str" = "${hexkey[*]}" ] && "${keys_edit[$str]}" && return
-			done;;
-		'command')
-			for str in "${!keys_command[@]}"; do
-				[ "$str" = "${hexkey[*]}" ] && "${keys_command[$str]}" && return
-			done;;
-		'interact')
-			for str in "${!keys_interact[@]}"; do
-				[ "$str" = "${hexkey[*]}" ] && "${keys_interact[$str]}" && return
-			done;;
-	esac
+	local -n modekeys="keys_${mode}"
+	for str in "${!modekeys[@]}"; do
+		[ "$str" = "${hexkey[*]}" ] && "${modekeys[$str]}" && return
+	done
+	[ "$mode" = 'edit' ] || return
+	
 	[ "${options[mouse]}" = true ] && {
 		#parse mouse stuff somewhatish weirdly
 		[ "${hexkey[*]:0:5}" = '1b 5b 3c 36 34' ] && up && return
@@ -1061,10 +936,10 @@ keytype() {
 			done
 			
 			#limitations of movenment
-			[ $y = 1 ] && menuclick $x && return #handle menuline
-			[ $x -lt 6 ] && {
+			[ $y = "$offy" ] && menuclick $x && return #handle menuline
+			((x < (fll + offx))) && {
 				if [ "$mode" = 0 ]; then
-					line=$(( base + ( y - reservedlines) ))
+					line=$(( base + ( (y - offy + 2) - reservedlines) ))
 					redraw
 				elif [ "$mode" = 2 ]; then #VERY BAD SOLUTION, TODO: FIX
 					clr
@@ -1075,8 +950,8 @@ keytype() {
 				fi
 				return
 			}
-			line=$(( base + ( y - 2) ))
-			rl=$(( x - ( fll + 3 ) ))
+			line=$(( base + ( y - offy - 1) ))
+			rl=$(( x - ( offx + fll + 1 ) ))
 			((line > ${#buffer[@]})) && line=${#buffer[@]}
 			((rl > ${#buffer[line]})) && rl=${#buffer[line]}
 			redraw
@@ -1133,11 +1008,6 @@ redrawa() {
 	redraw #i have no idea why it has to be twice to work
 	redraw
 }
-shopt -s checkwinsize # Enable and then trigger a terminal size refresh
-trap redrawa WINCH ALRM # Attach WINCH and ALRM to redraw the screen
-trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
-trap quit INT
-trap quit SIGTERM
 
 main "$@"
 printf '\e[?7h'
