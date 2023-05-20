@@ -1,5 +1,5 @@
 #!/bin/bash
-# Spis: text editor written in pure (&mess) bash
+# Spis: text editor written in pure bash powered by murky logic and mess
 printf '\e[?7l'
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -908,7 +908,7 @@ left() {
 	drawc
 }
 shell() {
-	printf "\033c"
+	clr
 	bash
 	redraw
 }
@@ -1040,8 +1040,7 @@ keytype() {
 		[ "${hexkey[*]:0:5}" = '1b 5b 3c 38 31' ] && down 9 && return
 	
 		[ "${hexkey[*]:0:2}" = '1b 5b' ] && {
-			local -i value
-			value=0
+			local -i value=0
 			echo "$1" | while read -rsn1 mchar; do
 				case "$mchar" in
 					'm'|'M'|';') {
@@ -1066,18 +1065,18 @@ keytype() {
 			[ $y = 1 ] && menuclick $x && return #handle menuline
 			[ $x -lt 6 ] && {
 				if [ "$mode" = 0 ]; then
-					line=$(( base + ( y - reservedlines ) ))
+					line=$(( base + ( y - reservedlines) ))
 					redraw
 				elif [ "$mode" = 2 ]; then #VERY BAD SOLUTION, TODO: FIX
 					clr
 					echo enter line number
-					read -r line
+					read -re line
 					scrinit
 					redraw
 				fi
 				return
 			}
-			line=$(( base + ( y - 3 ) ))
+			line=$(( base + ( y - 2) ))
 			rl=$(( x - ( fll + 3 ) ))
 			((line > ${#buffer[@]})) && line=${#buffer[@]}
 			((rl > ${#buffer[line]})) && rl=${#buffer[line]}
@@ -1108,8 +1107,12 @@ main() {
 	varinit
 	scrinit
     if [[ "$1" ]]; then # If a file was provided in the terminal pre-load it
-        #redraw # Draw out the UI before loading file
-        read_buffer "$1"
+        if [ -d "$1" ]; then
+			cd "$1" || exit
+			filepick # enter the file selector in specified folder
+		else
+			read_buffer "$1"
+		fi
     else
 		filepick # enter the file selector
 	fi
