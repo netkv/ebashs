@@ -1085,7 +1085,8 @@ keytype() {
 			return
 		}
 	}
-	[ "${hexkey[*]:0:3}" = '1b 5b 3c' ] && return
+	#[ "${hexkey[*]:0:3}" = '1b 5b 3c' ] && return
+	[ "${hexkey[*]:0:1}" = '1b' ] && return # TODO: prevent escape codes without hacky blocking
 	[ "$mode" = edit ] && {
 		local -i rlr
 		unset ta
