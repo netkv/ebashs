@@ -697,6 +697,7 @@ toggle_hidden() {
 	filepick
 }
 filepick() {
+	declare -gn menuline=filepickmenu
 	line=0
 	rl=0
 	base=1
@@ -729,7 +730,8 @@ file_select() {
 		cd "$line"
 		filepick
 	else
-		read_buffer "$line"
+		read_buffer "$line" || exit 1
+		declare -gn menuline=menulineedit
 		mode=edit
 		redraw
 	fi
@@ -1103,7 +1105,6 @@ main() {
         #redraw # Draw out the UI before loading file
         read_buffer "$1"
     else
-		declare -n menuline=filepickmenu
 		filepick # enter the file selector
 	fi
 	begin
