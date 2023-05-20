@@ -7,6 +7,7 @@ TODO: config docs
 	syntax highlighting (currently for bash (and other posix like shells) and partially conf)
 	file picker
 	proper? tab handling
+	default keybindings based mostly on (gnu) emacs
 	custom keybindings (via arrays at start of script)
 	custom top line menu (via above)
 	custom colourscheme (also)

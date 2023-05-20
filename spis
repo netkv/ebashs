@@ -1,6 +1,6 @@
 #!/bin/bash
+printf '\e[?1049h'
 # Spis: text editor written in pure bash powered by murky logic and mess
-printf '\e[?7l'
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
 
@@ -19,7 +19,7 @@ options=(
 	[defx]=$(( COLUMNS / 2 ))
 	[defy]=$(( LINES /2 ))
 	[timeout]=0.01
-	[tabchar]=' →  '
+	[tabchar]='│   '
 	[refresh_timeout]=1
 	[file_prompt]="Path: "
 	[cmd_prompt]="M-x "
@@ -27,7 +27,7 @@ options=(
 	[button_padding]=4
 	[cancelhex]='18 0'
 	[default_mode]="edit"
-	[help_message]="(C-g to open menu)"
+	[help_message]="(F10 to open menu)"
 	[filepick_message]="Pick a file"
 )
 keys_def=(
@@ -53,7 +53,7 @@ keys_edit=(
 	# TODO: selection
 	[1b 0]='commandmode'
 	[18 0]='quit'
-	[7 0]='menulinemenu'
+	[1b 5b 32 31 7e 0]='menulinemenu'
 	[10 0]='up'
 	[e 0]='down'
 	[6 0]='right'
@@ -147,7 +147,7 @@ menulineedit=(
 )
 
 for item in "${!menulineedit[@]}"; do
-	menufancy+=(["$(printf '%-12s' "$item")"]="${menuline["$item"]}")
+	menufancy+=(["$(printf '%-12s' "$item")"]="${menulineedit["$item"]}")
 done
 menufancy+=([Quit        ]=quit)
 
@@ -915,8 +915,7 @@ shell() {
 
 die() {
     bind 'set disable-completion off' 2>/dev/null # Enable completion
-    printf '\e[?25h\e[?7h\e[?1047l' # Reset terminal to sane mode
-    printf "\e[?1049l" # switch back to main buffer
+    printf '\e[?25h\e[?7h\e[?1049l' # Reset terminal to sane mode
     echo -e "\e[?1000;1006;1015l" #disable mouse tracking
 	clr # TODO fix the buffer switching
     exit "${errno:-0}" # Assume that we are exiting without an error
@@ -1134,7 +1133,7 @@ redrawa() {
 	redraw #i have no idea why it has to be twice to work
 	redraw
 }
-shopt -s checkwinsize; (redraw) # Enable and then trigger a terminal size refresh
+shopt -s checkwinsize # Enable and then trigger a terminal size refresh
 trap redrawa WINCH ALRM # Attach WINCH and ALRM to redraw the screen
 trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
 trap quit INT
