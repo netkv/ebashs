@@ -6,9 +6,9 @@ shopt -s extglob # Ensure advanced pattern matching is available
 
 declare -A syntax menufile menulineedit menuhelp menukey menudebug style windowkey keys_edit keys_def keys_command keys_interact options charmap menufancy commands filepickmenu
 declare -a buffer buffersyntax bufferexpand hexkey optdc
-declare -i line base rl offsetst offseten menulinep menulinepy fll reservedlines #selsy selsx seley selex
+declare -i line base rl offsetst offseten menulinep menulinepy fll reservedlines hidden #selsy selsx seley selex
 declare -n menucon window menuline
-declare file message info modified filetype comment rst mode command cmd_prompt hidden
+declare file message info modified filetype comment rst mode command cmd_prompt help_message
 
 ## config options
 
@@ -27,6 +27,8 @@ options=(
 	[button_padding]=4
 	[cancelhex]='18 0'
 	[default_mode]="edit"
+	[help_message]="(C-g to open menu)"
+	[filepick_message]="Pick a file"
 )
 keys_def=(
 	[up]='1b 5b 41 0'
@@ -325,6 +327,7 @@ varinit() {
 	modified=false # Tracking whether a file was modified
 	mode="${options[default_mode]}"
 	menuline=menulineedit # Set default menuline for file editing
+	help_message="${options[help_message]}"
 	case "${options[menuline]}" in
 		"true") reservedlines=3;;
 		"false") reservedlines=2;;
@@ -697,6 +700,7 @@ toggle_hidden() {
 	filepick
 }
 filepick() {
+	help_message="${options[filepick_message]}"
 	declare -gn menuline=filepickmenu
 	line=0
 	rl=0
@@ -731,6 +735,7 @@ file_select() {
 		filepick
 	else
 		read_buffer "$line" || exit 1
+		help_message="${options[help_message]}"
 		declare -gn menuline=menulineedit
 		mode=edit
 		redraw
@@ -972,7 +977,7 @@ menu() {
 
 redraw() {
 	[ "${options[menuline]}" = true ] && {
-		printf "\e[0m\e[H${style[menuline]}\e[?25l%*s\r%s" "$COLUMNS" "(C-g to open menu)"
+		printf "\e[0m\e[H${style[menuline]}\e[?25l%*s\r%s" "$COLUMNS" "$help_message"
 		printf '%s\e[0m\n' "${!menuline[*]}"
 	} || printf "\e[H"
 	# Iterate over shown lines
