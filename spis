@@ -4,11 +4,11 @@ printf '\e[?7l'
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
 
-declare -A syntax menuline menufile menuhelp menukey menudebug style windowkey keys_edit keys_def keys_command options charmap menufancy commands
+declare -A syntax menufile menulineedit menuhelp menukey menudebug style windowkey keys_edit keys_def keys_command keys_interact options charmap menufancy commands filepickmenu
 declare -a buffer buffersyntax bufferexpand hexkey optdc
 declare -i line base rl offsetst offseten menulinep menulinepy fll reservedlines #selsy selsx seley selex
-declare -n menucon window
-declare file message info modified filetype comment rst mode command cmd_prompt
+declare -n menucon window menuline
+declare file message info modified filetype comment rst mode command cmd_prompt hidden
 
 ## config options
 
@@ -33,6 +33,8 @@ keys_def=(
 	[down]='1b 5b 42 0'
 	[right]='1b 5b 43 0'
 	[left]='1b 5b 44 0'
+	[page_up]='1b 5b 35 7e 0'
+	[page_down]='1b 5b 36 7e 0'
 	[select]='0'
 )
 keys_edit=(
@@ -70,6 +72,16 @@ keys_edit=(
 	[1b 67 0]='menukey'
 	[1b 78 0]='cmd'
 )
+keys_interact=(
+	[${keys_def[up]}]='up'
+	[${keys_def[down]}]='down'
+	[${keys_def[right]}]='right'
+	[${keys_def[left]}]='left'
+	[${keys_def[page_up]}]='page_up'
+	[${keys_def[page_down]}]='page_down'
+	[${keys_def[select]}]='file_select'
+	[68 0]='toggle_hidden'
+)
 keys_command=(
 	[${keys_def[up]}]='up'
 	[${keys_def[down]}]='down'
@@ -89,7 +101,7 @@ style=(
 	[windowcontent]='\e[97;40m'
 	[selected]='\e[30;45m'
 	[button]='\e[0;97;100m'
-	[interactive]='\e[95;40m'
+	[link]='\e[94m'
 	[menuitemselected]='\e[30;45m'
 	[infoline]='\e[40;97m'
 	[number]='\e[0;90m'
@@ -126,13 +138,13 @@ menulinemenu() {
 	#menulinepy=$(( LINES - ${#menufancy[@]} ))
 	menu
 }
-menuline=(
+menulineedit=(
 	[File]=menufile	[Help]=menuhelp
 	[Keys]=menukey	    [Redraw]=refresh
 	[Debug]=menudebug
 )
 
-for item in "${!menuline[@]}"; do
+for item in "${!menulineedit[@]}"; do
 	menufancy+=(["$(printf '%-12s' "$item")"]="${menuline["$item"]}")
 done
 menufancy+=([Quit        ]=quit)
@@ -265,6 +277,10 @@ commands=(
 	[force-quit]="die"
 )
 
+filepickmenu=(
+	[toggle hidden \(h\)]="toggle_hidden"
+)
+
 ## rest of this garbageware
 
 rst='\e[0;0m'
@@ -308,7 +324,7 @@ varinit() {
 	info="${version}: insanity" # Feedback text in the status bar
 	modified=false # Tracking whether a file was modified
 	mode="${options[default_mode]}"
-	
+	menuline=menulineedit # Set default menuline for file editing
 	case "${options[menuline]}" in
 		"true") reservedlines=3;;
 		"false") reservedlines=2;;
@@ -336,11 +352,13 @@ float() {
 	floatsizey="${window[sizey]}"
 	floatpositionx=$(( ( COLUMNS / 2 ) - ( floatsizex / 2 )  ))
 	floatpositiony=$(( ( LINES / 2 ) - ( floatsizey / 2 ) ))
+	# focus to itself window if it doesn't define custom focus element
 	if [ -z "${window[focus]}" ]; then
 		focus=window
 	else
 		focus="${window[focus]}"
 	fi
+	
 	case "${window[type]}" in
 		'choose')
 			unset chooseopt
@@ -571,11 +589,6 @@ syntax() {
 	"${syntax[unknown]}"
 }
 
-topline() {
-	local -i ln=${#1}
-	printf "${style[windowline]}%s\e[?25l%*s\r" "$1" "$(( $COLUMNS - ln ))"
-}
-
 inputcodes() {
 	debuginput
 	while true; do
@@ -653,6 +666,7 @@ set_buffer_file() {
     bind 'set disable-completion on' 2>/dev/null
 }
 read_buffer() {
+	clr_buffer
 	#set_buffer_file "$1" # Update target file (pass on default if present)
 	filetype="$(filetype "$1")"
 	file="$1"
@@ -668,87 +682,61 @@ read_buffer() {
 		info="{$file}: empty"
 	fi
 }
-pickprep() {
-	clr
-    topline "Open file..."
-	printf "${style[windowcontent]}\n"
-	for ((i=3;i<=$LINES;i+=1)); do
-		printf '%*s\n' "$COLUMNS"
-	done
-	printf "${style[infoline]}\e[?25l%*s\r" "$COLUMNS"
-	printf 'bottom info bar'
-	printf "${style[windowcontent]}"
-	printf "\033[2;0H"
+clr_buffer() {
+	buffer=()
+	buffersyntax=()
+	bufferexpand=()
+}
+
+topline() {
+	local -i ln=${#1}
+	printf "${style[windowline]}%s\e[?25l%*s" "$1" "$(( $COLUMNS - ln ))"
+}
+toggle_hidden() {
+	((hidden==0)) && hidden=1 || hidden=0
+	filepick
 }
 filepick() {
-	dc=0
-	offsetst=0
-	local -i ik=1
-	pickprep
-	pickdraw
-	local -a kb=()
-	while true; do
-		if read -rsN1 -t"${options[timeout]}" kb[0]; then # Check for ready input
-			while read -rsN1 -t0.0001 kb[$ik]; do ((ik++)); done # Multibyte hack
-			makehexkey "$(printf '%s' "${kb[@]}")"
-			case "${hexkey[*]}" in
-				"${keys_def[up]}") ((dc--)) ;;
-				"${keys_def[down]}") ((dc++)) ;;
-				"${keys_def[select]}")
-					#return to starting dir
-					if [ -d "${direc[dc]}" ]; then
-						cd "${direc[dc]}"
-						offsetst=0
-						dc=0
-						pickprep
-					else
-						printf '\e[?1047h' # Switch to alternative buffer
-						echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
-						read_buffer "${direc[dc]}"
-						redraw
-						break
-					fi
-					;;
-				*) continue;;
-			esac
-			(( "$dc" > ( "${#direc[@]}" - 1))) && ((dc--)) && continue
-			(( "$dc" < 0 )) && ((dc++)) && continue
-			(( "$dc" > ( LINES - 5 + offsetst ) )) && ((offsetst++))
-		    (( "$dc" < ( 2 + offsetst ) )) && ((offsetst--))
+	line=0
+	rl=0
+	base=1
+	clr_buffer
+	filetype="i*" # Internal file type
+	file="filepicker*" # All internal "files" should end with star
+	mapfile -t -O 1 buffer <<< "$(pickls)"
+	for idx in "${!buffer[@]}"; do
+		if [ -d "${buffer[idx]}" ]; then
+			buffersyntax[idx]="$(printf ${style[link]})""${buffer[idx]}"
+		else
+			buffersyntax[idx]="${buffer[idx]}"
 		fi
-		kb=()
-		pickdraw
-		printf "\033[%s;0H" $LINES
-		printf "${style[infoline]}\e[?25l%*s\r" "$COLUMNS"
-		printf '%s:%s' "$dc" "${direc[dc]}"
+		bufferexpand[idx]="${buffer[idx]}"
 	done
+	mode=interact # general internal interactive mode
+	filellenght # drowning in sea of murky logic
+	if [[ "${buffer[1]}" ]]; then # Ensure that something was actually read into the file
+		line=1 # Indicate that we have a buffer loaded
+		modified=false
+		info="$PWD"
+	else
+		info="error: empty"
+	fi
+	redraw
 }
-pickdraw() {
-	printf "\e[1;0H"
-	printf "${style[windowline]}%s\e[?25l%*s\r" "Open file..." "$(( $COLUMNS - 12 ))"
-	printf "${style[windowcontent]}\n"
-	direc=($(pickls))
-	offseten=$(( offsetst + ( LINES - 2 ) ))
-	for il in "${!direc[@]}"; do
-		if [ $il -ge $offsetst ] && [ $il -lt $offseten ]; then
-			if [ $dc = $il ]; then
-				printf "${style[selected]}\e[?25l%*s\r" "$COLUMNS"
-				printf "%s\n" "${direc[il]}"
-			else
-				if [ -d "${direc[il]}" ]; then
-					printf "${style[interactive]}\e[?25l%*s\r" "$COLUMNS"
-					printf "%s\n" "${direc[il]}"
-				else
-					printf "${style[windowcontent]}\e[?25l%*s\r" "$COLUMNS"
-					printf "%s\n" "${direc[il]}"
-				fi
-			fi
-		fi
-	done
-	printf "${style[windowcontent]}\e[?25l%*s\r" "$COLUMNS" #fixes some stuff
+file_select() {
+	local line="${buffer[line]}"
+	if [ -d "$line" ]; then
+		cd "$line"
+		filepick
+	else
+		read_buffer "$line"
+		mode=edit
+		redraw
+	fi
 }
 pickls() {
-	printf '..\n'
+	((hidden==1)) || printf '..\n'
+	((hidden==1)) && printf '%s\n' .*
 	printf '%s\n' *
 }
 
@@ -1024,13 +1012,17 @@ keytype() {
 	makehexkey "$1"
 
 	case "$mode" in
-		edit)
+		'edit')
 			for str in "${!keys_edit[@]}"; do
 				[ "$str" = "${hexkey[*]}" ] && "${keys_edit[$str]}" && return
 			done;;
-		command)
+		'command')
 			for str in "${!keys_command[@]}"; do
 				[ "$str" = "${hexkey[*]}" ] && "${keys_command[$str]}" && return
+			done;;
+		'interact')
+			for str in "${!keys_interact[@]}"; do
+				[ "$str" = "${hexkey[*]}" ] && "${keys_interact[$str]}" && return
 			done;;
 	esac
 	[ "${options[mouse]}" = true ] && {
@@ -1111,17 +1103,21 @@ main() {
         #redraw # Draw out the UI before loading file
         read_buffer "$1"
     else
+		declare -n menuline=filepickmenu
 		filepick # enter the file selector
 	fi
+	begin
+}
+begin() {
     redraw
     while true; do
         local -a k=()
         local -i i=1    
         if read -rsN1 -t${options[refresh_timeout]} k[0]; then # Check for ready input
-           while read -rsN1 -t0.0001 k[$i]; do ((i++)); done # Multibyte hack
-            keytype "$(printf '%s' "${k[@]}")" # Handle keypress event
-        fi
-    done
+			while read -rsN1 -t0.0001 k[$i]; do ((i++)); done # Multibyte hack
+			keytype "$(printf '%s' "${k[@]}")" # Handle keypress event
+		fi
+	done
 }
 
 redrawa() {
