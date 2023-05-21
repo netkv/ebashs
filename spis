@@ -11,7 +11,7 @@ trap quit SIGTERM
 
 declare -A syntax menufile menulineedit menuhelp menukey menudebug style windowkey keys_edit keys_def keys_command keys_interact options charmap menufancy commands filepickmenu keys_view menulineabout
 declare -a buffer buffersyntax bufferexpand hexkey optdc
-declare -i line base rl menulinep menulinepy fll reservedlines hidden offx offy sizx sizy update
+declare -i line base rl menulinep menulinepy fll toplines bottomlines hidden offx offy sizx sizy update
 declare -n menucon window menuline
 declare file message info modified filetype comment rst mode command cmd_prompt help_message
 
@@ -293,9 +293,10 @@ varinit() {
 	sizy=$((LINES - 1))
 	update=1
 	case "${options[menuline]}" in
-		"true") reservedlines=3;;
-		"false") reservedlines=2;;
+		"true") toplines=1;;
+		"false") toplines=0;;
 	esac
+	bottomlines=2
 }
 scrinit() {
     [ "${options[mouse]}" = true ] && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
@@ -756,7 +757,7 @@ page_up() {
 down() {
     for ((i = 0; i < ${1:-1}; i++)); do
         ((line < ${#buffer[@]})) && ((line++)) # If we can go down, go down
-        ((line > base + sizy - 2 - reservedlines)) && ((base++)) && # Move window down if needed
+        ((line > base + sizy - 3 - bottomlines)) && ((base++)) && # Move window down if needed
         [ -z "$bckrl" ] && bckrl="${rl}"
         (( "${#buffer[line]}" < "${rl}" )) && rl="${#buffer[line]}"
         (( "${#buffer[line]}" > "${rl}" )) && rl=bckrl
@@ -877,7 +878,7 @@ redraw() {
 		printf '\e[%sG%s\e[0m\n' "$offx" "${!menuline[*]}"
 	} || printf "\e[%s;%sH" "$offy" "$offx"
 	# Iterate over shown lines
-	for ((i = base; i - base < sizy - reservedlines + 1; i++)); do
+	for ((i = base; i - base < sizy - (bottomlines + toplines ) + 1; i++)); do
 		printf "${style[numberselected]}"
 		((i != line)) && printf "${style[number]}" # Fade line number if not selected
 		((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((fll/2))s~\e[m\n" "$offx"\
@@ -927,36 +928,23 @@ keytype() {
 		[ "${hexkey[*]:0:5}" = '1b 5b 3c 36 35' ] && down && return
 		[ "${hexkey[*]:0:5}" = '1b 5b 3c 38 30' ] && up 9 && return
 		[ "${hexkey[*]:0:5}" = '1b 5b 3c 38 31' ] && down 9 && return
-	
-		[ "${hexkey[*]:0:2}" = '1b 5b' ] && {
-			local -i value=0
-			echo "$1" | while read -rsn1 mchar; do
-				case "$mchar" in
-					'm'|'M'|';') {
-					case $value in
-						'0') mode="${tmp}" && tmp= ;;
-						'1') x="${tmp}" && tmp= ;;
-						'2') y="${tmp}" && tmp= ;;
-					esac
-				};;
-					*) {
-						((value>2)) && return
-						tmp=${tmp}${mchar//[!0-9]/}
-					};;
-				esac
-				case "$mchar" in
-					';')((value++));;
-					'm'|'M')value=0 && break;;
-				esac
-			done
-			
+		((skipnext==1)) && skipnext=0 && return
+		((skipnext==0)) && [ "${hexkey[*]:0:2}" = '1b 5b' ] && {
+			mapfile -t -d '' inputarray <<< "${1}"
+			inputarray[-1]="${inputarray[-1]%?}"
+			[ -z "${inputarray[2]}" ] && skipnext=1
+			mapfile -t -d ';' inputarray <<< "${inputarray[1]}"
+			inputarray[-1]="${inputarray[-1]%?}"	
+			mousemode="${inputarray[0]}"
+			x="${inputarray[1]}"
+			y="${inputarray[2]::-1}"
 			#limitations of movenment
 			[ $y = "$offy" ] && menuclick $x && return #handle menuline
-			((x < (fll + offx))) && {
-				if [ "$mode" = 0 ]; then
-					line=$(( base + ( (y - offy + 2) - reservedlines) ))
+			((x < (fll + offx + 2))) && {
+				if [ "$mousemode" = '[<0' ]; then
+					line=$(( base + ( (y - offy) - toplines) ))
 					redraw
-				elif [ "$mode" = 2 ]; then #VERY BAD SOLUTION, TODO: FIX
+				elif [ "$mousemode" = '[<2' ]; then #VERY BAD SOLUTION, TODO: FIX
 					clr
 					echo enter line number
 					read -re line
@@ -966,9 +954,9 @@ keytype() {
 				return
 			}
 			line=$(( base + ( y - offy - 1) ))
-			rl=$(( x - ( offx + fll + 1 ) ))
-			((line > ${#buffer[@]})) && line=${#buffer[@]}
-			((rl > ${#buffer[line]})) && rl=${#buffer[line]}
+			rl=$(( x - (offx + fll + 2) ))
+			((line > ${#bufferexpand[@]})) && line=${#bufferexpand[@]}
+			((rl > ${#bufferexpand[line]})) && rl=${#bufferexpand[line]}
 			redraw
 			return
 		}
@@ -1012,7 +1000,7 @@ begin() {
     while true; do
         local -a k=()
         local -i i=1    
-        if read -rsN1 -t${options[refresh_timeout]} k[0]; then # Check for ready input
+        if read -rsN1 -t"${options[refresh_timeout]}" k[0]; then # Check for ready input
 			while read -rsN1 -t0.0001 k[$i]; do ((i++)); done # Multibyte hack
 			keytype "$(printf '%s' "${k[@]}")" # Handle keypress event
 		fi
