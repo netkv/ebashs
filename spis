@@ -313,8 +313,6 @@ cmd() {
 
 pipesyntax() {
 	comment=false
-	#stringone=false
-	#stringtwo=false
 	word=
 	bckIFS="${IFS}"
 	IFS=
@@ -373,7 +371,7 @@ builtin_syntax_bash() {
 builtin_syntax_unknown() {
 	printf "${rst}%s" "${word}"
 }
-builtin_syntax_conf(){
+builtin_syntax_conf() {
 	[[ "${word}" =~ "#" ]] && printf "${style[comment]}%s${rst}" "${word}" && comment=true && return
 	"${comment}" && printf "${style[comment]}%s${rst}" "${word}" && return
 	printf "${rst}%s" "${word}"
@@ -436,7 +434,7 @@ basenam() {
 	    printf '%s\n' "${file##*/}"
 	done
 }
-filetype(){
+filetype() {
 	local filename shebang extension
 	local -a filenamesplit shebangsplit
 	[ $# = 0 ] && return
@@ -548,42 +546,59 @@ pickls() {
 	((hidden==1)) && printf '%s\n' .*
 	printf '%s\n' *
 }
+cparray() {
+	local -n source="$1"
+	local -n target="$2"
+	for idx in "${!source[@]}"; do
+		target[idx]="${source[idx]}"
+	done
+}
+
 save() {
-	for idx in "${!buffer[@]}"; do
-		buffersave[idx]="${buffer[idx]}"
-	done
-	for idx in "${!buffersyntax[@]}"; do
-		buffersyntaxsave[idx]="${buffersyntax[idx]}"
-	done
-	for idx in "${!bufferexpand[@]}"; do
-		bufferexpandsave[idx]="${bufferexpand[idx]}"
-	done
-	help_messagesave="$help_message"
-	filetypesave="$filetype"
-	filesave="$filetype"
-	modesave="$mode"
-	menulinesave="${!menuline}"
+	local name="$1"
+	
+	local -n savedhelp_message="help_message${name}"
+	local -n savedfiletype="filetype${name}"
+	local -n savedfile="file${name}"
+	local -n savedmode="mode${name}"
+	
+	local -n savedmenuline="menuline${name}"
+	
+	cparray buffer "buffer${name}"
+	cparray buffersyntax "buffersyntax${name}"
+	cparray bufferexpand "expand${name}"
+	
+	savedhelp_message="$help_message"
+	savedfiletype="$filetype"
+	savedfile="$filetype"
+	savedmode="$mode"
+	savedmenuline="${!menuline}"
 }
 restore() {
 	clr_buffer
-	for idx in "${!buffersave[@]}"; do
-		buffer[idx]="${buffersave[idx]}"
-	done
-	for idx in "${!buffersyntaxsave[@]}"; do
-		buffersyntax[idx]="${buffersyntaxsave[idx]}"
-	done
-	for idx in "${!bufferexpandsave[@]}"; do
-		bufferexpand[idx]="${bufferexpandsave[idx]}"
-	done
-	help_message="$help_messagesave"
-	filetype="$filetypesave"
-	file="$filesave"
-	mode="$modesave"
-	declare -gn menuline="$menulinesave"
+	local name="$1"
+	
+	local -n savedhelp_message="help_message${name}"
+	local -n savedfiletype="filetype${name}"
+	local -n savedfile="file${name}"
+	local -n savedmode="mode${name}"
+
+	local -n savedmenuline="menuline${name}"
+	
+	cparray "buffer${name}" buffer
+	cparray "buffersyntax${name}" buffersyntax
+	cparray "expand${name}" bufferexpand
+	
+	help_message="$savedhelp_message"
+	filetype="$savedfiletype"
+	file="$savedfile"
+	mode="$savedmode"
+	
+	declare -ng menuline="${savedmenuline}"
 }
 
 about() {
-	save
+	save openfile
 	update=0
 	#sizx=$((COLUMNS / 2))
 	#sizy=$((LINES / 3))
@@ -597,19 +612,19 @@ about() {
 	menulineabout=(
 		[quit]='view_exit'
 	)
-	buffer=('This is Spis, one component of the Bash/Bash operating system.'
-			''
-			"${version}, text \"editor\" written bash. git repo: https://github.com/nyeta/spis"
-			'originally based on https://github.com/comfies/bed'
-			''
-			'https://github.com/nyeta/spis'
+	buffer=(
+		'This is Spis, one component of the Bash/Bash operating system.'
+		''
+		"${version}, text \"editor\" written bash. git repo: https://github.com/nyeta/spis"
+		'originally based on https://github.com/comfies/bed'
+		''
 		   )
 	megaredraw
 	clr
 	redraw
 }
 view_exit() {
-	restore
+	restore openfile
 	redraw
 }
 
@@ -697,7 +712,7 @@ backspace() {
 	fi
 	buffer[line]="${buffer[line]:0:$(( rlr - 1 ))}${buffer[line]:${rlr}}"
 	left #go left with cursor
-	megaredrawline #not sure why this is needed but it prevents duplication of the letter
+	megaredrawline # copy the buffer into buffersyntax and bufferexpand
 	redraw #draw it
 	modified=true
 }
