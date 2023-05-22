@@ -15,6 +15,7 @@ declare -i line base rl menulinep menulinepy fll toplines bottomlines hidden off
 declare -n menucon window menuline
 declare file message info modified filetype comment rst mode command cmd_prompt help_message
 
+
 ### Config options
 ## General options
 options=(
@@ -208,7 +209,6 @@ menudebug() { unset menucon; declare -n menucon=menudebug; menu; }
 menudebug=(
 	[clear      ]=clr
 	[refresh    ]=refresh
-	[screen init]=scrinit
 	[backspace  ]=backspace
 	[right      ]=right
 	[left       ]=left
@@ -244,7 +244,31 @@ filepickmenu=(
 
 ## rest of this garbageware
 
+version="Spis dev"
+buffer=() # File contents
+buffersyntax=() # File contents
+line=1 # Currently selected line (0 means the buffer is empty)
+base=1 # Top-most line shown
+rl=0 # how left or right the cursor is
+menulinepy=0; menulinep=0 # menu positions
+file= # Currently addressed file
+info="${version}: insanity" # Feedback text in the status bar
+modified=false # Tracking whether a file was modified
+mode="${options[default_mode]}"
+menuline=menulineedit # Set default menuline for file editing
+help_message="${options[help_message]}"
+offx=0 # TODO: abuse offsets and size of main render
+offy=1
+sizx=$COLUMNS
+sizy=$((LINES - 1))
+update=1
+case "${options[menuline]}" in
+	"true") toplines=1;;
+	"false") toplines=0;;
+esac
+bottomlines=2
 rst='\e[0;0m'
+
 clr() {
 	printf "\033c" # clear
 }
@@ -270,36 +294,7 @@ refresh() {
 	message="reloaded..."
 	megaredraw
 	redraw
-	scrinit
 	message=
-}
-varinit() {
-	version="Spis dev"
-	buffer=() # File contents
-	buffersyntax=() # File contents
-	line=1 # Currently selected line (0 means the buffer is empty)
-	base=1 # Top-most line shown
-	rl=0 # how left or right the cursor is
-	menulinepy=0; menulinep=0 # menu positions
-	file= # Currently addressed file
-	info="${version}: insanity" # Feedback text in the status bar
-	modified=false # Tracking whether a file was modified
-	mode="${options[default_mode]}"
-	menuline=menulineedit # Set default menuline for file editing
-	help_message="${options[help_message]}"
-	offx=0
-	offy=1
-	sizx=$COLUMNS
-	sizy=$((LINES - 1))
-	update=1
-	case "${options[menuline]}" in
-		"true") toplines=1;;
-		"false") toplines=0;;
-	esac
-	bottomlines=2
-}
-scrinit() {
-    [ "${options[mouse]}" = true ] && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
 }
 
 cmd() {
@@ -317,23 +312,21 @@ pipesyntax() {
 	word=
 	bckIFS="${IFS}"
 	IFS=
-	readstuff() {
-		while read -rsn1 char
-		do
-			[ "$char" = " " ] && syntax && word='' && printf ' ' && continue
-			[ "$char" = "	" ] && {
-				syntax
-				word=''
-				printf "${style[tab]}%s\e[0;0m" "${options[tabchar]}"
-				continue
-			}
-			[ -z "$char" ] && syntax && word='' comment='false' && echo && continue
-			word="${word}${char}" && printf '%s\e[%sD' "$word" "${#word}"
-		done
-	}
-	readstuff
+	while read -rsn1 char
+	do
+		[ "$char" = " " ] && syntax && word='' && printf ' ' && continue
+		[ "$char" = "	" ] && {
+			syntax
+			word=''
+			printf "${style[tab]}%s\e[0;0m" "${options[tabchar]}"
+			continue
+		}
+		[ -z "$char" ] && syntax && word='' comment='false' && echo && continue
+		word="${word}${char}" && printf '%s\e[%sD' "$word" "${#word}"
+	done
 	IFS="${bckIFS}"
 }
+
 
 builtin_syntax_bash() {
 	case "${word:0:2}" in
@@ -449,11 +442,18 @@ filetype() {
 	
 	mapfile -n 1 file_data < "$1"
 	shebang="$(echo -n "${file_data[@]}")"
-	[ ! "${shebang:0:1}" = '#' ] && echo unknown && return
-	shebang="${shebang%/}"
-	IFS=' '
-	shebangsplit=("${shebang##*/}")
-	printf '%s\n' "${shebangsplit[-1]}"	
+	case "${shebang:0:1}" in
+		'#')
+		shebang="${shebang%/}"
+		IFS=' '
+		shebangsplit=("${shebang##*/}")
+		printf '%s\n' "${shebangsplit[-1]}";;
+		'!')
+			mapfile -d ' ' -t split <<< "${shebang}"
+			printf '%s\n' "${split[1]}"
+			;;
+		*) echo unknown
+	esac
 }
 filellenght() {
 	fll="${#buffer[@]}"
@@ -803,7 +803,7 @@ left() {
 }
 shell() {
 	clr
-	bash
+	bash # NOTE: in theory an external command
 	redraw
 }
 
@@ -948,7 +948,6 @@ keytype() {
 					clr
 					echo enter line number
 					read -re line
-					scrinit
 					redraw
 				fi
 				return
@@ -981,8 +980,7 @@ keytype() {
 	}
 }
 main() {
-	varinit
-	scrinit
+	[ "${options[mouse]}" = true ] && print '%s' "\e[?1000;1006;1015h" #enable mouse tracking
     if [[ "$1" ]]; then # If a file was provided in the terminal pre-load it
         if [ -d "$1" ]; then
 			cd "$1" || exit
