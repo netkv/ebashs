@@ -90,7 +90,9 @@ keys_edit=(
 	[1b 67 0]='menukey'
 	[1b 78 0]='cmd'
 	[1 0]='move-beginning-of-line'
+	[1b 5b 48 0]='move-beginning-of-line'
 	[5 0]='move-end-of-line'
+	[1b 5b 46 0]='move-end-of-line'
 )
 keys_interact=(
 	[${keys_def[previous_line]}]='previous-line'
