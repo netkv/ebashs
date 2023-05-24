@@ -46,21 +46,21 @@ options=(
 #      A options for the keybings of given mode are defined by ass. array named key_options_${x}
 #          [else] option defines what should happen if the input wasn't any of keys defined in keybings
 keys_def=(
-	[up]='1b 5b 41 0'
-	[down]='1b 5b 42 0'
-	[right]='1b 5b 43 0'
-	[left]='1b 5b 44 0'
-	[page_up]='1b 5b 35 7e 0'
-	[page_down]='1b 5b 36 7e 0'
+	[previous_line]='1b 5b 41 0'
+	[next_line]='1b 5b 42 0'
+	[forward_char]='1b 5b 43 0'
+	[backward_char]='1b 5b 44 0'
+	[scroll_down]='1b 5b 35 7e 0'
+	[scroll_up]='1b 5b 36 7e 0'
 	[select]='0'
 )
 keys_edit=(
-	[${keys_def[up]}]='up'
-	[${keys_def[down]}]='down'
-	[${keys_def[right]}]='right'
-	[${keys_def[left]}]='left'
-	[1b 5b 35 7e 0]='page_up'
-	[1b 5b 36 7e 0]='page_down'
+	[${keys_def[previous_line]}]='previous-line'
+	[${keys_def[next_line]}]='next-line'
+	[${keys_def[forward_char]}]='forward-char'
+	[${keys_def[backward_char]}]='backward-char'
+	[${keys_def[scroll_down]}]='scroll-down'
+	[${keys_def[scroll_up]}]='scroll-up'
 	#[1b 5b 31 3b 32 41 0]='select_up'
 	#[1b 5b 31 3b 32 42 0]='select_down'
 	#[1b 5b 31 3b 32 43 0]='select_right'
@@ -69,12 +69,14 @@ keys_edit=(
 	[1b 0]='commandmode'
 	[18 0]='quit'
 	[1b 5b 32 31 7e 0]='menulinemenu'
-	[10 0]='up'
-	[e 0]='down'
-	[6 0]='right'
-	[2 0]='left'
-	[10 0]='page_up'
-	[16 0]='page_down'
+	[10 0]='previous-line'
+	[e 0]='next-line'
+	[6 0]='forward-char'
+	[1b 66 0]='forward-word'
+	[2 0]='backward-char'
+	[1b 62 0]='backward-word'
+	[10 0]='scroll-down'
+	[16 0]='scroll-up'
 	[0]='new_line'
 	[c 0]='new_line'
 	[f 0]='write_buffer'
@@ -83,44 +85,45 @@ keys_edit=(
 	[14 0]='execute'
 	[4 0]='delete_line'
 	[13 0]='shell'
-	[5 0]='mtoggle'
 	[7f 0]='backspace'
 	[1b 71 0]='die'
 	[1b 67 0]='menukey'
 	[1b 78 0]='cmd'
+	[1 0]='move-beginning-of-line'
+	[5 0]='move-end-of-line'
 )
 keys_interact=(
-	[${keys_def[up]}]='up'
-	[${keys_def[down]}]='down'
-	[${keys_def[right]}]='right'
-	[${keys_def[left]}]='left'
-	[${keys_def[page_up]}]='page_up'
-	[${keys_def[page_down]}]='page_down'
+	[${keys_def[previous_line]}]='previous-line'
+	[${keys_def[next_line]}]='next-line'
+	[${keys_def[forward_char]}]='forward-char'
+	[${keys_def[backward_char]}]='backward-char'
+	[${keys_def[scroll_down]}]='scroll-down'
+	[${keys_def[scroll_up]}]='scroll-up'
 	[${keys_def[select]}]='file_select'
 	[68 0]='toggle_hidden'
 )
 keys_view=(
-	[${keys_def[up]}]='up'
-	[${keys_def[down]}]='down'
-	[${keys_def[right]}]='right'
-	[${keys_def[left]}]='left'
-	[${keys_def[page_up]}]='page_up'
-	[${keys_def[page_down]}]='page_down'
+	[${keys_def[previous_line]}]='previous-line'
+	[${keys_def[next_line]}]='next-line'
+	[${keys_def[forward_char]}]='forward-char'
+	[${keys_def[backward_char]}]='backward-char'
+	[${keys_def[scroll_down]}]='scroll-down'
+	[${keys_def[scroll_up]}]='scroll-up'
 	[${keys_def[select]}]='view_exit'
 )
 keys_command=(
-	[${keys_def[up]}]='up'
-	[${keys_def[down]}]='down'
-	[${keys_def[right]}]='right'
-	[${keys_def[left]}]='left'
-	[1b 5b 35 7e 0]='page_up'
-	[1b 5b 36 7e 0]='page_down'
+	[${keys_def[previous_line]}]='previous-line'
+	[${keys_def[next_line]}]='next-line'
+	[${keys_def[forward_char]}]='forward-char'
+	[${keys_def[backward_char]}]='backward-char'
+	[${keys_def[scroll_down]}]='scroll-down'
+	[${keys_def[scroll_up]}]='scroll-up'
 	[69 0]='insertmode'
 	[61 0]='ansertmode'
 )
 keys_menu=(
-	[${keys_def[up]}]='menuup'
-	[${keys_def[down]}]='menudown'
+	[${keys_def[previous_line]}]='menuup'
+	[${keys_def[forward_char]}]='menudown'
 	[${keys_def[select]}]='menuselect'
 )
 key_options_menu=(
@@ -160,13 +163,9 @@ style=(
 charmap=(
 	#[0] is reserved for any unmapped char
 	[	]='t'
+	[ ]='s'
 	#[	-render]="${options[tabchar]}"
 )
-windowkey=(
-	[up]=$'\E[A'	[down]=$'\E[B'	[right]=$'\E[C'	[left]=$'\E[D'
-	[hsizep]='*'	[hsizem]='/'	[vsizep]='+'	[vsizem]='-'
-)
-
 menulinemenu() {
 	declare -ng menucon=menufancy
 	#menulinepy=$(( sizy - ${#menufancy[@]} ))
@@ -201,10 +200,10 @@ menukey=(
 	[Write Out    C-o ]="write_buffer"
 	[Delete Line  C-d ]="delete_line"
 	[Toggle Mouse C-e ]="mtoggle"
-	[Prev Line    C-p ]="up"
-	[Next Line    C-n ]="down"
-	[Prev Page    C-y ]="page_up"
-	[Next Page    C-v ]="page_down"
+	[Prev Line    C-p ]="previous-line"
+	[Next Line    C-n ]="next-line"
+	[Prev Page    C-y ]="scroll-down"
+	[Next Page    C-v ]="scroll-up"
 	[Execute      C-t ]="execute"
 	[Shell        C-s ]="shell"
 	[Exit no save M-q ]="die"
@@ -215,8 +214,8 @@ menudebug=(
 	[clear      ]=clr
 	[refresh    ]=refresh
 	[backspace  ]=backspace
-	[right      ]=right
-	[left       ]=left
+	[right      ]=forward-char
+	[left       ]=backward-char
 	[inputcodes ]=inputcodes
 )
 
@@ -242,6 +241,9 @@ commands=(
 	[backspace]='backspace'
 	[menu]='menu'
 	[menul]='menulinemenu'
+	[input]='inputcodes'
+	[scroll-up]='scroll-up'
+	[scroll-down]='scroll-down'
 )
 
 filepickmenu=(
@@ -255,7 +257,7 @@ buffer=() # File contents
 buffersyntax=() # File contents
 line=1 # Currently selected line (0 means the buffer is empty)
 base=1 # Top-most line shown
-rl=0 # how left or right the cursor is
+rl=0 # Position of the cursor in $line
 menulinepy=0; menulinep=0 # menu positions
 file= # Currently addressed file
 info="${version}: insanity" # Feedback text in the status bar
@@ -298,7 +300,7 @@ getcx() {
 
 commandmode() { mode="command"; statusline; }
 insertmode() { mode="edit"; statusline; drawc; }
-ansertmode() { mode="edit"; statusline; right; }
+ansertmode() { mode="edit"; statusline; forward-char; }
 
 refresh() {
 	clr
@@ -664,15 +666,17 @@ charexpand() {
 	IFS=
 	while read -rsn1 char
 	do
-		[ "$char" = "	" ] && {
-			local -i i
-			for ((i = ${#options[tabchar]}; i > 0 ; i--)); {
-				printf '%s' "${charmap[	]}"
-			}
-			continue
-		}
 		[ -z "$char" ] && echo && continue
-		printf '0'
+		case "${char}" in
+			'	')
+				local -i i
+				for ((i = ${#options[tabchar]}; i > 0 ; i--)); do
+					printf '%s' "${charmap[	]}"
+				done;;
+			' ') printf '%s' "${charmap[ ]}";;
+			*)
+				printf '0';;
+		esac
 	done
 	IFS="${bckIFS}"
 }
@@ -687,14 +691,14 @@ new_line() {
 	rl=0
 	filellenght
 	megaredraw
-	down
+	next-line
 	redraw
 }
 
 delete_line() {
     buffer=("" "${buffer[@]:1:line-1}" "${buffer[@]:line+1}")
     unset 'buffer[0]'
-    ((line > ${#buffer[@]})) && up
+    ((line > ${#buffer[@]})) && previous-line
     modified=true
 	filellenght
     megaredraw
@@ -723,7 +727,7 @@ backspace() {
 		return 0
 	fi
 	buffer[line]="${buffer[line]:0:$(( rlr - 1 ))}${buffer[line]:${rlr}}"
-	left #go left with cursor
+	backward-char #go back with cursor
 	megaredrawline # copy the buffer into buffersyntax and bufferexpand
 	redraw #draw it
 	modified=true
@@ -749,7 +753,7 @@ quit() {
 
 }
 
-up() {
+previous-line() {
     for ((i = 0; i < ${1:-1}; i++)); do
         ((line > 1)) && ((line--)) # As long as we can keep going up, go up
         ((line < base + 1)) && ((base--)) && # Push back the top if we need to
@@ -761,11 +765,11 @@ up() {
 	redraw
 }
 
-page_up() {
-    up $((sizy - 3))
+scroll-down() {
+    previous-line $((sizy - 3))
 }
 
-down() {
+next-line() {
     for ((i = 0; i < ${1:-1}; i++)); do
         ((line < ${#buffer[@]})) && ((line++)) # If we can go down, go down
         ((line > base + sizy - 3 - bottomlines)) && ((base++)) && # Move window down if needed
@@ -776,8 +780,8 @@ down() {
 	redraw
 }
 
-page_down() {
-    down $((sizy - 3))
+scroll-up() {
+    next-line $((sizy - 3))
 }
 
 execute() {
@@ -791,26 +795,62 @@ execute() {
     megaredraw
     redraw
 }
-right() {
+forward-char() {
 	case "${bufferexpand[line]:rl+1:1}" in
 		't') rl=$(( rl + ${#options[tabchar]}));;
 		*) ((rl++));;
 	esac
-	[ "$rl" -gt "${#bufferexpand[line]}" ] && { rl=0; down; }
+	[ "$rl" -gt "${#bufferexpand[line]}" ] && { rl=0; next-line; }
 	bckrl=
 	#redraw
 	statusline
 	drawc
 }
-left() {
+backward-char() {
 	case "${bufferexpand[line]:rl-1:1}" in
 		't') rl=$(( rl - ${#options[tabchar]}));;
 		*) ((rl--));;
 	esac
-	[ "$rl" -lt 0 ] && { up; rl="${#bufferexpand[line]}"; }
+	[ "$rl" -lt 0 ] && { previous-line; rl="${#bufferexpand[line]}"; }
 	bckrl=
 	statusline
 	drawc
+}
+move-beginning-of-line() {
+	rl=0
+	statusline
+	drawc
+}
+move-end-of-line() {
+	rl="${#bufferexpand[line]}"
+	statusline
+	drawc
+}
+forward-word() {
+	((rl == ${#bufferexpand[line]})) && {
+		next-line
+		move-beginning-of-line
+	}
+	while true; do
+		((rl < ${#bufferexpand[line]})) && ((rl++)) || break
+		case "${bufferexpand[line]:rl:1}" in
+			't'|'s') break;;
+		esac
+	done
+	redraw
+}
+backward-word() {
+	((rl == 0)) && {
+		previous-line
+		move-end-of-line
+	}
+	while true; do
+		((rl > 0)) && ((rl--)) || break
+		case "${bufferexpand[line]:rl:1}" in
+			't'|'s') break;;
+		esac
+	done
+	redraw
 }
 shell() {
 	clr
@@ -831,7 +871,7 @@ mtoggle() {
 }
 menuclick() {
 	#determine which item should be triggered
-	[ -z $1 ] && menulinep=0 || menulinep=$1
+	[ -z "$1" ] && menulinep=0 || menulinep=$1
 	local cx="$offx"
 	for a in "${!menuline[@]}"; {
 		la="${#a}"
@@ -954,10 +994,10 @@ keytype() {
 	
 	[ "${options[mouse]}" = true ] && {
 		#parse mouse stuff somewhatish weirdly
-		[ "${hexkey[*]:0:5}" = '1b 5b 3c 36 34' ] && up && return
-		[ "${hexkey[*]:0:5}" = '1b 5b 3c 36 35' ] && down && return
-		[ "${hexkey[*]:0:5}" = '1b 5b 3c 38 30' ] && up 9 && return
-		[ "${hexkey[*]:0:5}" = '1b 5b 3c 38 31' ] && down 9 && return
+		[ "${hexkey[*]:0:5}" = '1b 5b 3c 36 34' ] && previous-line && return
+		[ "${hexkey[*]:0:5}" = '1b 5b 3c 36 35' ] && next-line && return
+		[ "${hexkey[*]:0:5}" = '1b 5b 3c 38 30' ] && previous-line 9 && return
+		[ "${hexkey[*]:0:5}" = '1b 5b 3c 38 31' ] && next-line 9 && return
 		((skipnext==1)) && skipnext=0 && return
 		((skipnext==0)) && [ "${hexkey[*]:0:2}" = '1b 5b' ] && {
 			mapfile -t -d '' inputarray <<< "${1}"
@@ -1003,7 +1043,7 @@ keytype() {
 		buffer[line]="${buffer[line]:0:${rlr}}$1${buffer[line]:${rlr}}" #add at cursor position - amount of tabs * tab size
 		#go right with cursor
 		megaredrawline #not sure why this is needed but it prevents duplication of the letter
-		right
+		forward-char
 		redraw
 		[ "$1" = '	' ] && printf '\e[%sC' $((${#options[tabchar]} - 1))
 		modified=true
