@@ -9,10 +9,12 @@ trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
 trap quit INT
 trap quit SIGTERM
 
-declare -A syntax menufile menulineedit menuhelp menukey menudebug style windowkey keys_edit keys_def keys_command keys_interact options charmap menufancy commands filepickmenu keys_view menulineabout
-declare -a buffer buffersyntax bufferexpand hexkey optdc
-declare -i line base rl menulinep menulinepy fll toplines bottomlines hidden offx offy sizx sizy update
-declare -n menucon window menuline
+declare -A syntax menufile menulineedit menuhelp menukey menudebug style windowkey options charmap menufancy commands filepickmenu menulineabout
+declare -A keys_def keys_edit keys_command keys_interact keys_view keys_menu
+declare -A key_options_menu
+declare -a buffer buffersyntax bufferexpand hexkey overlay
+declare -i line base rl menulinep menulinepy fll toplines bottomlines hidden offx offy sizx sizy update ismenu
+declare -n menucon menuline
 declare file message info modified filetype comment rst mode command cmd_prompt help_message
 
 
@@ -37,9 +39,12 @@ options=(
 	[filepick_message]="Pick a file"
 )
 ## Key bindings configuration
-#      A keybindings for a mode x have to be in array named keys_${x}, else spis won't see them
+#      A keybindings for a mode x have to be in associative array named keys_${x}, else spis won't see them
 #      keys_def is special case containing the common definitions.
 #      It isn't used by itself anywhere, it exists purely for simplification.
+#
+#      A options for the keybings of given mode are defined by ass. array named key_options_${x}
+#          [else] option defines what should happen if the input wasn't any of keys defined in keybings
 keys_def=(
 	[up]='1b 5b 41 0'
 	[down]='1b 5b 42 0'
@@ -113,6 +118,14 @@ keys_command=(
 	[69 0]='insertmode'
 	[61 0]='ansertmode'
 )
+keys_menu=(
+	[${keys_def[up]}]='menuup'
+	[${keys_def[down]}]='menudown'
+	[${keys_def[select]}]='menuselect'
+)
+key_options_menu=(
+	[else]='menuleave'
+)
 ## Style
 #      Defined in escape codes.
 style=(
@@ -155,8 +168,7 @@ windowkey=(
 )
 
 menulinemenu() {
-	unset menucon
-	declare -n menucon=menufancy
+	declare -ng menucon=menufancy
 	#menulinepy=$(( sizy - ${#menufancy[@]} ))
 	menu
 }
@@ -165,29 +177,22 @@ menulineedit=(
 	[Keys]=menukey	    [Redraw]=refresh
 	[Debug]=menudebug
 )
-
-for item in "${!menulineedit[@]}"; do
-	menufancy+=(["$(printf '%-12s' "$item")"]="${menulineedit["$item"]}")
-done
-menufancy+=([Quit        ]=quit)
-
-menufile() { unset menucon; declare -n menucon=menufile; menu; }
+menufile() { declare -ng menucon=menufile; menu; }
 menufile=(
 	[Quit    C-x  ]="quit"
 	[Open loc M-r ]="set_buffer_file"
 	[Execute  C-t ]="execute"
 	[Save     C-o ]="write_buffer"
 	[File picker  ]="filepick"
-	[Info         ]="wininfo"
 )
 
-menuhelp() { unset menucon; declare -n menucon=menuhelp; menu; }
+menuhelp() { declare -ng menucon=menuhelp; menu; }
 menuhelp=(
 	[Keybinding          ]=menukey
 	[About               ]=about
 )
 
-menukey() { unset menucon; declare -n menucon=menukey; menu; }
+menukey() { declare -ng menucon=menukey; menu; }
 menukey=(
 	[Exit         C-x ]="quit"
 	[New Line C-l | ⏎ ]="new_line"
@@ -205,14 +210,13 @@ menukey=(
 	[Exit no save M-q ]="die"
 )
 
-menudebug() { unset menucon; declare -n menucon=menudebug; menu; }
+menudebug() { declare -ng menucon=menudebug; menu; }
 menudebug=(
 	[clear      ]=clr
 	[refresh    ]=refresh
 	[backspace  ]=backspace
 	[right      ]=right
 	[left       ]=left
-	[dialogquit ]=dialogquit
 	[inputcodes ]=inputcodes
 )
 
@@ -236,6 +240,8 @@ commands=(
 	[force-quit]='die'
 	[about]='about'
 	[backspace]='backspace'
+	[menu]='menu'
+	[menul]='menulinemenu'
 )
 
 filepickmenu=(
@@ -268,6 +274,11 @@ case "${options[menuline]}" in
 esac
 bottomlines=2
 rst='\e[0;0m'
+for item in "${!menulineedit[@]}"; do
+	menufancy+=(["$(printf '%-12s' "$item")"]="${menulineedit["$item"]}")
+done
+menufancy+=([Quit        ]=quit)
+
 
 clr() {
 	printf "\033c" # clear
@@ -828,44 +839,47 @@ menuclick() {
 		cx=$(( cx + la + 1 ))
 	}
 }
-menu() {
-	local -i dc=0
+menudraw() {
 	printf '\e[?25l'
-	while true; do
-		local -a k=()
-		local -i i=1
-		printf '\e[%s;0H' $menulinepy
-		local mi=0
-		for action in "${!menucon[@]}"; do
-			if [ $mi = $dc ]; then
-				printf "\e[%sC${style[menuitemselected]}%s\e[0;0m\n" $menulinep "$action"  
-			else
-				printf "\e[%sC${style[menuitem]}%s\e[0;0m\n" $menulinep "$action"
-			fi
-			((mi++))
-		done
-		local -a kb=()
-        if read -rsN1 -t"${options[timeout]}" kb[0]; then # Check for ready input
-			while read -rsN1 -t0.0001 kb[$i]; do ((i++)); done # Multibyte hack
-			makehexkey "$(printf '%s' "${kb[@]}")"
-			case "${hexkey[*]}" in
-				"${keys_def[up]}") ((dc--)) ;;
-				"${keys_def[down]}") ((dc++)) ;;
-				"${keys_def[select]}")
-					mi=0
-					for action in "${!menucon[@]}"; do
-						[ $mi = $dc ] && ${menucon[$action]}
-						printf '%s\n' $mi $dc
-						((mi++))
-					done
-					return
-					;;
-				*) redraw; return ;;
-			esac
-			(( "$dc" > ( "${#menucon[@]}" - 1))) && ((dc--))
-			(( "$dc" < 0 )) && ((dc++))
+	printf '\e[%s;0H' $menulinepy
+	local mi=0
+	for action in "${!menucon[@]}"; do
+		if ((mi == menuselection)); then
+			printf "\e[%sC${style[menuitemselected]}%s${rst}\n" $menulinep "$action"  
+		else
+			printf "\e[%sC${style[menuitem]}%s${rst}\n" $menulinep "$action"
 		fi
+		((mi++))
 	done
+}
+menuup() {
+	((menuselection > 0)) && ((menuselection--))
+	menudraw
+}
+menudown() {
+	((menuselection < ${#menucon[@]} -1)) && ((menuselection++))
+	menudraw
+}
+menuselect() {
+	local mi=0
+	for action in "${!menucon[@]}"; do
+		((mi == menuselection)) && "${menucon[$action]}"
+		((mi++))
+	done
+}
+menuleave() {
+	ismenu=0
+	mode="${modebackup}"
+	overlay=()
+	redraw
+}
+menu() {
+	((ismenu == 0 )) && modebackup="${mode}"
+	ismenu=1
+	declare -ig menuselection=0
+	mode='menu'
+	overlay+=('menudraw')
+	redraw
 }
 
 redraw() {
@@ -887,6 +901,10 @@ redraw() {
 	statusline
 	commandline
 	drawc
+	# Render all overlays
+	for o in "${overlay[@]}"; {
+		"${o}"
+	}
 }
 drawc() {
 	printf '\e[?25h\e[%s;%sH' $((line + 1 - base + offy)) $((rl + fll + 2 + offx)) # move cursor to the line
@@ -913,13 +931,25 @@ makehexkey() {
 	}
 }
 keytype() {
-	local -i x y
+	local -i x y known
 	makehexkey "$1"
 
 	local -n modekeys="keys_${mode}"
 	for str in "${!modekeys[@]}"; do
-		[ "$str" = "${hexkey[*]}" ] && "${modekeys[$str]}" && return
+		[ "$str" = "${hexkey[*]}" ] && {
+			"${modekeys[$str]}"
+			known=1
+		}
 	done
+	((known == 0)) && {
+		local -n key_options="key_options_${mode}"
+		((${#key_options[@]})) && {
+			[ -n "${key_options[else]}" ] && "${key_options[else]}"
+		}
+	}
+	((known == 1)) && {
+		return
+	}
 	[ "$mode" = 'edit' ] || return
 	
 	[ "${options[mouse]}" = true ] && {
