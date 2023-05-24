@@ -125,7 +125,7 @@ keys_command=(
 )
 keys_menu=(
 	[${keys_def[previous_line]}]='menuup'
-	[${keys_def[forward_char]}]='menudown'
+	[${keys_def[next_line]}]='menudown'
 	[${keys_def[select]}]='menuselect'
 )
 key_options_menu=(
