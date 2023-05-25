@@ -403,7 +403,7 @@ syntax() {
 
 inputcodes() {
 	debuginput
-	while true; do
+	while :; do
 		local -a k=()
 		local -i i=1
 		[ "${options[mouse]}" = true ] && echo -ne "\e[?1000;1006;1015h"
@@ -476,7 +476,7 @@ filellenght() {
 }
 set_buffer_file() {
 	printf '\e[%s;0H' "${sizy}"
-	printf '\e[D\033[1;93;108m' #make prompt nicer
+	printf '\e[D\e[1;93;108m' #make prompt nicer
     bind 'set disable-completion off' 2>/dev/null # Enable completion
     printf '\e[?25h' # Enable cursor
     if read -rei "$1$file" -p "${file_prompt}" file; then
@@ -486,7 +486,6 @@ set_buffer_file() {
 }
 read_buffer() {
 	clr_buffer
-	#set_buffer_file "$1" # Update target file (pass on default if present)
 	filetype="$(filetype "$1")"
 	file="$1"
 	mapfile -t -O 1 buffer <"$file" # Read file into an array
@@ -737,22 +736,20 @@ backspace() {
 
 quit() {
 	if [[ "$modified" == "true" ]]; then
-		while true; do
-			printf '\e[%s;0H%s' $((sizy + offy)) "Save file ${file}? (y, n, c): "
-			printf '\e[?25h'
-			if read -rn 1  answer; then
-				case "$answer" in
-					'y') write_buffer; die;;
-					'n') die;;
-					'c') return;;
-					'*') continue;;
-				esac
-			fi
+		while :; do
+			printf '\e[%s;0H' $((sizy + offy))
+			read -rsN1 -p "Buffer modified, save before close? [Y/n/c]" choice
+			case "$choice" in
+				Y|y) write_buffer; die;;
+				N|n) die;;
+				C|c) message="Quit canceled"; break;;
+				*) continue;;
+			esac
 		done
 	else
 		die
 	fi
-
+	commandline
 }
 
 previous-line() {
@@ -833,7 +830,7 @@ forward-word() {
 		next-line
 		move-beginning-of-line
 	}
-	while true; do
+	while :; do
 		((rl < ${#bufferexpand[line]})) && ((rl++)) || break
 		case "${bufferexpand[line]:rl:1}" in
 			't'|'s') break;;
@@ -846,7 +843,7 @@ backward-word() {
 		previous-line
 		move-end-of-line
 	}
-	while true; do
+	while :; do
 		((rl > 0)) && ((rl--)) || break
 		case "${bufferexpand[line]:rl:1}" in
 			't'|'s') break;;
@@ -861,10 +858,9 @@ shell() {
 }
 
 die() {
-    bind 'set disable-completion off' 2>/dev/null # Enable completion
-    printf '\e[?25h\e[?7h\e[?1049l' # Reset terminal to sane mode
     echo -e "\e[?1000;1006;1015l" #disable mouse tracking
 	clr # TODO fix the buffer switching
+	printf '\e[?25h\e[?7h\e[?1049l' # Reset terminal to sane mode
     exit "${errno:-0}" # Assume that we are exiting without an error
 }
 mtoggle() {
@@ -925,6 +921,7 @@ menu() {
 }
 
 redraw() {
+	printf '\e[?25l'
 	((update==1)) && {
 		sizx=$COLUMNS
 		sizy=$((LINES - 1))
@@ -952,14 +949,13 @@ drawc() {
 	printf '\e[?25h\e[%s;%sH' $((line + 1 - base + offy)) $((rl + fll + 2 + offx)) # move cursor to the line
 }
 statusline() {
-	printf "\e[?25l\e[%s;%sH\n\e[%sG${style[infoline]}%*s\e[%sG%s %s (%s,%s)\e[m" \
-	       $((sizy-2 + offy)) $((sizx + offx)) "$offx" $((sizx)) "$info" "$offx" \
+	printf "\e[%s;%sH\n\e[%sG${style[infoline]}%*s\e[%sG%s %s (%s,%s)\e[m" \
+	       $((sizy - 2 + offy)) $((sizx + offx)) "$offx" $((sizx)) "$info" "$offx" \
 	       "$mode" "$(basenam "$file")[$filetype]" "$line" "${rl}"
-	#printf "\e[?25l\e[%s;%sH\n
 }
 commandline() {
-	printf "\e[%s;%sH\n\e[?25l${style[commandline]}%s\e[m" \
-	       $((sizy-2+offy)) $((sizx + offx)) "$message"
+	printf "\e[%s;%sH\n${style[commandline]}%*s\r%s\e[m" \
+	       $((sizy - 1 + offy)) $((sizx + offx)) $sizx ' ' "$message"
 }
 
 makehexkey() {
@@ -1067,7 +1063,7 @@ main() {
 }
 begin() {
     redraw
-    while true; do
+    while :; do
         local -a k=()
         local -i i=1    
         if read -rsN1 -t"${options[refresh_timeout]}" k[0]; then # Check for ready input
