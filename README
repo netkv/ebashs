@@ -79,7 +79,7 @@ and then source it.
     │numberempty        │ \e[0;90m          │Lines that do not exist                │
     │numberselected     │ \e[0;91m          │Currently selected line                │
     │tab                │ \e[0;90m          │Tabs                                   │
-    ├┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┤
+    ├-------------------┼-------------------┼---------------------------------------┤
     │quotevar           │ \e[0;36;48m       │Quoted variables                       │
     │comment            │ \e[3;37;48m       │Comments                               │
     │variable           │ \e[0;96m          │Variables          ↓                   │
