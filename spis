@@ -4,13 +4,13 @@ printf '\e[?1049h'
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
 shopt -s checkwinsize; (:;:) # Enable and then trigger a terminal size refresh
-trap redrawa WINCH ALRM # Attach WINCH and ALRM to redraw the screen
+trap redraw WINCH ALRM # Attach WINCH and ALRM to redraw the screen
 trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
 trap quit INT
 trap quit SIGTERM
 
-declare -A syntax menufile menulineedit menuhelp menukey menudebug style windowkey options charmap menufancy commands filepickmenu menulineabout
-declare -A keys_def keys_edit keys_command keys_interact keys_view keys_menu
+declare -A syntax menufile menulineedit menuhelp menukey menudebug style options charmap menufancy commands diredmenu menulineabout
+declare -A keys_def keys_edit keys_command keys_dired keys_view keys_menu
 declare -A key_options_menu
 declare -a buffer buffersyntax bufferexpand hexkey overlay
 declare -i line base rl menulinep menulinepy fll toplines bottomlines hidden offx offy sizx sizy update ismenu
@@ -21,22 +21,17 @@ declare file message info modified filetype comment rst mode command cmd_prompt 
 ### Config options
 ## General options
 options=(
-	[mouse]=false
-	[todonote]=true
-	[menuline]=true
-	[defx]=$(( sizx / 2 ))
-	[defy]=$(( sizy /2 ))
-	[timeout]=0.01
+	[mouse]=0
+	[todonote]=1
+	[menuline]=1
 	[tabchar]='│   '
 	[refresh_timeout]=1
-	[file_prompt]="Path: "
-	[cmd_prompt]="M-x "
-	[button_margin]=2
-	[button_padding]=4
+	[file_prompt]='Path: '
+	[cmd_prompt]='M-x '
 	[cancelhex]='18 0'
-	[default_mode]="edit"
-	[help_message]="(F10 to open menu)"
-	[filepick_message]="Pick a file"
+	[default_mode]='edit'
+	[help_message]='(F10 to open menu)'
+	[dired_message]='Pick a file'
 )
 ## Key bindings configuration
 #      A keybindings for a mode x have to be in associative array named keys_${x}, else spis won't see them
@@ -94,14 +89,14 @@ keys_edit=(
 	[5 0]='move-end-of-line'
 	[1b 5b 46 0]='move-end-of-line'
 )
-keys_interact=(
+keys_dired=(
 	[${keys_def[previous_line]}]='previous-line'
 	[${keys_def[next_line]}]='next-line'
 	[${keys_def[forward_char]}]='forward-char'
 	[${keys_def[backward_char]}]='backward-char'
 	[${keys_def[scroll_down]}]='scroll-down'
 	[${keys_def[scroll_up]}]='scroll-up'
-	[${keys_def[select]}]='file_select'
+	[${keys_def[select]}]='dired-select'
 	[68 0]='toggle_hidden'
 )
 keys_view=(
@@ -139,7 +134,6 @@ style=(
 	[menuline]='\e[0;37;40m'
 	[menuitem]='\e[0;37;40m'
 	[selected]='\e[30;45m'
-	[button]='\e[0;97;100m'
 	[link]='\e[94m'
 	[menuitemselected]='\e[30;45m'
 	[infoline]='\e[40;97m'
@@ -160,14 +154,6 @@ style=(
 	[fn]='\e[0;30;44m'
 	[keyword]='\e[0;91m'
 )
-## charmap
-#TODO: this will be usesfull for later implementation of ligatures and stuff
-charmap=(
-	#[0] is reserved for any unmapped char
-	[	]='t'
-	[ ]='s'
-	#[	-render]="${options[tabchar]}"
-)
 menulinemenu() {
 	declare -ng menucon=menufancy
 	#menulinepy=$(( sizy - ${#menufancy[@]} ))
@@ -184,7 +170,7 @@ menufile=(
 	[Open loc M-r ]="set_buffer_file"
 	[Execute  C-t ]="execute"
 	[Save     C-o ]="write_buffer"
-	[File picker  ]="filepick"
+	[File picker  ]="dired"
 )
 
 menuhelp() { declare -ng menucon=menuhelp; menu; }
@@ -201,7 +187,6 @@ menukey=(
 	[Read File    C-r ]="read_buffer"
 	[Write Out    C-o ]="write_buffer"
 	[Delete Line  C-d ]="delete_line"
-	[Toggle Mouse C-e ]="mtoggle"
 	[Prev Line    C-p ]="previous-line"
 	[Next Line    C-n ]="next-line"
 	[Prev Page    C-y ]="scroll-down"
@@ -235,7 +220,7 @@ commands=(
 	[read-file]='read_buffer'
 	[write-file]='write_buffer'
 	[delete-line]='delete_line'
-	[toggle-mouse]='mtoggle'
+	[toggle-mouse]='toggle-mouse'
 	[execute]='execute'
 	[shell]='shell'
 	[force-quit]='die'
@@ -246,9 +231,10 @@ commands=(
 	[input]='inputcodes'
 	[scroll-up]='scroll-up'
 	[scroll-down]='scroll-down'
+	[dired]='dired'
 )
 
-filepickmenu=(
+diredmenu=(
 	[toggle hidden \(h\)]="toggle_hidden"
 )
 
@@ -273,8 +259,8 @@ sizx=$COLUMNS
 sizy=$((LINES - 1))
 update=1
 case "${options[menuline]}" in
-	"true") toplines=1;;
-	"false") toplines=0;;
+	1) toplines=1;;
+	0) toplines=0;;
 esac
 bottomlines=2
 rst='\e[0;0m'
@@ -282,7 +268,14 @@ for item in "${!menulineedit[@]}"; do
 	menufancy+=(["$(printf '%-12s' "$item")"]="${menulineedit["$item"]}")
 done
 menufancy+=([Quit        ]=quit)
-
+## charmap
+#TODO: this will be usesfull for later implementation of ligatures and stuff
+charmap=(
+	#[0] is reserved for any unmapped char
+	[	]='t' # tab
+	[ ]='s' # space
+	#[	-render]="${options[tabchar]}"
+)
 
 clr() {
 	printf "\033c" # clear
@@ -317,7 +310,7 @@ cmd() {
 	printf '\e[?25h'
 	if read -re -p "${options[cmd_prompt]}" command; then
 		for lcmd in "${!commands[@]}"; {
-			[ "$command" = "$lcmd" ] && "${commands[$lcmd]}"
+			[ "$command" = "$lcmd" ] && "${commands[$lcmd]}" && redraw
 		}
 	fi
 }
@@ -389,7 +382,7 @@ builtin_syntax_conf() {
 syntax() {
 	for s in "${!syntax[@]}"; do
 		[ "$s" = "$filetype" ] && {
-			[ "${options[todonote]}" = true ] && {
+			(("${options[todonote]}"==1)) && {
 				case "$word" in
 					'NOTE:') printf "${style[NOTE]}%s${rst}" "${word}"; return ;;
 					'TODO:') printf "${style[TODO]}%s${rst}" "${word}"; return ;;
@@ -406,7 +399,7 @@ inputcodes() {
 	while :; do
 		local -a k=()
 		local -i i=1
-		[ "${options[mouse]}" = true ] && echo -ne "\e[?1000;1006;1015h"
+		(("${options[mouse]}"==1)) && echo -ne "\e[?1000;1006;1015h"
 		if read -rsN1 -t${options[refresh_timeout]} k[0]; then # Check for ready input
 			while read -rsN1 -t0.0001 k[$i]; do ((i++)); done # Multibyte hack
 			debuginput "$(printf '%s' "${k[@]}")" # Handle keypress event
@@ -444,9 +437,11 @@ basenam() {
 	done
 }
 filetype() {
+	#very ugly, TODO: redo this
 	local filename shebang extension
 	local -a filenamesplit shebangsplit
 	[ $# = 0 ] && return
+	local bckIFS="$IFS"
 	IFS='.'
 	filename="${1%/}"
 	filename="${filename##*/}"
@@ -454,7 +449,6 @@ filetype() {
 	filenamesplit=($filename)
 	extension="${filenamesplit[-1]}"
 	[ "${#filenamesplit[@]}" -gt 1 ] && echo "$extension" && return
-	
 	mapfile -n 1 file_data < "$1"
 	shebang="$(echo -n "${file_data[@]}")"
 	case "${shebang:0:1}" in
@@ -462,13 +456,21 @@ filetype() {
 		shebang="${shebang%/}"
 		IFS=' '
 		shebangsplit=("${shebang##*/}")
-		printf '%s\n' "${shebangsplit[-1]}";;
+		local shebangss=(${shebangsplit[-1]})
+		case "${shebangss[0]}" in
+			env)
+				printf '%s\n' "${shebangss[1]}";;
+			*)
+				printf '%s\n' "${shebangsplit[-1]}";;
+			esac
+		;;
 		'!')
 			mapfile -d ' ' -t split <<< "${shebang}"
 			printf '%s\n' "${split[1]}"
 			;;
 		*) echo unknown
 	esac
+	IFS="${bckIFS}"
 }
 filellenght() {
 	fll="${#buffer[@]}"
@@ -479,7 +481,7 @@ set_buffer_file() {
 	printf '\e[D\e[1;93;108m' #make prompt nicer
     bind 'set disable-completion off' 2>/dev/null # Enable completion
     printf '\e[?25h' # Enable cursor
-    if read -rei "$1$file" -p "${file_prompt}" file; then
+    if read -rei "$1$file" -p "${options[file_prompt]}" file; then
         modified=true
     fi
     bind 'set disable-completion on' 2>/dev/null
@@ -512,17 +514,17 @@ topline() {
 }
 toggle_hidden() {
 	((hidden==0)) && hidden=1 || hidden=0
-	filepick
+	dired
 }
-filepick() {
-	help_message="${options[filepick_message]}"
-	declare -gn menuline=filepickmenu
+dired() {
+	help_message="${options[dired_message]}"
+	declare -gn menuline=diredmenu
 	line=0
 	rl=0
 	base=1
 	clr_buffer
 	filetype="i*" # Internal file type
-	file="filepicker*" # All internal "files" should end with star
+	file="dired*" # All internal "files" should end with star
 	mapfile -t -O 1 buffer <<< "$(pickls)"
 	for idx in "${!buffer[@]}"; do
 		if [ -d "${buffer[idx]}" ]; then
@@ -532,7 +534,7 @@ filepick() {
 		fi
 		bufferexpand[idx]="${buffer[idx]}"
 	done
-	mode=interact # general internal interactive mode
+	mode=dired # dired mode
 	filellenght # drowning in sea of murky logic
 	if [[ "${buffer[1]}" ]]; then # Ensure that something was actually read into the file
 		line=1 # Indicate that we have a buffer loaded
@@ -543,11 +545,11 @@ filepick() {
 	fi
 	redraw
 }
-file_select() {
+dired-select() {
 	local line="${buffer[line]}"
 	if [ -d "$line" ]; then
 		cd "$line"
-		filepick
+		dired
 	else
 		read_buffer "$line" || exit 1
 		help_message="${options[help_message]}"
@@ -557,8 +559,7 @@ file_select() {
 	fi
 }
 pickls() {
-	((hidden==1)) || printf '..\n'
-	((hidden==1)) && printf '%s\n' .*
+	((hidden==0)) && printf '..\n' || printf '%s\n' .*
 	printf '%s\n' *
 }
 cparray() {
@@ -681,7 +682,6 @@ charexpand() {
 	done
 	IFS="${bckIFS}"
 }
-
 
 new_line() {
     buffer=("" "${buffer[@]:1:line}" "" "${buffer[@]:line+1}")
@@ -863,9 +863,19 @@ die() {
 	printf '\e[?25h\e[?7h\e[?1049l' # Reset terminal to sane mode
     exit "${errno:-0}" # Assume that we are exiting without an error
 }
-mtoggle() {
-	[ "${options[mouse]}" = true ] && echo -ne "\e[?1000;1006;1015l" && options[mouse]=false && return
-	[ "${options[mouse]}" = false ] && echo -ne "\e[?1000;1006;1015h" && options[mouse]=true && return
+toggle-mouse() {
+	(("${options[mouse]}"==1)) && {
+		echo -ne "\e[?1000;1006;1015l"
+		options[mouse]=0
+		message="Disabled options[mouse]"
+		return
+		}
+	(("${options[mouse]}"==0)) && {
+		echo -ne "\e[?1000;1006;1015h"
+		options[mouse]=1
+		message="Enabled options[mouse]"
+		return
+	}
 }
 menuclick() {
 	#determine which item should be triggered
@@ -926,7 +936,7 @@ redraw() {
 		sizx=$COLUMNS
 		sizy=$((LINES - 1))
 	}
-	[ "${options[menuline]}" = true ] && {
+	(("${options[menuline]}"==1)) && {
 		printf "\e[0m\e[%s;%sH${style[menuline]}\e[?25l%*s\r%s" "$offy" "$offx" "$sizx" "$help_message"
 		printf '\e[%sG%s\e[0m\n' "$offx" "${!menuline[*]}"
 	} || printf "\e[%s;%sH" "$offy" "$offx"
@@ -990,7 +1000,7 @@ keytype() {
 	}
 	[ "$mode" = 'edit' ] || return
 	
-	[ "${options[mouse]}" = true ] && {
+	(("${options[mouse]}"==1)) && {
 		#parse mouse stuff somewhatish weirdly
 		[ "${hexkey[*]:0:5}" = '1b 5b 3c 36 34' ] && previous-line && return
 		[ "${hexkey[*]:0:5}" = '1b 5b 3c 36 35' ] && next-line && return
@@ -1048,16 +1058,16 @@ keytype() {
 	}
 }
 main() {
-	[ "${options[mouse]}" = true ] && print '%s' "\e[?1000;1006;1015h" #enable mouse tracking
+	(("${options[mouse]}"==1)) && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
     if [[ "$1" ]]; then # If a file was provided in the terminal pre-load it
         if [ -d "$1" ]; then
 			cd "$1" || exit
-			filepick # enter the file selector in specified folder
+			dired # enter the file selector in specified folder
 		else
 			read_buffer "$1"
 		fi
     else
-		filepick # enter the file selector
+		dired # enter the file selector
 	fi
 	begin
 }
@@ -1071,11 +1081,6 @@ begin() {
 			keytype "$(printf '%s' "${k[@]}")" # Handle keypress event
 		fi
 	done
-}
-
-redrawa() {
-	redraw #i have no idea why it has to be twice to work
-	redraw
 }
 
 main "$@"

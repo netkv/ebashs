@@ -1,0 +1,133 @@
+                                     ╔════════════╗
+                                     ║    SPIS    ║
+                                     ╚════════════╝
+
+[ DESCRIPTION ]
+
+An editor written in pure bash via nonsense sphagetti code trying copying emacs.
+
+[ FEATURES ]
+
+syntax highlighting
+custom keybindings
+custom modes -- so you can implement the evil too
+file picker
+mouse support
+
+[ CONFIG ]
+
+Spis is configured via variables defined at start, you can separate it into file
+and then source it.
+
+    [ OPTIONS ARRAY ]
+
+    ┌───────────────────┬───────────────────┬───────────────────────────────────────┐
+    │       NAME        │      DEFAULT      │              DESCRIPTION              │
+    ├───────────────────┼───────────────────┼───────────────────────────────────────┤
+    │mouse              │ 0                 │enable mouse at launch                 │
+    │todonote           │ 1                 │highlight TODO: & NOTE:                │
+    │menuline           │ 1                 │display menuline                       │
+    │tabchar            │'|   '             │what should tab dislay as              │
+    │refresh_timeout    │ 1                 │how often to refresh input             │
+    │file_prompt        │'Path: '           │file setting prompt                    │
+    │cmd_prompt         │'M-x'              │command line prompt                    │
+    │cancelhex          │'18 0' (C-x)       │keybinding to exist debug input menu   │
+    │default_mode       │ edit              │what mode should be set on launch      │
+    │help_message       │'F10 to open menu' │top right help message                 │
+    │dired_message      │'Pick a file'      │same as above but for file picker      │
+    └───────────────────┴───────────────────┴───────────────────────────────────────┘
+
+    [ KEYBINDING ARRAYS ]
+
+    Keybinding arrays match with modes. The array has to be associative and nammed
+    keys_<mode>. keys_def is reserved and used as reference for other arrays, it's
+	also reversed compared to other keybinding arrays.
+
+    There is also a optionable option array possible for all keybinding arrays.
+	Currently only defined option is [else] which defines what should happen if no key
+	is matched from the keybinding. These arrays have to be named key_options_<mode>.
+
+   [ MODES ]
+
+   Modes determine used keybinding and other properties of buffer.
+
+    ┌───────────────────┬───────────────────────────────────────────┐
+    │       NAME        │                DESCRIPTION                │
+    ├───────────────────┼───────────────────────────────────────────┤
+    │edit               │general editing mode                       │
+    │dired              │mode used in file picker                   │
+    │view               │readonly mode                              │
+    │command            │proof of concept vim like command mode     │
+    │menu               │mode of menus                              │
+    └───────────────────┴───────────────────────────────────────────┘
+
+    [ STYLE ]
+
+    Style of stuff is defined as escape code.
+
+    ┌───────────────────┬───────────────────┬───────────────────────────────────────┐
+    │       NAME        │      DEFAULT      │              DESCRIPTION              │
+    ├───────────────────┼───────────────────┼───────────────────────────────────────┤
+    │TODO               │ \e[0;97;45m       │Highlighting of TODO:                  │
+    │NOTE               │ \e[0;97;100m      │Highlighting of NOTE:                  │
+    │menuline           │ \e[0;37;40        │Menuline                               │
+    │menuitem           │ \e[0;37;40        │Items in menuline                      │
+    │link               │ \e[94m            │Redirects                              │
+    │menuitemselected   │ \e[30;45m         │Selected item inside a menu            │
+    │infoline           │ \e[40;97m         │Bottom statusline                      │
+    │number             │ \e[0;90m          │Line count                             │
+    │numberempty        │ \e[0;90m          │Lines that do not exist                │
+    │numberselected     │ \e[0;91m          │Currently selected line                │
+    │tab                │ \e[0;90m          │Tabs                                   │
+    ├┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┼┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┼┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┤
+    │quotevar           │ \e[0;36;48m       │Quoted variables                       │
+    │comment            │ \e[3;37;48m       │Comments                               │
+    │variable           │ \e[0;96m          │Variables          ↓                   │
+    │option             │ \e[0;93m          │Options (like read -r)                 │
+    │flow               │ \e[0;93;m         │Control flow                           │
+    │bracket            │ \e[1;95m          │Brackets                               │
+    │quote              │ \e[0;92m          │String literals                        │
+    │dquote             │ \e[0;32m          │Strings                                │
+    │set                │ \e[0;94;108m      │Variable assignments                   │
+    │fn                 │ \e[0;30;44m       │Function definitions                   │
+    │keyword            │ \e[0;91m          │Keywords                               │
+    └───────────────────┴───────────────────┴───────────────────────────────────────┘
+
+    [ SYNTAX ]
+
+    Defines which syntax functions should be used for which file types.
+
+    [ MENULINE ]
+
+    Defines items in menuline, content of keys defines which functions should be ran
+	on invocation.
+
+    [ MENUS ]
+
+    Each menu has to have helper function to set it up on request:
+        <menu>() { declare -ng menucon=<menu>; menu; }
+    The contents of menu are defined by an associative  array.
+
+    [ COMMANDS ]
+
+    Defines commands that can be used in M-x.
+
+[ EXTENDING ]
+
+Some of usesfull variables and for extending Spis
+
+┌───────────────────┬───────────────────────────────────────────┐
+│       NAME        │                DESCRIPTION                │
+├───────────────────┼───────────────────────────────────────────┤
+│buffer             │File data                                  │
+│buffersyntax       │Visible buffer                             │
+│bufferexpand       │Special characters filtered out            │
+│charmap            │Definitions for bufferexpand               │
+│line               │Selected line                              │
+│rl                 │Position of cursor on x axis               │
+│mode               │Current mode                               │
+└───────────────────┴───────────────────────────────────────────┘
+
+[ CREDITS ]
+
+Based on https://github.com/comfies/bed
