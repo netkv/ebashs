@@ -10,7 +10,7 @@ trap quit INT
 trap quit SIGTERM
 
 declare -A syntax menufile menulineedit menuhelp menukey menudebug style options charmap menufancy commands diredmenu menulineabout
-declare -A keys_def keys_edit keys_command keys_dired keys_view keys_menu
+declare -A keys_def keys_edit keys_prefix keys_command keys_dired keys_view keys_menu
 declare -A key_options_menu
 declare -a buffer buffersyntax bufferexpand hexkey overlay
 declare -i line base rl menulinep menulinepy fll toplines bottomlines hidden offx offy sizx sizy update ismenu
@@ -62,7 +62,7 @@ keys_edit=(
 	#[1b 5b 31 3b 32 44 0]='select_left'
 	# TODO: selection
 	[1b 0]='commandmode'
-	[18 0]='quit'
+	[18 0]='prefix'
 	[1b 5b 32 31 7e 0]='menulinemenu'
 	[10 0]='previous-line'
 	[e 0]='next-line'
@@ -72,18 +72,15 @@ keys_edit=(
 	[1b 62 0]='backward-word'
 	[10 0]='scroll-down'
 	[16 0]='scroll-up'
-	[0]='new_line'
-	[c 0]='new_line'
-	[f 0]='write_buffer'
-	[12 0]='read_buffer'
-	[1b 72 0]='set_buffer_file'
+	[0]='newline'
+	[c 0]='newline'
 	[14 0]='execute'
 	[4 0]='delete_line'
 	[13 0]='shell'
 	[7f 0]='backspace'
 	[1b 71 0]='die'
 	[1b 67 0]='menukey'
-	[1b 78 0]='cmd'
+	[1b 78 0]='execute-extended-command'
 	[1 0]='move-beginning-of-line'
 	[1b 5b 48 0]='move-beginning-of-line'
 	[5 0]='move-end-of-line'
@@ -107,6 +104,12 @@ keys_view=(
 	[${keys_def[scroll_down]}]='scroll-down'
 	[${keys_def[scroll_up]}]='scroll-up'
 	[${keys_def[select]}]='view_exit'
+)
+keys_prefix=(
+	[18 0]='quit'
+	[7 0]='quit-prefix'
+	[13 0]='write_buffer'
+	[6 0]='find-file'
 )
 keys_command=(
 	[${keys_def[previous_line]}]='previous-line'
@@ -166,11 +169,11 @@ menulineedit=(
 )
 menufile() { declare -ng menucon=menufile; menu; }
 menufile=(
-	[Quit    C-x  ]="quit"
-	[Open loc M-r ]="set_buffer_file"
-	[Execute  C-t ]="execute"
-	[Save     C-o ]="write_buffer"
-	[File picker  ]="dired"
+	[Quit       C-x C-c ]="quit"
+	[Visit file C-x C-f ]="find-file"
+	[Execute        C-t ]="execute"
+	[Save       C-x C-s ]="write-buffer"
+	[File picker        ]="dired"
 )
 
 menuhelp() { declare -ng menucon=menuhelp; menu; }
@@ -181,19 +184,19 @@ menuhelp=(
 
 menukey() { declare -ng menucon=menukey; menu; }
 menukey=(
-	[Exit         C-x ]="quit"
-	[New Line C-l | ⏎ ]="new_line"
-	[Set target   M-r ]="set_buffer_file"
-	[Read File    C-r ]="read_buffer"
-	[Write Out    C-o ]="write_buffer"
-	[Delete Line  C-d ]="delete_line"
-	[Prev Line    C-p ]="previous-line"
-	[Next Line    C-n ]="next-line"
-	[Prev Page    C-y ]="scroll-down"
-	[Next Page    C-v ]="scroll-up"
-	[Execute      C-t ]="execute"
-	[Shell        C-s ]="shell"
-	[Exit no save M-q ]="die"
+	[Exit       C-x C-c ]="quit"
+	[New Line   C-l | ⏎ ]="newline"
+	[Set target     M-r ]="find-file"
+	[Visit file C-x C-f ]="read-buffer"
+	[Save file  C-x C-s ]="write-buffer"
+	[Delete Line    C-d ]="delete_line"
+	[Prev Line      C-p ]="previous-line"
+	[Next Line      C-n ]="next-line"
+	[Prev Page      C-y ]="scroll-down"
+	[Next Page      C-v ]="scroll-up"
+	[Execute        C-t ]="execute"
+	[Shell          C-s ]="shell"
+	[Force exist    M-q ]="die"
 )
 
 menudebug() { declare -ng menucon=menudebug; menu; }
@@ -215,10 +218,10 @@ syntax=(
 
 commands=(
 	[quit]='quit'
-	[newline]='new_line'
-	[set-buffer-file]='set_buffer_file'
-	[read-file]='read_buffer'
-	[write-file]='write_buffer'
+	[newline]='newline'
+	[set-buffer-file]='find-file'
+	[read-file]='read-buffer'
+	[write-file]='write-buffer'
 	[delete-line]='delete_line'
 	[toggle-mouse]='toggle-mouse'
 	[execute]='execute'
@@ -305,7 +308,17 @@ refresh() {
 	message=
 }
 
-cmd() {
+prefix() {
+	bckmode="$mode"
+	mode=prefix
+	statusline
+}
+quit-prefix() {
+	mode="$bckmode"
+	unset bckmode
+	statusline
+}
+execute-extended-command() {
 	printf '\e[%s;0H' $((sizy + offy))
 	printf '\e[?25h'
 	if read -re -p "${options[cmd_prompt]}" command; then
@@ -476,18 +489,20 @@ filellenght() {
 	fll="${#buffer[@]}"
 	fll="${#fll}"
 }
-set_buffer_file() {
-	printf '\e[%s;0H' "${sizy}"
-	printf '\e[D\e[1;93;108m' #make prompt nicer
-    bind 'set disable-completion off' 2>/dev/null # Enable completion
-    printf '\e[?25h' # Enable cursor
-    if read -rei "$1$file" -p "${options[file_prompt]}" file; then
-        modified=true
-    fi
-    bind 'set disable-completion on' 2>/dev/null
+find-file() {
+	printf '\e[%s;0H' $((sizy + offy))
+	printf '\e[?25h'
+	bind 'set disable-completion off' 2>/dev/null # Enable completion
+	read -re -p "${options[file_prompt]}" command && {
+		read-buffer "$command"
+		[ -n "$bckmode" ] && mode="$bckmode" || mode=edit
+		redraw
+	}
+	bind 'set disable-completion on' 2>/dev/null
+
 }
-read_buffer() {
-	clr_buffer
+read-buffer() {
+	clear-buffer
 	filetype="$(filetype "$1")"
 	file="$1"
 	mapfile -t -O 1 buffer <"$file" # Read file into an array
@@ -502,7 +517,7 @@ read_buffer() {
 		info="{$file}: empty"
 	fi
 }
-clr_buffer() {
+clear-buffer() {
 	buffer=()
 	buffersyntax=()
 	bufferexpand=()
@@ -522,7 +537,7 @@ dired() {
 	line=0
 	rl=0
 	base=1
-	clr_buffer
+	clear-buffer
 	filetype="i*" # Internal file type
 	file="dired*" # All internal "files" should end with star
 	mapfile -t -O 1 buffer <<< "$(pickls)"
@@ -551,7 +566,7 @@ dired-select() {
 		cd "$line"
 		dired
 	else
-		read_buffer "$line" || exit 1
+		read-buffer "$line" || exit 1
 		help_message="${options[help_message]}"
 		declare -gn menuline=menulineedit
 		mode=edit
@@ -591,7 +606,7 @@ save() {
 	savedmenuline="${!menuline}"
 }
 restore() {
-	clr_buffer
+	clear-buffer
 	local name="$1"
 	
 	local -n savedhelp_message="help_message${name}"
@@ -645,7 +660,7 @@ view_exit() {
 }
 
 
-write_buffer() {
+write-buffer() {
     true >"$file" # Set the file to an empty text file
     for ln in "${buffer[@]}"; do # Write in the buffer to the file
         echo "$ln" >>"$file"
@@ -654,11 +669,11 @@ write_buffer() {
     message="Wrote ${#buffer[@]} lines to '$file'"
 }
 
-megaredraw(){
+make-syntax(){
 	printf '%s\n' "${buffer[@]}" | pipesyntax | mapfile -t -O 1 buffersyntax
 	printf '%s\n' "${buffer[@]}" | charexpand | mapfile -t -O 1 bufferexpand
 }
-megaredrawline(){
+make-syntax-line(){
 	buffersyntax[line]="$(printf '%s' "${buffer[line]}" | pipesyntax)"
 	bufferexpand[line]="$(printf '%s' "${buffer[line]}" | charexpand)"
 }
@@ -683,7 +698,7 @@ charexpand() {
 	IFS="${bckIFS}"
 }
 
-new_line() {
+newline() {
     buffer=("" "${buffer[@]:1:line}" "" "${buffer[@]:line+1}")
     unset 'buffer[0]'
     modified=true
@@ -691,7 +706,7 @@ new_line() {
 	buffer[line]=${buffer[line]:0:rl}
 	rl=0
 	filellenght
-	megaredraw
+	make-syntax
 	next-line
 	redraw
 }
@@ -702,7 +717,7 @@ delete_line() {
     ((line > ${#buffer[@]})) && previous-line
     modified=true
 	filellenght
-    megaredraw
+    make-syntax
 	redraw
 }
 
@@ -729,27 +744,35 @@ backspace() {
 	fi
 	buffer[line]="${buffer[line]:0:$(( rlr - 1 ))}${buffer[line]:${rlr}}"
 	backward-char #go back with cursor
-	megaredrawline # copy the buffer into buffersyntax and bufferexpand
+	make-syntax-line # copy the buffer into buffersyntax and bufferexpand
 	redraw #draw it
 	modified=true
 }
-
+declare -A keys_quit
+keys_quit=(
+	[79 0]='save-quit'
+	[6e 0]='die'
+	[63 0]='quit-quit'
+)
+save-quit() {
+	write-buffer
+	die
+}
+quit-quit() {
+	mode="$bckmode"
+	message='Quit canceled'
+	redraw
+}
 quit() {
 	if [[ "$modified" == "true" ]]; then
-		while :; do
-			printf '\e[%s;0H' $((sizy + offy))
-			read -rsN1 -p "Buffer modified, save before close? [Y/n/c]" choice
-			case "$choice" in
-				Y|y) write_buffer; die;;
-				N|n) die;;
-				C|c) message="Quit canceled"; break;;
-				*) continue;;
-			esac
-		done
+		[ -z "$bckmode" ] && bckmode="$mode"
+		mode='quit'
+		statusline
+		printf '\e[%s;0H' $((sizy + offy))
+		printf '%s' 'Buffer modified, save before close? [Y/n/c]'
 	else
 		die
 	fi
-	commandline
 }
 
 previous-line() {
@@ -791,7 +814,7 @@ execute() {
         buffer[line]="$($REPLY)"
         modified=true
     fi
-    megaredraw
+    make-syntax
     redraw
 }
 forward-char() {
@@ -941,9 +964,9 @@ redraw() {
 		printf '\e[%sG%s\e[0m\n' "$offx" "${!menuline[*]}"
 	} || printf "\e[%s;%sH" "$offy" "$offx"
 	# Iterate over shown lines
-	for ((i = base; i - base < sizy - (bottomlines + toplines ) + 1; i++)); do
-		printf "${style[numberselected]}"
-		((i != line)) && printf "${style[number]}" # Fade line number if not selected
+	for ((i = base; i - base < sizy - ( bottomlines + toplines ) + 1; i++)); do
+		printf "${style[number]}"
+		((i == line)) && printf "${style[numberselected]}" # Highlight line number if selected
 		((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((fll/2))s~\e[m\n" "$offx"\
 				|| printf "\e[%sG\e[K%${fll}s\e[m %s\n" "$offx" "$i" "${buffersyntax[i]}"
 	done
@@ -979,23 +1002,23 @@ makehexkey() {
 	}
 }
 keytype() {
-	local -i x y known
+	local -i x y mode_contains
 	makehexkey "$1"
 
 	local -n modekeys="keys_${mode}"
 	for str in "${!modekeys[@]}"; do
 		[ "$str" = "${hexkey[*]}" ] && {
 			"${modekeys[$str]}"
-			known=1
+			mode_contains=1
 		}
 	done
-	((known == 0)) && {
+	((mode_contains == 0)) && {
 		local -n key_options="key_options_${mode}"
 		((${#key_options[@]})) && {
 			[ -n "${key_options[else]}" ] && "${key_options[else]}"
 		}
 	}
-	((known == 1)) && {
+	((mode_contains == 1)) && {
 		return
 	}
 	[ "$mode" = 'edit' ] || return
@@ -1050,7 +1073,7 @@ keytype() {
 		rlr=$((rl + ta / 4 - ta))	
 		buffer[line]="${buffer[line]:0:${rlr}}$1${buffer[line]:${rlr}}" #add at cursor position - amount of tabs * tab size
 		#go right with cursor
-		megaredrawline #not sure why this is needed but it prevents duplication of the letter
+		make-syntax-line #not sure why this is needed but it prevents duplication of the letter
 		forward-char
 		redraw
 		[ "$1" = '	' ] && printf '\e[%sC' $((${#options[tabchar]} - 1))
@@ -1064,7 +1087,7 @@ main() {
 			cd "$1" || exit
 			dired # enter the file selector in specified folder
 		else
-			read_buffer "$1"
+			read-buffer "$1"
 		fi
     else
 		dired # enter the file selector
