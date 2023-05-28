@@ -1,6 +1,6 @@
 #!/bin/bash
 printf '\e[?1049h'
-# Spis: text editor written in pure bash powered by murky logic and mess
+# Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
 shopt -s checkwinsize; (:;:) # Enable and then trigger a terminal size refresh
@@ -242,7 +242,7 @@ diredmenu=(
 
 ## rest of this garbageware
 
-version="Spis dev"
+version="Ebashs dev"
 buffer=() # File contents
 buffersyntax=() # File contents
 line=1 # Currently selected line (0 means the buffer is empty)
@@ -651,12 +651,12 @@ about() {
 	)
 	buffer=()
 	mapfile -t -O 1 buffer <<EOF
-This is Spis, one component of the Bash/Bash operating system.
+This is Ebashs, one component of the Bash/Bash operating system.
 
 An editor written in pure bash via nonsense sphagetti code trying copying emacs.
 
 Repo                     https://github.com/nyeta/spis
-                         Spis comes with ABSOLUTELY NO WARRANTY
+                         Ebashs comes with ABSOLUTELY NO WARRANTY
 
 
 

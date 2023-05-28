@@ -1,4 +1,4 @@
-This is Spis, one component of the Bash/Bash operating system.
+This is Ebashs, one component of the Bash/Bash operating system.
 
                                      ╔════════════╗
                                      ║    SPIS    ║
@@ -18,7 +18,7 @@ mouse support
 
 [ CONFIG ]
 
-Spis is configured via variables defined at start, you can separate it into file
+Ebashs is configured via variables defined at start, you can separate it into file
 and then source it.
 
     [ OPTIONS ARRAY ]
@@ -116,7 +116,7 @@ and then source it.
 
 [ EXTENDING ]
 
-Some of usesfull variables and for extending Spis
+Some of usesfull variables and for extending Ebashs
 
 ┌───────────────────┬───────────────────────────────────────────┐
 │       NAME        │                DESCRIPTION                │
