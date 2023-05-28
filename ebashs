@@ -9,13 +9,15 @@ trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
 trap quit INT
 trap quit SIGTERM
 
-declare -A syntax menufile menulineedit menuhelp menukey menudebug style options charmap menufancy commands diredmenu menulineabout
-declare -A keys_def keys_edit keys_prefix keys_command keys_dired keys_view keys_menu
-declare -A key_options_menu
-declare -a buffer buffersyntax bufferexpand hexkey overlay
+declare -A syntax style options charmap commands
+declare -A menulineedit menulineabout diredmenu menulinedebug
+declare -A menufile menuhelp menukey menudebug menufancy
+declare -A keys_def keys_edit keys_prefix keys_command keys_dired keys_view keys_menu keys_debuginput
+declare -A key_options_menu key_options_debuginput
+declare -a buffer buffersyntax bufferexpand input_hex overlay
 declare -i line base rl menulinep menulinepy fll toplines bottomlines hidden offx offy sizx sizy update ismenu
 declare -n menucon menuline
-declare file message info modified filetype comment rst mode command cmd_prompt help_message
+declare file message info modified filetype comment reset mode command cmd_prompt help_message
 
 
 ### Config options
@@ -103,7 +105,7 @@ keys_view=(
 	[${keys_def[backward_char]}]='backward-char'
 	[${keys_def[scroll_down]}]='scroll-down'
 	[${keys_def[scroll_up]}]='scroll-up'
-	[${keys_def[select]}]='view_exit'
+	[${keys_def[select]}]='quit-view'
 )
 keys_prefix=(
 	[18 0]='quit'
@@ -201,7 +203,7 @@ menukey=(
 
 menudebug() { declare -ng menucon=menudebug; menu; }
 menudebug=(
-	[clear      ]=clr
+	[clear      ]=clear-screen
 	[refresh    ]=refresh
 	[backspace  ]=backspace
 	[right      ]=forward-char
@@ -210,10 +212,10 @@ menudebug=(
 )
 
 syntax=(
-	[bash]=builtin_syntax_bash	[sh]=builtin_syntax_bash
-	[ksh]=builtin_syntax_bash	[mksh]=builtin_syntax_bash
-	[dash]=builtin_syntax_bash	[zsh]=builtin_syntax_bash
-	[conf]=builtin_syntax_conf	[unknown]=builtin_syntax_unknown
+	[bash]=syntax-bash	[sh]=syntax-bash
+	[ksh]=syntax-bash	[mksh]=syntax-bash
+	[dash]=syntax-bash	[zsh]=syntax-bash
+	[conf]=syntax-config	[unknown]=syntax-unknown
 )
 
 commands=(
@@ -265,7 +267,7 @@ case "${options[menuline]}" in
 	0) toplines=0;;
 esac
 bottomlines=2
-rst='\e[0;0m'
+reset='\e[0;0m'
 update-menuline-menu() {
 	declare -Ag menufancy
 	for item in "${!menulineedit[@]}"; do
@@ -284,7 +286,7 @@ charmap=(
 )
 
 
-clr() {
+clear-screen() {
 	printf "\033c" # clear
 }
 
@@ -300,12 +302,12 @@ getcx() {
 	echo "${pos[2]}"
 }
 
-commandmode() { mode="command"; statusline; }
-insertmode() { mode="edit"; statusline; drawc; }
-ansertmode() { mode="edit"; statusline; forward-char; }
+commandmode() { mode="command"; redraw-statusline; }
+insertmode() { mode="edit"; redraw-statusline; redraw-cursor; }
+ansertmode() { mode="edit"; redraw-statusline; forward-char; }
 
 refresh() {
-	clr
+	clear-screen
 	message="reloaded..."
 	megaredraw
 	redraw
@@ -315,12 +317,12 @@ refresh() {
 prefix() {
 	bckmode="$mode"
 	mode=prefix
-	statusline
+	redraw-statusline
 }
 quit-prefix() {
 	mode="$bckmode"
 	unset bckmode
-	statusline
+	redraw-statusline
 }
 execute-extended-command() {
 	printf '\e[%s;0H' $((sizy + offy))
@@ -332,122 +334,126 @@ execute-extended-command() {
 	fi
 }
 
-pipesyntax() {
-	comment=false
-	word=
-	bckIFS="${IFS}"
-	IFS=
-	while read -rsn1 char
-	do
-		[ "$char" = " " ] && syntax && word='' && printf ' ' && continue
-		[ "$char" = "	" ] && {
-			syntax
-			word=''
-			printf "${style[tab]}%s\e[0;0m" "${options[tabchar]}"
-			continue
-		}
-		[ -z "$char" ] && syntax && word='' comment='false' && echo && continue
-		word="${word}${char}" && printf '%s\e[%sD' "$word" "${#word}"
-	done
-	IFS="${bckIFS}"
-}
-
-
-builtin_syntax_bash() {
-	case "${word:0:2}" in
-		'"$') printf "${style[quotevar]}%s${rst}" "${word}"; return ;;
-	esac
-	case "${word:0:1}" in
-		'#') printf "${style[comment]}%s${rst}" "${word}" && comment=true; return;;
-		'$') printf "${style[variable]}%s${rst}" "${word}"; return ;;
-		'-') printf "${style[option]}%s${rst}" "${word}"; return ;;
-	esac
-	"${comment}" && printf "${style[comment]}%s${rst}" "${word}" && return
-	case "${word}" in
-		'||') printf "${style[flow]}%s${rst}" "${word}"; return ;;
-		'&&') printf "${style[flow]}%s${rst}" "${word}"; return ;;
-		']') printf "${style[bracket]}%s${rst}" "${word}"; return ;;
-		'[') printf "${style[bracket]}%s${rst}" "${word}"; return ;;
-		'[[') printf "${style[bracket]}%s${rst}" "${word}"; return ;;
-		']]') printf "${style[bracket]}%s${rst}" "${word}"; return ;;
-		')') printf "${style[bracket]}%s${rst}" "${word}"; return ;;
-		'(') printf "${style[bracket]}%s${rst}" "${word}"; return ;;
-		'{') printf "${style[bracket]}%s${rst}" "${word}"; return ;;
-		'}') printf "${style[bracket]}%s${rst}" "${word}"; return ;;
-		';') printf "${style[flow]}%s${rst}" "${word}"; return ;;
-		'function') printf "${style[fn]}%s${rst}" "${word}"; return ;;
-		*"'"*) printf "${style[quote]}%s${rst}" "${word}" && return ;;
-		*'"'*) printf "${style[dquote]}%s${rst}" "${word}"&& return ;;
-		*'='*) printf "${style[set]}%s${rst}" "${word}"; return ;;
-	esac
-		   
-	[[ "${word: -2}" = '()' ]] && printf "${style[fn]}%s${rst}" "${word}" && return
-	case "${word}" in
-		'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|'declare'|'typeset'|'local'|'let'|'shopt'|'trap'|'set'|'eval') printf "${style[keyword]}%s${rst}" "${word}" && return
-	esac
-	printf "${rst}%s" "${word}"
-}
-builtin_syntax_unknown() {
-	printf "${rst}%s" "${word}"
-}
-builtin_syntax_conf() {
-	[[ "${word}" =~ "#" ]] && printf "${style[comment]}%s${rst}" "${word}" && comment=true && return
-	"${comment}" && printf "${style[comment]}%s${rst}" "${word}" && return
-	printf "${rst}%s" "${word}"
-}
-
-syntax() {
+syntax-word() {
+	local word="$1"
 	for s in "${!syntax[@]}"; do
 		[ "$s" = "$filetype" ] && {
 			(("${options[todonote]}"==1)) && {
 				case "$word" in
-					'NOTE:') printf "${style[NOTE]}%s${rst}" "${word}"; return ;;
-					'TODO:') printf "${style[TODO]}%s${rst}" "${word}"; return ;;
+					'NOTE:') printf "${style[NOTE]}%s${reset}" "${word}"; return ;;
+					'TODO:') printf "${style[TODO]}%s${reset}" "${word}"; return ;;
 				esac
 			}
-			"${syntax[$s]}"
+			"${syntax[$s]}" "$word"
 		} && return
 	done
 	"${syntax[unknown]}"
 }
-
-inputcodes() {
-	debuginput
-	while :; do
-		local -a k=()
-		local -i i=1
-		(("${options[mouse]}"==1)) && echo -ne "\e[?1000;1006;1015h"
-		if read -rsN1 -t${options[refresh_timeout]} k[0]; then # Check for ready input
-			while read -rsN1 -t0.0001 k[$i]; do ((i++)); done # Multibyte hack
-			debuginput "$(printf '%s' "${k[@]}")" # Handle keypress event
-			[ $? = 69 ] && break
-		fi
+make-syntax() {
+	comment=false
+	local word=''
+	bckIFS="${IFS}"
+	IFS=''
+	while read -rsn1 char
+	do
+		case "$char" in
+			' ')
+				syntax-word "$word"
+				word=''
+				printf ' '
+				continue;;
+			'	')
+				syntax-word "$word"
+				word=''
+				printf "${style[tab]}%s\e[0;0m" "${options[tabchar]}"
+				continue;;
+			'')
+				syntax-word "$word"
+				word='' comment='false'
+				printf '\n'
+				continue;;
+		esac
+		word="${word}${char}" && printf '%s\e[%sD' "$word" "${#word}"
 	done
+	IFS="${bckIFS}"
+}
+syntax-bash() {
+	local word="$1"
+	case "${word:0:2}" in
+		'"$') printf "${style[quotevar]}%s${reset}" "${word}"; return ;;
+	esac
+	case "${word:0:1}" in
+		'#') printf "${style[comment]}%s${reset}" "${word}" && comment=true; return;;
+		'$') printf "${style[variable]}%s${reset}" "${word}"; return ;;
+		'-') printf "${style[option]}%s${reset}" "${word}"; return ;;
+	esac
+	"${comment}" && printf "${style[comment]}%s${reset}" "${word}" && return
+	case "${word}" in
+		'||'|'&&'|';') printf "${style[flow]}%s${reset}" "${word}"; return ;;
+		'('|')'|'{'|'}'|'[['|']]'|'['|']') printf "${style[bracket]}%s${reset}" "${word}"; return ;;
+		'function') printf "${style[fn]}%s${reset}" "${word}"; return ;;
+		*"'"*) printf "${style[quote]}%s${reset}" "${word}" && return ;;
+		*'"'*) printf "${style[dquote]}%s${reset}" "${word}"&& return ;;
+		*'='*) printf "${style[set]}%s${reset}" "${word}"; return ;;
+	esac
+	[[ "${word: -2}" = '()' ]] && printf "${style[fn]}%s${reset}" "${word}" && return
+	case "${word}" in
+		'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|'declare'|'typeset'|'local'|'let'|'shopt'|'trap'|'set'|'eval') printf "${style[keyword]}%s${reset}" "${word}" && return
+	esac
+	printf "${reset}%s" "${word}"
+}
+syntax-unknown() {
+	local word="$1"
+	printf "${reset}%s" "${word}"
+}
+syntax-config() {
+	local word="$1"
+	[[ "${word}" =~ "#" ]] && printf "${style[comment]}%s${reset}" "${word}" && comment=true && return
+	"${comment}" && printf "${style[comment]}%s${reset}" "${word}" && return
+	printf "${reset}%s" "${word}"
+}
+
+keys_debuginput=(
+	[18 0]='quit-debuginput'
+)
+key_options_debuginput=(
+	[else]='insert-debug-hex'
+)
+insert-debug-hex() {
+	buffer+=(
+		"${input_hex[*]}"
+	)
+	copy-array buffer buffersyntax
+	copy-array buffer bufferexpand
+	next-line
 	redraw
 }
-debuginput() {
-	hexkey=()	
-	i=0
-	echo "$1" | while read -rsn1; do
-		hexkey[i]="$(printf "%x\n" "'${1:$i}")"
-		((i++))
-	done
-	if [ "${hexkey[*]}" = "${options[cancelhex]}" ]; then
-	   return 69
-	fi
-	clr
-	topline "Input codes (exit keybind is ${options[cancelhex]})"
-	printf "${style[windowcontent]}"
-	printf "\033[2;0H"
-	for ((i=2;i<=sizy;i+=1)); do
-		printf '\033[%s;0H' $i
-		printf '%*s' "$sizx"
-	done
-	printf "\033[2;0H"
-	echo "${hexkey[@]}"
+inputcodes() {
+	save openfile
+	copy-array overlay bckover
+	overlay=()
+	update=0
+	mode=debuginput
+	filetype="i*"
+	file="debuginput*"
+	help_message="C-x (18 0) to close"
+	declare -gn menuline=menulinedebug
+	menulinedebug=(
+		[quit]='quit-debuginput'
+	)
+	clear-buffer
+	buffer=('')
+	clear-screen
+	redraw
+}
+quit-debuginput() {
+	copy-array bckover overlay
+	restore openfile
+	redraw
 }
 
-basenam() {
+
+base-name() {
 	for file in "$@"; do
 	    file="${file%/}"
 	    printf '%s\n' "${file##*/}"
@@ -510,8 +516,8 @@ read-buffer() {
 	filetype="$(filetype "$1")"
 	file="$1"
 	mapfile -t -O 1 buffer <"$file" # Read file into an array
-	pipesyntax < "$file" | mapfile -t -O 1 buffersyntax # TODO: make fast
-	charexpand < "$file" | mapfile -t -O 1 bufferexpand # TODO: make fast
+	make-syntax < "$file" | mapfile -t -O 1 buffersyntax # TODO: make fast
+	expand-char < "$file" | mapfile -t -O 1 bufferexpand # TODO: make fast
 	filellenght
 	if [[ "${buffer[1]}" ]]; then # Ensure that something was actually read into the file
 		line=1 # Indicate that we have a buffer loaded
@@ -581,7 +587,7 @@ pickls() {
 	((hidden==0)) && printf '..\n' || printf '%s\n' .*
 	printf '%s\n' *
 }
-cparray() {
+copy-array() {
 	local -n source="$1"
 	local -n target="$2"
 	for idx in "${!source[@]}"; do
@@ -599,9 +605,9 @@ save() {
 	
 	local -n savedmenuline="menuline${name}"
 	
-	cparray buffer "buffer${name}"
-	cparray buffersyntax "buffersyntax${name}"
-	cparray bufferexpand "expand${name}"
+	copy-array buffer "buffer${name}"
+	copy-array buffersyntax "buffersyntax${name}"
+	copy-array bufferexpand "expand${name}"
 	
 	savedhelp_message="$help_message"
 	savedfiletype="$filetype"
@@ -620,9 +626,9 @@ restore() {
 
 	local -n savedmenuline="menuline${name}"
 	
-	cparray "buffer${name}" buffer
-	cparray "buffersyntax${name}" buffersyntax
-	cparray "expand${name}" bufferexpand
+	copy-array "buffer${name}" buffer
+	copy-array "buffersyntax${name}" buffersyntax
+	copy-array "expand${name}" bufferexpand
 	
 	help_message="$savedhelp_message"
 	filetype="$savedfiletype"
@@ -634,7 +640,7 @@ restore() {
 
 about() {
 	save openfile
-	cparray overlay bckover
+	copy-array overlay bckover
 	overlay=()
 	update=0
 	#sizx=$((COLUMNS / 2))
@@ -647,7 +653,7 @@ about() {
 	help_message="About"
 	declare -gn menuline=menulineabout
 	menulineabout=(
-		[quit]='view_exit'
+		[quit]='quit-view'
 	)
 	buffer=()
 	mapfile -t -O 1 buffer <<EOF
@@ -663,14 +669,14 @@ Repo                     https://github.com/nyeta/spis
 
 Based on                 https://github.com/comfies/bed
 EOF
-	#make-syntax
-	cparray buffer buffersyntax
-	cparray buffer bufferexpand
-	clr
+	#make-render
+	copy-array buffer buffersyntax
+	copy-array buffer bufferexpand
+	clear-screen
 	redraw
 }
-view_exit() {
-	cparray bckover overlay
+quit-view() {
+	copy-array bckover overlay
 	restore openfile
 	redraw
 }
@@ -685,16 +691,16 @@ write-buffer() {
     message="Wrote ${#buffer[@]} lines to '$file'"
 }
 
-make-syntax(){
-	printf '%s\n' "${buffer[@]}" | pipesyntax | mapfile -t -O 1 buffersyntax
-	printf '%s\n' "${buffer[@]}" | charexpand | mapfile -t -O 1 bufferexpand
+make-render(){
+	printf '%s\n' "${buffer[@]}" | make-syntax | mapfile -t -O 1 buffersyntax
+	printf '%s\n' "${buffer[@]}" | expand-char | mapfile -t -O 1 bufferexpand
 }
-make-syntax-line(){
-	buffersyntax[line]="$(printf '%s' "${buffer[line]}" | pipesyntax)"
-	bufferexpand[line]="$(printf '%s' "${buffer[line]}" | charexpand)"
+make-render-line(){
+	buffersyntax[line]="$(printf '%s' "${buffer[line]}" | make-syntax)"
+	bufferexpand[line]="$(printf '%s' "${buffer[line]}" | expand-char)"
 }
 
-charexpand() {
+expand-char() {
 	bckIFS="${IFS}"
 	IFS=
 	while read -rsn1 char
@@ -722,7 +728,7 @@ newline() {
 	buffer[line]=${buffer[line]:0:rl}
 	rl=0
 	filellenght
-	make-syntax
+	make-render
 	next-line
 	redraw
 }
@@ -733,7 +739,7 @@ delete_line() {
     ((line > ${#buffer[@]})) && previous-line
     modified=true
 	filellenght
-    make-syntax
+    make-render
 	redraw
 }
 
@@ -760,7 +766,7 @@ backspace() {
 	fi
 	buffer[line]="${buffer[line]:0:$(( rlr - 1 ))}${buffer[line]:${rlr}}"
 	backward-char #go back with cursor
-	make-syntax-line # copy the buffer into buffersyntax and bufferexpand
+	make-render-line # copy the buffer into buffersyntax and bufferexpand
 	redraw #draw it
 	modified=true
 }
@@ -783,7 +789,7 @@ quit() {
 	if [[ "$modified" == "true" ]]; then
 		[ -z "$bckmode" ] && bckmode="$mode"
 		mode='quit'
-		statusline
+		redraw-statusline
 		printf '\e[%s;0H' $((sizy + offy))
 		printf '%s' 'Buffer modified, save before close? [Y/n/c]'
 	else
@@ -830,7 +836,7 @@ execute() {
         buffer[line]="$($REPLY)"
         modified=true
     fi
-    make-syntax
+    make-render
     redraw
 }
 forward-char() {
@@ -842,8 +848,8 @@ forward-char() {
 		[ "$rl" -gt "${#bufferexpand[line]}" ] && { rl=0; next-line; }
 		bckrl=
 	done
-	statusline
-	drawc
+	redraw-statusline
+	redraw-cursor
 }
 backward-char() {
 	for ((i = 0; i < ${1:-1}; i++)); do
@@ -854,18 +860,18 @@ backward-char() {
 		[ "$rl" -lt 0 ] && { previous-line; rl="${#bufferexpand[line]}"; }
 	done
 	bckrl=
-	statusline
-	drawc
+	redraw-statusline
+	redraw-redraw-cursor
 }
 move-beginning-of-line() {
 	rl=0
-	statusline
-	drawc
+	redraw-statusline
+	redraw-cursor
 }
 move-end-of-line() {
 	rl="${#bufferexpand[line]}"
-	statusline
-	drawc
+	redraw-statusline
+	redraw-cursor
 }
 forward-word() {
 	((rl == ${#bufferexpand[line]})) && {
@@ -894,14 +900,14 @@ backward-word() {
 	redraw
 }
 shell() {
-	clr
+	clear-screen
 	bash # NOTE: in theory an external command
 	redraw
 }
 
 die() {
     echo -e "\e[?1000;1006;1015l" #disable mouse tracking
-	clr # TODO fix the buffer switching
+	clear-screen # TODO fix the buffer switching
 	printf '\e[?25h\e[?7h\e[?1049l' # Reset terminal to sane mode
     exit "${errno:-0}" # Assume that we are exiting without an error
 }
@@ -935,9 +941,9 @@ menudraw() {
 	local mi=0
 	for action in "${!menucon[@]}"; do
 		if ((mi == menuselection)); then
-			printf "\e[%sC${style[menuitemselected]}%s${rst}\n" $menulinep "$action"  
+			printf "\e[%sC${style[menuitemselected]}%s${reset}\n" $menulinep "$action"  
 		else
-			printf "\e[%sC${style[menuitem]}%s${rst}\n" $menulinep "$action"
+			printf "\e[%sC${style[menuitem]}%s${reset}\n" $menulinep "$action"
 		fi
 		((mi++))
 	done
@@ -989,33 +995,33 @@ redraw() {
 		((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((fll/2))s~\e[m\n" "$offx"\
 				|| printf "\e[%sG\e[K%${fll}s\e[m %s\n" "$offx" "$i" "${buffersyntax[i]}"
 	done
-	statusline
-	commandline
-	drawc
+	redraw-statusline
+	redraw-commandline
+	redraw-cursor
 	# Render all overlays
 	for o in "${overlay[@]}"; {
 		"${o}"
 	}
 }
-drawc() {
+redraw-cursor() {
 	printf '\e[?25h\e[%s;%sH' $((line + 1 - base + offy)) $((rl + fll + 2 + offx)) # move cursor to the line
 }
-statusline() {
+redraw-statusline() {
 	printf "\e[%s;%sH\n\e[%sG${style[infoline]}%*s\e[%sG%s %s (%s,%s)\e[m" \
 	       $((sizy - 2 + offy)) $((sizx + offx)) "$offx" $((sizx)) "$info" "$offx" \
-	       "$mode" "$(basenam "$file")[$filetype]" "$line" "${rl}"
+	       "$mode" "$(base-name "$file")[$filetype]" "$line" "${rl}"
 }
-commandline() {
+redraw-commandline() {
 	printf "\e[%s;%sH\n${style[commandline]}%*s\r%s\e[m" \
 	       $((sizy - 1 + offy)) $((sizx + offx)) $sizx ' ' "$message"
 }
 
-makehexkey() {
-	hexkey=()
+input-make-hex() {
+	input_hex=()
 	local -i i=0
 	echo "$1" | {
 		while read -rsn1; do
-			hexkey[i]="$(printf "%x\n" "'${1:$i}")"
+			input_hex[i]="$(printf "%x\n" "'${1:$i}")"
 			((i++))
 		done
 	}
@@ -1029,18 +1035,18 @@ insert-word() {
 	ta=${#ta}
 	rlr=$((rl + ta / 4 - ta))	
 	buffer[line]="${buffer[line]:0:${rlr}}$1${buffer[line]:${rlr}}" #add at cursor position - amount of tabs * tab size
-	make-syntax-line #not sure why this is needed but it prevents duplication of the letter
+	make-render-line #not sure why this is needed but it prevents duplication of the letter
 	forward-char "${#1}"
 	redraw
 	modified=true
 }
-keytype() {
+input-key() {
 	local -i x y mode_contains
-	makehexkey "$1"
+	input-make-hex "$1"
 
 	local -n modekeys="keys_${mode}"
 	for str in "${!modekeys[@]}"; do
-		[ "$str" = "${hexkey[*]}" ] && {
+		[ "$str" = "${input_hex[*]}" ] && {
 			"${modekeys[$str]}"
 			mode_contains=1
 		}
@@ -1058,12 +1064,12 @@ keytype() {
 	
 	(("${options[mouse]}"==1)) && {
 		#parse mouse stuff somewhatish weirdly
-		[ "${hexkey[*]:0:5}" = '1b 5b 3c 36 34' ] && previous-line && return
-		[ "${hexkey[*]:0:5}" = '1b 5b 3c 36 35' ] && next-line && return
-		[ "${hexkey[*]:0:5}" = '1b 5b 3c 38 30' ] && previous-line 9 && return
-		[ "${hexkey[*]:0:5}" = '1b 5b 3c 38 31' ] && next-line 9 && return
+		[ "${input_hex[*]:0:5}" = '1b 5b 3c 36 34' ] && previous-line && return
+		[ "${input_hex[*]:0:5}" = '1b 5b 3c 36 35' ] && next-line && return
+		[ "${input_hex[*]:0:5}" = '1b 5b 3c 38 30' ] && previous-line 9 && return
+		[ "${input_hex[*]:0:5}" = '1b 5b 3c 38 31' ] && next-line 9 && return
 		((skipnext==1)) && skipnext=0 && return
-		((skipnext==0)) && [ "${hexkey[*]:0:2}" = '1b 5b' ] && {
+		((skipnext==0)) && [ "${input_hex[*]:0:2}" = '1b 5b' ] && {
 			mapfile -t -d '' inputarray <<< "${1}"
 			inputarray[-1]="${inputarray[-1]%?}"
 			[ -z "${inputarray[2]}" ] && skipnext=1
@@ -1079,7 +1085,7 @@ keytype() {
 					line=$(( base + ( (y - offy) - toplines) ))
 					redraw
 				elif [ "$mousemode" = '[<2' ]; then #VERY BAD SOLUTION, TODO: FIX
-					clr
+					clear-screen
 					echo enter line number
 					read -re line
 					redraw
@@ -1094,8 +1100,8 @@ keytype() {
 			return
 		}
 	}
-	#[ "${hexkey[*]:0:3}" = '1b 5b 3c' ] && return
-	[ "${hexkey[*]:0:1}" = '1b' ] && return # TODO: prevent escape codes without hacky blocking
+	#[ "${input_hex[*]:0:3}" = '1b 5b 3c' ] && return
+	[ "${input_hex[*]:0:1}" = '1b' ] && return # TODO: prevent escape codes without hacky blocking
 	[ "$mode" = edit ] && {
 		local -i rlr
 		unset ta
@@ -1106,7 +1112,7 @@ keytype() {
 		rlr=$((rl + ta / 4 - ta))	
 		buffer[line]="${buffer[line]:0:${rlr}}$1${buffer[line]:${rlr}}" #add at cursor position - amount of tabs * tab size
 		#go right with cursor
-		make-syntax-line #not sure why this is needed but it prevents duplication of the letter
+		make-render-line #not sure why this is needed but it prevents duplication of the letter
 		forward-char
 		redraw
 		[ "$1" = '	' ] && printf '\e[%sC' $((${#options[tabchar]} - 1))
@@ -1134,7 +1140,7 @@ begin() {
         local -i i=1    
         if read -rsN1 -t"${options[refresh_timeout]}" k[0]; then # Check for ready input
 			while read -rsN1 -t0.0001 k[$i]; do ((i++)); done # Multibyte hack
-			keytype "$(printf '%s' "${k[@]}")" # Handle keypress event
+			input-key "$(printf '%s' "${k[@]}")" # Handle keypress event
 		fi
 	done
 }

@@ -61,6 +61,7 @@ and then source it.
     │view               │readonly mode                              │
     │command            │proof of concept vim like command mode     │
     │menu               │mode of menus                              │
+    │debuginput         │for getting input codes (M-x input)        │
     └───────────────────┴───────────────────────────────────────────┘
 
     [ STYLE ]
