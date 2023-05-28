@@ -62,6 +62,9 @@ and then source it.
     │command            │proof of concept vim like command mode     │
     │menu               │mode of menus                              │
     │debuginput         │for getting input codes (M-x input)        │
+    │prefix             │for C-x prefix                             │
+    │prefix_help        │for C-h prefix                             │
+    │quit               │used for quit message                      │
     └───────────────────┴───────────────────────────────────────────┘
 
     [ STYLE ]
