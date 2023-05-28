@@ -236,7 +236,6 @@ commands=(
 	[scroll-down]='scroll-down'
 	[dired]='dired'
 )
-
 diredmenu=(
 	[toggle hidden \(h\)]="toggle_hidden"
 )
@@ -267,10 +266,14 @@ case "${options[menuline]}" in
 esac
 bottomlines=2
 rst='\e[0;0m'
-for item in "${!menulineedit[@]}"; do
-	menufancy+=(["$(printf '%-12s' "$item")"]="${menulineedit["$item"]}")
-done
-menufancy+=([Quit        ]=quit)
+update-menuline-menu() {
+	declare -Ag menufancy
+	for item in "${!menulineedit[@]}"; do
+		menufancy+=(["$(printf '%-12s' "$item")"]="${menulineedit["$item"]}")
+	done
+	menufancy+=([Quit        ]=quit)
+}
+update-menuline-menu
 ## charmap
 #TODO: this will be usesfull for later implementation of ligatures and stuff
 charmap=(
@@ -279,6 +282,7 @@ charmap=(
 	[ ]='s' # space
 	#[	-render]="${options[tabchar]}"
 )
+
 
 clr() {
 	printf "\033c" # clear
@@ -818,22 +822,25 @@ execute() {
     redraw
 }
 forward-char() {
-	case "${bufferexpand[line]:rl+1:1}" in
-		't') rl=$(( rl + ${#options[tabchar]}));;
-		*) ((rl++));;
-	esac
-	[ "$rl" -gt "${#bufferexpand[line]}" ] && { rl=0; next-line; }
-	bckrl=
-	#redraw
+	for ((i = 0; i < ${1:-1}; i++)); do
+		case "${bufferexpand[line]:rl+1:1}" in
+			't') rl=$(( rl + ${#options[tabchar]}));;
+			*) ((rl++));;
+		esac
+		[ "$rl" -gt "${#bufferexpand[line]}" ] && { rl=0; next-line; }
+		bckrl=
+	done
 	statusline
 	drawc
 }
 backward-char() {
-	case "${bufferexpand[line]:rl-1:1}" in
-		't') rl=$(( rl - ${#options[tabchar]}));;
-		*) ((rl--));;
-	esac
-	[ "$rl" -lt 0 ] && { previous-line; rl="${#bufferexpand[line]}"; }
+	for ((i = 0; i < ${1:-1}; i++)); do
+		case "${bufferexpand[line]:rl-1:1}" in
+			't') rl=$(( rl - ${#options[tabchar]}));;
+			*) ((rl--));;
+		esac
+		[ "$rl" -lt 0 ] && { previous-line; rl="${#bufferexpand[line]}"; }
+	done
 	bckrl=
 	statusline
 	drawc
@@ -1000,6 +1007,20 @@ makehexkey() {
 			((i++))
 		done
 	}
+}
+insert-word() {
+	local -i rlr
+	unset ta
+	local ta
+	ta=${bufferexpand[line]:0:rl}
+	ta=${ta//[^t]}
+	ta=${#ta}
+	rlr=$((rl + ta / 4 - ta))	
+	buffer[line]="${buffer[line]:0:${rlr}}$1${buffer[line]:${rlr}}" #add at cursor position - amount of tabs * tab size
+	make-syntax-line #not sure why this is needed but it prevents duplication of the letter
+	forward-char "${#1}"
+	redraw
+	modified=true
 }
 keytype() {
 	local -i x y mode_contains

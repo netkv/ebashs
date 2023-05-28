@@ -126,7 +126,51 @@ Some of usesfull variables and for extending Spis
 │line               │Selected line                              │
 │rl                 │Position of cursor on x axis               │
 │mode               │Current mode                               │
+│commands           │List of M-x commands                       │
 └───────────────────┴───────────────────────────────────────────┘
+
+[ EXAMPLES ]
+
+A simple function to jump to line 11 when C-x M-e is pressed:
+
+    keys_prefix+=( # prefix is the mode for C-x
+        [1b 65 0]='jump-to-11' # '1b 65 0' is the M-e in hex.
+                               # You can use the M-x input to convert to hex. format.
+    )
+    jump-to-11() {
+        [[ -n "${buffer[11]}" ]] && line=11 # If line 11 exists, set current line to 11.
+        [[ "$mode" = 'prefix' ]] && quit-prefix
+                                    # Since the key stroke contains C-x as prefix,
+                                    # quit-prefix is is required as otherwise
+                                    # it would stay in 'prefix' mode.
+        redraw # Redraw whole buffer.
+    }
+
+A function to write 'Hello world!' at current cursor position when M-x hi is typed
+
+    commands+=(
+        [hi]='hello-world' # Add command 'hi' invoking 'hello-world' function:
+    )
+    hello-world() {
+        insert-word 'Hello-world!' # The function 'insert-word' handles insertion
+                                   # of stuff, so no redraw or other magic is needed.
+    }
+
+Create a menu containing previous functions 'jump-to-11' & 'hello-world':
+
+    example-menu-function() { declare -ng menucon='example_menu'; menu; }
+    # A function with which the menu will be invoked.
+
+    declare -A example_menu
+    example_menu=(
+        [Jump to 11  ]='jump-to-11'  # The names of items in menu should have
+        [Hello world!]='hello-world' # same width to display correctly.
+    )
+
+    # Add the example_menu into default menuline
+    menulineedit+=(
+        [Example]='example-menu-function'
+    )
 
 [ CREDITS ]
 
