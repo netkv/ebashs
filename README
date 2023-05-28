@@ -1,3 +1,5 @@
+This is Spis, one component of the Bash/Bash operating system.
+
                                      ╔════════════╗
                                      ║    SPIS    ║
                                      ╚════════════╝
@@ -41,11 +43,11 @@ and then source it.
 
     Keybinding arrays match with modes. The array has to be associative and nammed
     keys_<mode>. keys_def is reserved and used as reference for other arrays, it's
-	also reversed compared to other keybinding arrays.
+    also reversed compared to other keybinding arrays.
 
     There is also a optionable option array possible for all keybinding arrays.
-	Currently only defined option is [else] which defines what should happen if no key
-	is matched from the keybinding. These arrays have to be named key_options_<mode>.
+    Currently only defined option is [else] which defines what should happen if no key
+    is matched from the keybinding. These arrays have to be named key_options_<mode>.
 
    [ MODES ]
 
@@ -100,7 +102,7 @@ and then source it.
     [ MENULINE ]
 
     Defines items in menuline, content of keys defines which functions should be ran
-	on invocation.
+    on invocation.
 
     [ MENUS ]
 

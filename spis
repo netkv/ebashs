@@ -634,6 +634,8 @@ restore() {
 
 about() {
 	save openfile
+	cparray overlay bckover
+	overlay=()
 	update=0
 	#sizx=$((COLUMNS / 2))
 	#sizy=$((LINES / 3))
@@ -647,18 +649,28 @@ about() {
 	menulineabout=(
 		[quit]='view_exit'
 	)
-	buffer=(
-		'This is Spis, one component of the Bash/Bash operating system.'
-		''
-		"${version}, text \"editor\" written bash. git repo: https://github.com/nyeta/spis"
-		'originally based on https://github.com/comfies/bed'
-		''
-		   )
-	megaredraw
+	buffer=()
+	mapfile -t -O 1 buffer <<EOF
+This is Spis, one component of the Bash/Bash operating system.
+
+An editor written in pure bash via nonsense sphagetti code trying copying emacs.
+
+Repo                     https://github.com/nyeta/spis
+                         Spis comes with ABSOLUTELY NO WARRANTY
+
+
+
+
+Based on                 https://github.com/comfies/bed
+EOF
+	#make-syntax
+	cparray buffer buffersyntax
+	cparray buffer bufferexpand
 	clr
 	redraw
 }
 view_exit() {
+	cparray bckover overlay
 	restore openfile
 	redraw
 }
