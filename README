@@ -74,6 +74,7 @@ and then source it.
     ┌───────────────────┬───────────────────┬───────────────────────────────────────┐
     │       NAME        │      DEFAULT      │              DESCRIPTION              │
     ├───────────────────┼───────────────────┼───────────────────────────────────────┤
+    │none               │ \e[m              │Style reset                            │
     │TODO               │ \e[0;97;45m       │Highlighting of TODO:                  │
     │NOTE               │ \e[0;97;100m      │Highlighting of NOTE:                  │
     │menuline           │ \e[0;37;40        │Menuline                               │
@@ -134,6 +135,44 @@ Some of usesfull variables and for extending Ebashs
 │mode               │Current mode                               │
 │commands           │List of M-x commands                       │
 └───────────────────┴───────────────────────────────────────────┘
+
+[ SYNTAX HIGHLIGHTING ]
+
+Ebashs handles highlighting via checking 'syntax' array which consists of
+[file type]=syntax-function
+
+    [ SYNTAX FUNCTIONS ]
+
+    Here is sample bash syntax function included with Ebashs:
+
+    syntax+=(
+        [bash]=syntax-bash
+    )
+    syntax-bash() {
+        ((comment)) && set-style comment && return
+        local word="$1"
+        case "${word}" in
+            '"$'*) set-style quotevar;;
+             '#'*) set-style comment && comment=1;;
+             '$'*) set-style variable;;
+             '-'*) set-style option;;
+            *'()') set-style fn;;
+            '||'|'&&'|';') set-style flow;;
+            '('|')'|'{'|'}'|'[['|']]'|'['|']') set-style bracket;;
+            'function') set-style fn;;
+            *"'"*) set-style quote;;
+            *'"'*) set-style dquote;;
+            *'='*) set-style set;;
+            'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|\
+            'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|'declare'|\
+            'typeset'|'local'|'let'|'shopt'|'trap'|'set'|'eval'\
+             ) set-style keyword;;
+            *) set-style none;;
+        esac
+    }
+
+    The comments are handled specially via comment variable which gets reseted
+	at every newline. (I really need to make this less bash specific I guess.)
 
 [ EXAMPLES ]
 
