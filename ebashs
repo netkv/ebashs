@@ -128,6 +128,7 @@ key_options_menu=(
 ## Style
 #      Defined in escape codes.
 style=(
+	[none]='\e[m'
 	[TODO]='\e[0;97;45m'
 	[NOTE]='\e[0;97;100m'
 	[menuline]='\e[0;37;40m'
@@ -341,9 +342,10 @@ syntax-word() {
 				esac
 			}
 			"${syntax[$s]}" "$word"
-		} && return
+			style "$syntax_style" "$word"
+			return
+		}
 	done
-	"${syntax[unknown]}"
 }
 make-syntax() {
 	comment=false
@@ -373,40 +375,42 @@ make-syntax() {
 	done
 	IFS="${bckIFS}"
 }
+style() {
+	printf '%b%s\e[0;0m' "${style[${1}]}" "$2"
+}
+set-style() {
+	syntax_style="$1"
+}
 syntax-bash() {
+	"${comment}" && set-style command && return
 	local word="$1"
-	case "${word:0:2}" in
-		'"$') printf "${style[quotevar]}%s${reset}" "${word}"; return ;;
-	esac
-	case "${word:0:1}" in
-		'#') printf "${style[comment]}%s${reset}" "${word}" && comment=true; return;;
-		'$') printf "${style[variable]}%s${reset}" "${word}"; return ;;
-		'-') printf "${style[option]}%s${reset}" "${word}"; return ;;
-	esac
-	"${comment}" && printf "${style[comment]}%s${reset}" "${word}" && return
 	case "${word}" in
-		'||'|'&&'|';') printf "${style[flow]}%s${reset}" "${word}"; return ;;
-		'('|')'|'{'|'}'|'[['|']]'|'['|']') printf "${style[bracket]}%s${reset}" "${word}"; return ;;
-		'function') printf "${style[fn]}%s${reset}" "${word}"; return ;;
-		*"'"*) printf "${style[quote]}%s${reset}" "${word}" && return ;;
-		*'"'*) printf "${style[dquote]}%s${reset}" "${word}"&& return ;;
-		*'='*) printf "${style[set]}%s${reset}" "${word}"; return ;;
+		^'"$') set-style quotevar; return ;;
+		^'#') set-style comment && comment=true; return;;
+		^'$') set-style variable; return ;;
+		^'-') set-style option; return ;;
+		*'()') set-style fn; return;;
+		'||'|'&&'|';') set-style flow; return ;;
+		'('|')'|'{'|'}'|'[['|']]'|'['|']') set-style bracket; return ;;
+		'function') set-style fn; return ;;
+		*"'"*) set-style quote && return ;;
+		*'"'*) set-style dquote && return ;;
+		*'='*) set-style set; return ;;
+		'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|\
+			'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|'declare'|\
+			'typeset'|'local'|'let'|'shopt'|'trap'|'set'|'eval'\
+			) set-style keyword && return;;
 	esac
-	[[ "${word: -2}" = '()' ]] && printf "${style[fn]}%s${reset}" "${word}" && return
-	case "${word}" in
-		'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|'declare'|'typeset'|'local'|'let'|'shopt'|'trap'|'set'|'eval') printf "${style[keyword]}%s${reset}" "${word}" && return
-	esac
-	printf "${reset}%s" "${word}"
+	set-style none
 }
 syntax-unknown() {
-	local word="$1"
-	printf "${reset}%s" "${word}"
+	set-style none
 }
 syntax-config() {
 	local word="$1"
-	[[ "${word}" =~ "#" ]] && printf "${style[comment]}%s${reset}" "${word}" && comment=true && return
-	"${comment}" && printf "${style[comment]}%s${reset}" "${word}" && return
-	printf "${reset}%s" "${word}"
+	[[ "${word}" =~ "#" ]] && set-style comment && comment=true && return
+	"${comment}" && set-style comment && return
+	set-style none
 }
 
 keys_debuginput=(
