@@ -12,7 +12,7 @@ trap quit SIGTERM
 declare -A syntax style options charmap commands
 declare -A menulineedit menulineabout diredmenu menulinedebug
 declare -A menufile menuhelp menukey menudebug menufancy
-declare -A keys_def keys_edit keys_prefix keys_command keys_dired keys_view keys_menu keys_debuginput keys_prefix_help
+declare -A keys_def keys_edit keys_prefix keys_dired keys_view keys_menu keys_debuginput keys_prefix_help
 declare -A key_options_menu key_options_debuginput
 declare -a buffer buffersyntax bufferexpand input_hex overlay
 declare -i line base rl menulinep menulinepy buffer_lenght toplines bottomlines hidden offx offy sizx sizy update ismenu
@@ -63,7 +63,6 @@ keys_edit=(
 	#[1b 5b 31 3b 32 43 0]='select_right'
 	#[1b 5b 31 3b 32 44 0]='select_left'
 	# TODO: selection
-	[1b 0]='commandmode'
 	[18 0]='prefix'
 	[8 0]='prefix-help'
 	[1b 5b 32 31 7e 0]='menulinemenu'
@@ -117,16 +116,6 @@ keys_prefix=(
 keys_prefix_help=(
 	[7 0]='quit-prefix'
 	[1 0]='about'
-)
-keys_command=(
-	[${keys_def[previous_line]}]='previous-line'
-	[${keys_def[next_line]}]='next-line'
-	[${keys_def[forward_char]}]='forward-char'
-	[${keys_def[backward_char]}]='backward-char'
-	[${keys_def[scroll_down]}]='scroll-down'
-	[${keys_def[scroll_up]}]='scroll-up'
-	[69 0]='insertmode'
-	[61 0]='ansertmode'
 )
 keys_menu=(
 	[${keys_def[previous_line]}]='menuup'
@@ -246,7 +235,8 @@ commands=(
 diredmenu=(
 	[toggle hidden \(h\)]="toggle_hidden"
 )
-
+## source extensions here
+# source extensions/evil
 ## rest of this garbageware
 
 version="Ebashs dev"
@@ -306,10 +296,6 @@ getcx() {
 	IFS='[;' read -p $'\e[6n' -d R -a pos -rs || echo "failed with error: $? ; ${pos[*]}"
 	echo "${pos[2]}"
 }
-
-commandmode() { mode="command"; redraw-statusline; }
-insertmode() { mode="edit"; redraw-statusline; redraw-cursor; }
-ansertmode() { mode="edit"; redraw-statusline; forward-char; }
 
 refresh() {
 	clear-screen
@@ -461,7 +447,6 @@ quit-debuginput() {
 	restore openfile
 	redraw
 }
-
 
 base-name() {
 	for file in "$@"; do
@@ -1144,11 +1129,11 @@ main() {
 	begin
 }
 begin() {
-    redraw
-    while :; do
-        local -a k=()
-        local -i i=1    
-        if read -rsN1 -t"${options[refresh_timeout]}" k[0]; then # Check for ready input
+	redraw
+	while :; do
+		local -a k=()
+		local -i i=1    
+		if read -rsN1 -t"${options[refresh_timeout]}" k[0]; then # Check for ready input
 			while read -rsN1 -t0.0001 k[$i]; do ((i++)); done # Multibyte hack
 			input-key "$(printf '%s' "${k[@]}")" # Handle keypress event
 		fi
