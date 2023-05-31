@@ -146,13 +146,14 @@ style=(
 	[comment]='\e[3;37;48m'
 	[variable]='\e[0;96m'
 	[option]='\e[0;93m'
-	[flow]='\e[0;93;m'
+	[flow]='\e[0;93m'
 	[bracket]='\e[1;95m'
 	[quote]='\e[0;92m'
 	[dquote]='\e[0;32m'
 	[set]='\e[0;94;108m'
 	[fn]='\e[0;30;44m'
 	[keyword]='\e[0;91m'
+	[init]='\e[0;31m'
 )
 menulinemenu() {
 	declare -ng menucon=menufancy
@@ -389,6 +390,7 @@ syntax-bash() {
 	((comment)) && set-style comment && return
 	local word="$1"
 	case "${word}" in
+		*'=()'|'declare'|'local'|'typeset') set-style init;;
 		'"$'*) set-style quotevar;;
 		'#'*) set-style comment && comment=1;;
 		'$'*) set-style variable;;
@@ -401,8 +403,8 @@ syntax-bash() {
 		*'"'*) set-style dquote;;
 		*'='*) set-style set;;
 		'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|\
-			'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|'declare'|\
-			'typeset'|'local'|'let'|'shopt'|'trap'|'set'|'eval'\
+			'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|\
+			'let'|'shopt'|'trap'|'set'|'eval'\
 			) set-style keyword;;
 		*) set-style none;;
 	esac
