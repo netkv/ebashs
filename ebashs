@@ -147,6 +147,7 @@ style=(
 	[variable]='\e[0;96m'
 	[option]='\e[0;93m'
 	[flow]='\e[0;93m'
+	[pipe]='\e[1;94m'
 	[bracket]='\e[1;95m'
 	[quote]='\e[0;92m'
 	[dquote]='\e[0;32m'
@@ -155,7 +156,7 @@ style=(
 	[keyword]='\e[0;91m'
 	[init]='\e[0;31m'
 )
-menulinemenu() {
+function menulinemenu {
 	declare -ng menucon=menufancy
 	#menulinepy=$(( sizy - ${#menufancy[@]} ))
 	menu
@@ -165,7 +166,7 @@ menulineedit=(
 	[Keys]=menukey	    [Redraw]=refresh
 	[Debug]=menudebug
 )
-menufile() { declare -ng menucon=menufile; menu; }
+function menufile { declare -ng menucon=menufile; menu; }
 menufile=(
 	[Quit       C-x C-c ]="quit"
 	[Visit file C-x C-f ]="find-file"
@@ -174,13 +175,13 @@ menufile=(
 	[File picker        ]="dired"
 )
 
-menuhelp() { declare -ng menucon=menuhelp; menu; }
+function menuhelp { declare -ng menucon=menuhelp; menu; }
 menuhelp=(
 	[Keybinding          ]=menukey
 	[About               ]=about
 )
 
-menukey() { declare -ng menucon=menukey; menu; }
+function menukey { declare -ng menucon=menukey; menu; }
 menukey=(
 	[Exit       C-x C-c ]="quit"
 	[New Line   C-l | ⏎ ]="newline"
@@ -197,7 +198,7 @@ menukey=(
 	[Force exist    M-q ]="die"
 )
 
-menudebug() { declare -ng menucon=menudebug; menu; }
+function menudebug { declare -ng menucon=menudebug; menu; }
 menudebug=(
 	[clear      ]=clear-screen
 	[refresh    ]=refresh
@@ -265,7 +266,7 @@ case "${options[menuline]}" in
 esac
 bottomlines=2
 reset='\e[0;0m'
-update-menuline-menu() {
+function update-menuline-menu {
 	declare -Ag menufancy
 	for item in "${!menulineedit[@]}"; do
 		menufancy+=(["$(printf '%-12s' "$item")"]="${menulineedit["$item"]}")
@@ -283,46 +284,46 @@ charmap=(
 )
 
 
-clear-screen() {
+function clear-screen {
 	printf "\033c" # clear
 }
 
-# getting the cursor position
-getcy() {
-	local pos
-	IFS='[;' read -p $'\e[6n' -d R -a pos -rs || echo "failed with error: $? ; ${pos[*]}"
-	echo "${pos[1]}"
-}
-getcx() {
-	local pos
-	IFS='[;' read -p $'\e[6n' -d R -a pos -rs || echo "failed with error: $? ; ${pos[*]}"
-	echo "${pos[2]}"
-}
+# getting the cursor position -- unused for now
+#function getcy {
+#	local pos
+#	IFS='[;' read -p $'\e[6n' -d R -a pos -rs || echo "failed with error: $? ; ${pos[*]}"
+#	echo "${pos[1]}"
+#}
+#function getcx {
+#	local pos
+#	IFS='[;' read -p $'\e[6n' -d R -a pos -rs || echo "failed with error: $? ; ${pos[*]}"
+#	echo "${pos[2]}"
+#}
 
-refresh() {
+function refresh {
 	clear-screen
 	message="reloaded..."
 	megaredraw
 	redraw
 	message=
 }
-switch-mode() {
+function switch-mode {
 	bckmode="$mode"
 	mode="$1"
 	redraw-statusline
 }
-prefix() {
+function prefix {
 	switch-mode prefix
 }
-prefix-help() {
+function prefix-help {
 	switch-mode prefix_help
 }
-quit-prefix() {
+function quit-prefix {
 	mode="$bckmode"
 	unset bckmode
 	redraw-statusline
 }
-execute-extended-command() {
+function execute-extended-command {
 	printf '\e[%s;0H' $((sizy + offy))
 	printf '\e[?25h'
 	if read -re -p "${options[cmd_prompt]}" command; then
@@ -332,7 +333,7 @@ execute-extended-command() {
 	fi
 }
 
-get-syntax() {
+function get-syntax {
 	for syntax_setting in "${!syntax[@]}"; do
 		[ "$syntax_setting" = "$filetype" ] && {
 			syntax_function="${syntax[$syntax_setting]}"
@@ -341,7 +342,7 @@ get-syntax() {
 	done
 	syntax_function="${syntax[unknown]}"
 }
-make-syntax() {
+function make-syntax {
 	comment=0
 	local word=''
 	bckIFS="${IFS}"
@@ -370,7 +371,7 @@ make-syntax() {
 	done
 	IFS="${bckIFS}"
 }
-syntax-word() {
+function syntax-word {
 	(("${options[todonote]}"==1)) && {
 		case "$word" in
 			'NOTE:') printf "${style[NOTE]}%s${reset}" "${word}"; return ;;
@@ -380,13 +381,13 @@ syntax-word() {
 	"$syntax_function" "$1"
 	style "$syntax_style" "$word"
 }	
-style() {
+function style {
 	printf '%b%s\e[0;0m' "${style[${1}]}" "$2"
 }
-set-style() {
+function set-style {
 	syntax_style="$1"
 }
-syntax-bash() {
+function syntax-bash {
 	((comment)) && set-style comment && return
 	local word="$1"
 	case "${word}" in
@@ -396,7 +397,8 @@ syntax-bash() {
 		'$'*) set-style variable;;
 		'-'*) set-style option;;
 		*'()') set-style fn;;
-		'||'|'&&'|';') set-style flow;;
+		'||'|'&&'|';'|'&') set-style flow;;
+		'>'|'<'|'|'|'>>'|'<<'|'<<<') set-style pipe;;
 		'('|')'|'{'|'}'|'[['|']]'|'['|']') set-style bracket;;
 		'function') set-style fn;;
 		*"'"*) set-style quote;;
@@ -409,10 +411,10 @@ syntax-bash() {
 		*) set-style none;;
 	esac
 }
-syntax-unknown() {
+function syntax-unknown {
 	set-style none
 }
-syntax-config() {
+function syntax-config {
 	local word="$1"
 	[[ "${word}" =~ "#" ]] && set-style comment && comment=1 && return
 	((comment)) && set-style comment && return
@@ -425,7 +427,7 @@ keys_debuginput=(
 key_options_debuginput=(
 	[else]='insert-debug-hex'
 )
-insert-debug-hex() {
+function insert-debug-hex {
 	buffer+=(
 		"${input_hex[*]}"
 	)
@@ -434,7 +436,7 @@ insert-debug-hex() {
 	buffer-lenght
 	next-line
 }
-inputcodes() {
+function inputcodes {
 	save openfile
 	copy-array overlay bckover
 	overlay=()
@@ -452,19 +454,19 @@ inputcodes() {
 	clear-screen
 	redraw
 }
-quit-debuginput() {
+function quit-debuginput {
 	copy-array bckover overlay
 	restore openfile
 	redraw
 }
 
-base-name() {
+function base-name {
 	for file in "$@"; do
 	    file="${file%/}"
 	    printf '%s\n' "${file##*/}"
 	done
 }
-filetype() {
+function filetype {
 	#very ugly, TODO: redo this
 	local filename shebang extension
 	local -a filenamesplit shebangsplit
@@ -500,11 +502,11 @@ filetype() {
 	esac
 	IFS="${bckIFS}"
 }
-buffer-lenght() {
+function buffer-lenght {
 	buffer_lenght="${#buffer[@]}"
 	buffer_lenght="${#buffer_lenght}"
 }
-find-file() {
+function find-file {
 	printf '\e[%s;0H' $((sizy + offy))
 	printf '\e[?25h'
 	bind 'set disable-completion off' 2>/dev/null # Enable completion
@@ -516,7 +518,7 @@ find-file() {
 	bind 'set disable-completion on' 2>/dev/null
 
 }
-read-buffer() {
+function read-buffer {
 	clear-buffer
 	filetype="$(filetype "$1")"
 	file="$1"
@@ -532,21 +534,21 @@ read-buffer() {
 		info="{$file}: empty"
 	fi
 }
-clear-buffer() {
+function clear-buffer {
 	buffer=()
 	buffersyntax=()
 	bufferexpand=()
 }
 
-topline() {
+function topline {
 	local -i ln=${#1}
 	printf "${style[windowline]}%s\e[?25l%*s" "$1" "$(( $sizx - ln ))"
 }
-toggle_hidden() {
+function toggle_hidden {
 	((hidden==0)) && hidden=1 || hidden=0
 	dired
 }
-dired() {
+function dired {
 	help_message="${options[dired_message]}"
 	declare -gn menuline=diredmenu
 	line=0
@@ -575,7 +577,7 @@ dired() {
 	fi
 	redraw
 }
-dired-select() {
+function dired-select {
 	local line="${buffer[line]}"
 	if [ -d "$line" ]; then
 		cd "$line"
@@ -588,11 +590,11 @@ dired-select() {
 		redraw
 	fi
 }
-pickls() {
+function pickls {
 	((hidden==0)) && printf '..\n' || printf '%s\n' .*
 	printf '%s\n' *
 }
-copy-array() {
+function copy-array {
 	local -n source="$1"
 	local -n target="$2"
 	for idx in "${!source[@]}"; do
@@ -600,7 +602,7 @@ copy-array() {
 	done
 }
 
-save() {
+function save {
 	local name="$1"
 	
 	local -n savedhelp_message="help_message${name}"
@@ -620,7 +622,7 @@ save() {
 	savedmode="$mode"
 	savedmenuline="${!menuline}"
 }
-restore() {
+function restore {
 	clear-buffer
 	local name="$1"
 	
@@ -643,7 +645,7 @@ restore() {
 	declare -ng menuline="${savedmenuline}"
 }
 
-about() {
+function about {
 	save openfile
 	copy-array overlay bckover
 	overlay=()
@@ -666,7 +668,7 @@ This is Ebashs, one component of the Bash/Bash operating system.
 
 An editor written in pure bash via nonsense sphagetti code trying copying emacs.
 
-Repo                     https://github.com/nyeta/spis
+Repo                     https://github.com/aeknt/spis
                          Ebashs comes with ABSOLUTELY NO WARRANTY
 
 
@@ -680,14 +682,14 @@ EOF
 	clear-screen
 	redraw
 }
-quit-view() {
+function quit-view {
 	copy-array bckover overlay
 	restore openfile
 	redraw
 }
 
 
-write-buffer() {
+function write-buffer {
     true >"$file" # Set the file to an empty text file
     for ln in "${buffer[@]}"; do # Write in the buffer to the file
         echo "$ln" >>"$file"
@@ -696,16 +698,16 @@ write-buffer() {
     message="Wrote ${#buffer[@]} lines to '$file'"
 }
 
-make-render(){
+function make-render {
 	printf '%s\n' "${buffer[@]}" | make-syntax | mapfile -t -O 1 buffersyntax
 	printf '%s\n' "${buffer[@]}" | expand-char | mapfile -t -O 1 bufferexpand
 }
-make-render-line(){
-	buffersyntax[line]="$(printf '%s' "${buffer[line]}" | make-syntax)"
-	bufferexpand[line]="$(printf '%s' "${buffer[line]}" | expand-char)"
+function make-render-line {
+	buffersyntax[line]="$(make-syntax <<< "${buffer[line]}")"
+	bufferexpand[line]="$(expand-char <<< "${buffer[line]}")"
 }
 
-expand-char() {
+function expand-char {
 	bckIFS="${IFS}"
 	IFS=
 	while read -rsn1 char
@@ -725,7 +727,7 @@ expand-char() {
 	IFS="${bckIFS}"
 }
 
-newline() {
+function newline {
     buffer=("" "${buffer[@]:1:line}" "" "${buffer[@]:line+1}")
     unset 'buffer[0]'
     modified=true
@@ -738,7 +740,7 @@ newline() {
 	redraw
 }
 
-delete_line() {
+function delete_line {
     buffer=("" "${buffer[@]:1:line-1}" "${buffer[@]:line+1}")
     unset 'buffer[0]'
     ((line > ${#buffer[@]})) && previous-line
@@ -748,7 +750,7 @@ delete_line() {
 	redraw
 }
 
-backspace() {
+function backspace {
 	if [ "${#buffer[line]}" = 0 ]; then
 		delete_line
 		rl="${#buffer[line]}"
@@ -781,16 +783,16 @@ keys_quit=(
 	[6e 0]='die'
 	[63 0]='quit-quit'
 )
-save-quit() {
+function save-quit {
 	write-buffer
 	die
 }
-quit-quit() {
+function quit-quit {
 	mode="$bckmode"
 	message='Quit canceled'
 	redraw
 }
-quit() {
+function quit {
 	if [[ "$modified" == "true" ]]; then
 		[ -z "$bckmode" ] && bckmode="$mode"
 		mode='quit'
@@ -802,7 +804,7 @@ quit() {
 	fi
 }
 
-previous-line() {
+function previous-line {
     for ((i = 0; i < ${1:-1}; i++)); do
         ((line > 1)) && ((line--)) # As long as we can keep going up, go up
         ((line < base + 1)) && ((base--)) && # Push back the top if we need to
@@ -814,11 +816,11 @@ previous-line() {
 	redraw
 }
 
-scroll-down() {
+function scroll-down {
     previous-line $((sizy - 3))
 }
 
-next-line() {
+function next-line {
     for ((i = 0; i < ${1:-1}; i++)); do
         ((line < ${#buffer[@]})) && ((line++)) # If we can go down, go down
         ((line > base + sizy - 3 - bottomlines)) && ((base++)) && # Move window down if needed
@@ -829,11 +831,11 @@ next-line() {
 	redraw
 }
 
-scroll-up() {
+function scroll-up {
     next-line $((sizy - 3))
 }
 
-execute() {
+function execute {
     ((line == 0)) && return # If the line is not possible, do nothing
     printf '\e[?25h\e[%sH' "$((line + 2 - base))" # Reset cursor position and enable cursor
     read -re -p "$(printf '%4s ' "$")" # Present editable line
@@ -844,7 +846,7 @@ execute() {
     make-render
     redraw
 }
-forward-char() {
+function forward-char {
 	for ((i = 0; i < ${1:-1}; i++)); do
 		case "${bufferexpand[line]:rl+1:1}" in
 			't') rl=$(( rl + ${#options[tabchar]}));;
@@ -856,7 +858,7 @@ forward-char() {
 	redraw-statusline
 	redraw-cursor
 }
-backward-char() {
+function backward-char {
 	for ((i = 0; i < ${1:-1}; i++)); do
 		case "${bufferexpand[line]:rl-1:1}" in
 			't') rl=$(( rl - ${#options[tabchar]}));;
@@ -868,17 +870,17 @@ backward-char() {
 	redraw-statusline
 	redraw-cursor
 }
-move-beginning-of-line() {
+function move-beginning-of-line {
 	rl=0
 	redraw-statusline
 	redraw-cursor
 }
-move-end-of-line() {
+function move-end-of-line {
 	rl="${#bufferexpand[line]}"
 	redraw-statusline
 	redraw-cursor
 }
-forward-word() {
+function forward-word {
 	((rl == ${#bufferexpand[line]})) && {
 		next-line
 		move-beginning-of-line
@@ -891,7 +893,7 @@ forward-word() {
 	done
 	redraw
 }
-backward-word() {
+function backward-word {
 	((rl == 0)) && {
 		previous-line
 		move-end-of-line
@@ -904,19 +906,19 @@ backward-word() {
 	done
 	redraw
 }
-shell() {
+function shell {
 	clear-screen
 	bash # NOTE: in theory an external command
 	redraw
 }
 
-die() {
+function die {
     echo -e "\e[?1000;1006;1015l" #disable mouse tracking
 	clear-screen # TODO fix the buffer switching
 	printf '\e[?25h\e[?7h\e[?1049l' # Reset terminal to sane mode
     exit "${errno:-0}" # Assume that we are exiting without an error
 }
-toggle-mouse() {
+function toggle-mouse {
 	(("${options[mouse]}"==1)) && {
 		echo -ne "\e[?1000;1006;1015l"
 		options[mouse]=0
@@ -930,7 +932,7 @@ toggle-mouse() {
 		return
 	}
 }
-menuclick() {
+function menuclick {
 	#determine which item should be triggered
 	[ -z "$1" ] && menulinep=0 || menulinep=$1
 	local cx="$offx"
@@ -940,7 +942,7 @@ menuclick() {
 		cx=$(( cx + la + 1 ))
 	}
 }
-menudraw() {
+function menudraw {
 	printf '\e[?25l'
 	printf '\e[%s;0H' $menulinepy
 	local mi=0
@@ -953,28 +955,28 @@ menudraw() {
 		((mi++))
 	done
 }
-menuup() {
+function menuup {
 	((menuselection > 0)) && ((menuselection--))
 	menudraw
 }
-menudown() {
+function menudown {
 	((menuselection < ${#menucon[@]} -1)) && ((menuselection++))
 	menudraw
 }
-menuselect() {
+function menuselect {
 	local mi=0
 	for action in "${!menucon[@]}"; do
 		((mi == menuselection)) && "${menucon[$action]}"
 		((mi++))
 	done
 }
-menuleave() {
+function menuleave {
 	ismenu=0
 	mode="${modebackup}"
 	overlay=()
 	redraw
 }
-menu() {
+function menu {
 	((ismenu == 0 )) && modebackup="${mode}"
 	ismenu=1
 	declare -ig menuselection=0
@@ -983,7 +985,7 @@ menu() {
 	redraw
 }
 
-redraw() {
+function redraw {
 	printf '\e[?25l'
 	((update==1)) && {
 		sizx=$COLUMNS
@@ -1008,20 +1010,20 @@ redraw() {
 		"${o}"
 	}
 }
-redraw-cursor() {
+function redraw-cursor {
 	printf '\e[?25h\e[%s;%sH' $((line + 1 - base + offy)) $((rl + buffer_lenght + 2 + offx)) # move cursor to the line
 }
-redraw-statusline() {
+function redraw-statusline {
 	printf "\e[%s;%sH\n\e[%sG${style[infoline]}%*s\e[%sG%s %s (%s,%s)\e[m" \
 	       $((sizy - 2 + offy)) $((sizx + offx)) "$offx" $((sizx)) "$info" "$offx" \
 	       "$mode" "$(base-name "$file")[$filetype]" "$line" "${rl}"
 }
-redraw-commandline() {
+function redraw-commandline {
 	printf "\e[%s;%sH\n${style[commandline]}%*s\r%s\e[m" \
 	       $((sizy - 1 + offy)) $((sizx + offx)) $sizx ' ' "$message"
 }
 
-input-make-hex() {
+function input-make-hex {
 	input_hex=()
 	local -i i=0
 	echo "$1" | {
@@ -1031,7 +1033,7 @@ input-make-hex() {
 		done
 	}
 }
-insert-word() {
+function insert-word {
 	local -i rlr
 	unset ta
 	local ta
@@ -1040,12 +1042,12 @@ insert-word() {
 	ta=${#ta}
 	rlr=$((rl + ta / 4 - ta))	
 	buffer[line]="${buffer[line]:0:${rlr}}$1${buffer[line]:${rlr}}" #add at cursor position - amount of tabs * tab size
-	make-render-line #not sure why this is needed but it prevents duplication of the letter
+	make-render-line
 	forward-char "${#1}"
 	redraw
 	modified=true
 }
-input-key() {
+function input-key {
 	local -i x y mode_contains
 	input-make-hex "$1"
 
@@ -1117,15 +1119,15 @@ input-key() {
 		rlr=$((rl + ta / 4 - ta))	
 		buffer[line]="${buffer[line]:0:${rlr}}$1${buffer[line]:${rlr}}" #add at cursor position - amount of tabs * tab size
 		#go right with cursor
-		make-render-line #not sure why this is needed but it prevents duplication of the letter
+		make-render-line
 		forward-char
 		redraw
 		[ "$1" = '	' ] && printf '\e[%sC' $((${#options[tabchar]} - 1))
 		modified=true
 	}
 }
-main() {
-	(("${options[mouse]}"==1)) && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
+function main {
+	(("${options[mouse]}")) && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
     if [[ "$1" ]]; then # If a file was provided in the terminal pre-load it
         if [ -d "$1" ]; then
 			cd "$1" || exit
@@ -1138,7 +1140,7 @@ main() {
 	fi
 	begin
 }
-begin() {
+function begin {
 	redraw
 	while :; do
 		local -a k=()
@@ -1151,4 +1153,3 @@ begin() {
 }
 
 main "$@"
-printf '\e[?7h'
