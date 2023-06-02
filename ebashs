@@ -14,10 +14,9 @@ declare -A menulineedit menulineabout diredmenu menulinedebug
 declare -A menufile menuhelp menukey menudebug menufancy
 declare -A keys_def keys_edit keys_prefix keys_dired keys_view keys_menu keys_debuginput keys_prefix_help
 declare -A key_options_menu key_options_debuginput
-#declare -a buffer buffersyntax bufferexpand input_hex overlay
 declare -a input_hex overlay
 declare -n buffer buffersyntax bufferexpand bufferdata
-declare -i line base rl menulinep menulinepy buffer_lenght toplines bottomlines hidden offx offy sizx sizy update ismenu comment file_count
+declare -i menulinep menulinepy buffer_lenght toplines bottomlines hidden offx offy sizx sizy update ismenu comment current_count
 declare -n menucon menuline
 declare file message info modified filetype reset mode command cmd_prompt help_message
 
@@ -418,7 +417,7 @@ key_options_debuginput=(
 	[else]='insert-debug-hex'
 )
 function insert-debug-hex {
-	buffer_debug+=(
+	buffer+=(
 		"${input_hex[*]}"
 	)
 	copy-array buffer buffersyntax
@@ -428,17 +427,26 @@ function insert-debug-hex {
 }
 function inputcodes {
 	save openfile
+	declare -gn menuline=menulinedebug
+	((current_count++))
+	current_buffer="debuginput_${current_count}"
+	declare -Ag "${current_buffer}_bufferdata"
+	set-current
+	bufferdata=(
+		[line]=1
+		[base]=1
+		[column]=0
+		[info]='Get input codes'
+		[mode]='debuginput'
+		[help_message]='C-x (18 0) to close'
+		[filetype]='i*'
+		[file]='*debuginput*'
+		[modified]=0
+	)
+	buffer=("")
 	copy-array overlay bckover
 	overlay=()
 	update=0
-	declare -ng buffer="buffer_debug"
-	declare -ng buffersyntax="buffer_debug"
-	declare -ng bufferexpand="buffer_debug"
-	mode=debuginput
-	filetype="i*"
-	file="debuginput*"
-	help_message="C-x (18 0) to close"
-	declare -gn menuline=menulinedebug
 	menulinedebug=(
 		[quit]='quit-debuginput'
 	)
@@ -512,14 +520,11 @@ function find-file {
 
 }
 function read-buffer {
-	((current_read++))
-	current_buffer="file_$current_read"
+	((current_count++))
+	current_buffer="file_${current_count}"
 	declare -Ag "${current_buffer}_bufferdata"
-	declare -ng buffer="${current_buffer}_buffer"
-	declare -ng buffersyntax="${current_buffer}_buffersyntax"
-	declare -ng bufferexpand="${current_buffer}_bufferexpand"
-	declare -ng bufferdata="${current_buffer}_bufferdata"
-	menuline=menulineedit # Set default menuline for file editing
+	set-current
+	declare -ng menuline=menulineedit # Set default menuline for file editing
 	bufferdata=(
 		[line]=0 # Currently selected line (0 means the buffer is empty)
 		[base]=1 # Top-most line shown
@@ -559,13 +564,10 @@ function toggle_hidden {
 }
 function dired {
 	declare -gn menuline=diredmenu
-	((current_read++))
-	current_buffer="dired_$current_read"
+	((current_count++))
+	current_buffer="dired_${current_count}"
 	declare -Ag "${current_buffer}_bufferdata"
-	declare -ng buffer="${current_buffer}_buffer"
-	declare -ng buffersyntax="${current_buffer}_buffersyntax"
-	declare -ng bufferexpand="${current_buffer}_bufferexpand"
-	declare -ng bufferdata="${current_buffer}_bufferdata"
+	set-current
 	bufferdata=(
 		[line]=0
 		[base]=1
@@ -627,28 +629,25 @@ function save {
 	savedmenuline="${!menuline}"
 }
 function restore {
-	#clear-buffer
 	local name="$1"
-	
 	local -n savedcurrent_buffer="current_buffer${name}"
 	local -n savedmenuline="menuline${name}"
 	current_buffer="${savedcurrent_buffer}"
-	declare -Ag "${current_buffer}_bufferdata"
+	set-current
+	declare -ng menuline="$savedmenuline"
+}
+function set-current {
 	declare -ng buffer="${current_buffer}_buffer"
 	declare -ng buffersyntax="${current_buffer}_buffersyntax"
 	declare -ng bufferexpand="${current_buffer}_bufferexpand"
 	declare -ng bufferdata="${current_buffer}_bufferdata"
-	declare -ng menuline="$savedmenuline"
 }
 function about {
 	save openfile
-	((current_read++))
-	current_buffer="about_$current_read"
+	((current_count++))
+	current_buffer="about_${current_read}"
 	declare -Ag "${current_buffer}_bufferdata"
-	declare -ng buffer="${current_buffer}_buffer"
-	declare -ng buffersyntax="${current_buffer}_buffersyntax"
-	declare -ng bufferexpand="${current_buffer}_bufferexpand"
-	declare -ng bufferdata="${current_buffer}_bufferdata"
+	set-current
 	copy-array overlay bckover
 	overlay=()
 	update=0
