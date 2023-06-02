@@ -14,8 +14,10 @@ declare -A menulineedit menulineabout diredmenu menulinedebug
 declare -A menufile menuhelp menukey menudebug menufancy
 declare -A keys_def keys_edit keys_prefix keys_dired keys_view keys_menu keys_debuginput keys_prefix_help
 declare -A key_options_menu key_options_debuginput
-declare -a buffer buffersyntax bufferexpand input_hex overlay
-declare -i line base rl menulinep menulinepy buffer_lenght toplines bottomlines hidden offx offy sizx sizy update ismenu comment
+#declare -a buffer buffersyntax bufferexpand input_hex overlay
+declare -a input_hex overlay
+declare -n buffer buffersyntax bufferexpand
+declare -i line base rl menulinep menulinepy buffer_lenght toplines bottomlines hidden offx offy sizx sizy update ismenu comment file_count
 declare -n menucon menuline
 declare file message info modified filetype reset mode command cmd_prompt help_message
 
@@ -243,8 +245,6 @@ diredmenu=(
 ## rest of this garbageware
 
 version="Ebashs dev"
-buffer=() # File contents
-buffersyntax=() # File contents
 line=1 # Currently selected line (0 means the buffer is empty)
 base=1 # Top-most line shown
 rl=0 # Position of the cursor in $line
@@ -428,7 +428,7 @@ key_options_debuginput=(
 	[else]='insert-debug-hex'
 )
 function insert-debug-hex {
-	buffer+=(
+	buffer_debug+=(
 		"${input_hex[*]}"
 	)
 	copy-array buffer buffersyntax
@@ -441,6 +441,9 @@ function inputcodes {
 	copy-array overlay bckover
 	overlay=()
 	update=0
+	declare -ng buffer="buffer_debug"
+	declare -ng buffersyntax="buffer_debug"
+	declare -ng bufferexpand="buffer_debug"
 	mode=debuginput
 	filetype="i*"
 	file="debuginput*"
@@ -449,8 +452,8 @@ function inputcodes {
 	menulinedebug=(
 		[quit]='quit-debuginput'
 	)
-	clear-buffer
-	buffer=('')
+	#clear-buffer
+	#buffer=('')
 	clear-screen
 	redraw
 }
@@ -519,12 +522,17 @@ function find-file {
 
 }
 function read-buffer {
-	clear-buffer
+	((file_count++))
+	current_buffer="file_${file_count}"
+	#clear-buffer
 	filetype="$(filetype "$1")"
 	file="$1"
-	mapfile -t -O 1 buffer <"$file" # Read file into an array
-	make-syntax < "$file" | mapfile -t -O 1 buffersyntax # TODO: make fast
-	expand-char < "$file" | mapfile -t -O 1 bufferexpand # TODO: make fast
+	mapfile -t -O 1 "${current_buffer}_buffer" <"$file" # Read file into an array
+	make-syntax < "$file" | mapfile -t -O 1 "${current_buffer}_buffersyntax" # TODO: make fast
+	expand-char < "$file" | mapfile -t -O 1 "${current_buffer}_bufferexpand" # TODO: make fast
+	declare -ng buffer="${current_buffer}_buffer"
+	declare -ng buffersyntax="${current_buffer}_buffersyntax"
+	declare -ng bufferexpand="${current_buffer}_bufferexpand"
 	buffer-lenght
 	if [[ "${buffer[1]}" ]]; then # Ensure that something was actually read into the file
 		line=1 # Indicate that we have a buffer loaded
@@ -535,9 +543,9 @@ function read-buffer {
 	fi
 }
 function clear-buffer {
-	buffer=()
-	buffersyntax=()
-	bufferexpand=()
+	buffer=
+	buffersyntax=
+	bufferexpand=
 }
 
 function topline {
@@ -554,17 +562,18 @@ function dired {
 	line=0
 	rl=0
 	base=1
-	clear-buffer
+	#clear-buffer
 	filetype="i*" # Internal file type
 	file="dired*" # All internal "files" should end with star
-	mapfile -t -O 1 buffer <<< "$(pickls)"
+	set-buffers dired
+	mapfile -t -O 1 dired_buffer <<< "$(pickls)"
 	for idx in "${!buffer[@]}"; do
 		if [ -d "${buffer[idx]}" ]; then
-			buffersyntax[idx]="$(printf ${style[link]})""${buffer[idx]}"
+			dired_buffersyntax[idx]="$(printf ${style[link]})""${buffer[idx]}"
 		else
-			buffersyntax[idx]="${buffer[idx]}"
+			dired_buffersyntax[idx]="${buffer[idx]}"
 		fi
-		bufferexpand[idx]="${buffer[idx]}"
+		dired_bufferexpand[idx]="${buffer[idx]}"
 	done
 	mode=dired # dired mode
 	buffer-lenght # drowning in sea of murky logic
@@ -605,6 +614,8 @@ function copy-array {
 function save {
 	local name="$1"
 	
+	local -n savedcurrent_buffer="current_buffer${name}"
+	
 	local -n savedhelp_message="help_message${name}"
 	local -n savedfiletype="filetype${name}"
 	local -n savedfile="file${name}"
@@ -612,9 +623,11 @@ function save {
 	
 	local -n savedmenuline="menuline${name}"
 	
-	copy-array buffer "buffer${name}"
-	copy-array buffersyntax "buffersyntax${name}"
-	copy-array bufferexpand "expand${name}"
+	#copy-array buffer "buffer${name}"
+	#copy-array buffersyntax "buffersyntax${name}"
+	#copy-array bufferexpand "expand${name}"
+
+	savedcurrent_buffer="$current_buffer"
 	
 	savedhelp_message="$help_message"
 	savedfiletype="$filetype"
@@ -626,6 +639,8 @@ function restore {
 	clear-buffer
 	local name="$1"
 	
+	local -n savedcurrent_buffer="current_buffer${name}"
+	
 	local -n savedhelp_message="help_message${name}"
 	local -n savedfiletype="filetype${name}"
 	local -n savedfile="file${name}"
@@ -633,9 +648,14 @@ function restore {
 
 	local -n savedmenuline="menuline${name}"
 	
-	copy-array "buffer${name}" buffer
-	copy-array "buffersyntax${name}" buffersyntax
-	copy-array "expand${name}" bufferexpand
+	#copy-array "buffer${name}" buffer
+	#copy-array "buffersyntax${name}" buffersyntax
+	#copy-array "expand${name}" bufferexpand
+
+	current_buffer="${savedcurrent_buffer}"
+	declare -ng buffer="${savedcurrent_buffer}_buffer"
+	declare -ng buffersyntax="${savedcurrent_buffer}_buffersyntax"
+	declare -ng bufferexpand="${savedcurrent_buffer}_bufferexpand"
 	
 	help_message="$savedhelp_message"
 	filetype="$savedfiletype"
@@ -644,12 +664,19 @@ function restore {
 	
 	declare -ng menuline="${savedmenuline}"
 }
+function set-buffers {
+	current_buffer="$1"
+	declare -ng buffer="${current_buffer}_buffer"
+	declare -ng buffersyntax="${current_buffer}_buffersyntax"
+	declare -ng bufferexpand="${current_buffer}_bufferexpand"
+}
 
 function about {
 	save openfile
 	copy-array overlay bckover
 	overlay=()
 	update=0
+	set-buffers about
 	#sizx=$((COLUMNS / 2))
 	#sizy=$((LINES / 3))
 	#offx=$((COLUMNS / 2 - COLUMNS / 4))
@@ -662,8 +689,7 @@ function about {
 	menulineabout=(
 		[quit]='quit-view'
 	)
-	buffer=()
-	mapfile -t -O 1 buffer <<EOF
+	mapfile -t -O 1 about_buffer <<EOF
 This is Ebashs, one component of the Bash/Bash operating system.
 
 An editor written in pure bash via nonsense sphagetti code trying copying emacs.
@@ -676,9 +702,8 @@ Repo                     https://github.com/aeknt/spis
 
 Based on                 https://github.com/comfies/bed
 EOF
-	#make-render
-	copy-array buffer buffersyntax
-	copy-array buffer bufferexpand
+	copy-array about_buffer about_buffersyntax
+	copy-array about_buffer about_bufferexpand
 	clear-screen
 	redraw
 }
@@ -1014,9 +1039,9 @@ function redraw-cursor {
 	printf '\e[?25h\e[%s;%sH' $((line + 1 - base + offy)) $((rl + buffer_lenght + 2 + offx)) # move cursor to the line
 }
 function redraw-statusline {
-	printf "\e[%s;%sH\n\e[%sG${style[infoline]}%*s\e[%sG%s %s (%s,%s)\e[m" \
+	printf "\e[%s;%sH\n\e[%sG${style[infoline]}%*s\e[%sG%s %s (%s,%s) (screen: %s)\e[m" \
 	       $((sizy - 2 + offy)) $((sizx + offx)) "$offx" $((sizx)) "$info" "$offx" \
-	       "$mode" "$(base-name "$file")[$filetype]" "$line" "${rl}"
+	       "$mode" "$(base-name "$file")[$filetype]" "$line" "${rl}" "$current_buffer"
 }
 function redraw-commandline {
 	printf "\e[%s;%sH\n${style[commandline]}%*s\r%s\e[m" \
