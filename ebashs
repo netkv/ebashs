@@ -16,7 +16,7 @@ declare -A keys_def keys_edit keys_prefix keys_dired keys_view keys_menu keys_de
 declare -A key_options_menu key_options_debuginput
 #declare -a buffer buffersyntax bufferexpand input_hex overlay
 declare -a input_hex overlay
-declare -n buffer buffersyntax bufferexpand
+declare -n buffer buffersyntax bufferexpand bufferdata
 declare -i line base rl menulinep menulinepy buffer_lenght toplines bottomlines hidden offx offy sizx sizy update ismenu comment file_count
 declare -n menucon menuline
 declare file message info modified filetype reset mode command cmd_prompt help_message
@@ -244,17 +244,7 @@ diredmenu=(
 # source extensions/evil
 ## rest of this garbageware
 
-version="Ebashs dev"
-line=1 # Currently selected line (0 means the buffer is empty)
-base=1 # Top-most line shown
-rl=0 # Position of the cursor in $line
-menulinepy=0; menulinep=0 # menu positions
-file= # Currently addressed file
-info="${version}: insanity" # Feedback text in the status bar
-modified=false # Tracking whether a file was modified
-mode="${options[default_mode]}"
-menuline=menulineedit # Set default menuline for file editing
-help_message="${options[help_message]}"
+version="Ebashs dev"menulinepy=0; menulinep=0 # menu positions
 offx=0 # TODO: abuse offsets and size of main render
 offy=1
 sizx=$COLUMNS
@@ -335,7 +325,7 @@ function execute-extended-command {
 
 function get-syntax {
 	for syntax_setting in "${!syntax[@]}"; do
-		[ "$syntax_setting" = "$filetype" ] && {
+		[ "$syntax_setting" = "${bufferdata[filetype]}" ] && {
 			syntax_function="${syntax[$syntax_setting]}"
 			return 0
 		}
@@ -524,28 +514,39 @@ function find-file {
 function read-buffer {
 	((file_count++))
 	current_buffer="file_${file_count}"
-	#clear-buffer
-	filetype="$(filetype "$1")"
-	file="$1"
-	mapfile -t -O 1 "${current_buffer}_buffer" <"$file" # Read file into an array
-	make-syntax < "$file" | mapfile -t -O 1 "${current_buffer}_buffersyntax" # TODO: make fast
-	expand-char < "$file" | mapfile -t -O 1 "${current_buffer}_bufferexpand" # TODO: make fast
+	declare -Ag "${current_buffer}_bufferdata"
 	declare -ng buffer="${current_buffer}_buffer"
 	declare -ng buffersyntax="${current_buffer}_buffersyntax"
 	declare -ng bufferexpand="${current_buffer}_bufferexpand"
+	declare -ng bufferdata="${current_buffer}_bufferdata"
+	menuline=menulineedit # Set default menuline for file editing
+	bufferdata=(
+		[line]=0 # Currently selected line (0 means the buffer is empty)
+		[base]=1 # Top-most line shown
+		[column]=0 # Position of the cursor in $line
+		[info]="${version}: insanity" # Feedback text in the status bar
+		[mode]="${options[default_mode]}"
+		[help_message]="${options[help_message]}"
+		[filetype]="$(filetype "$1")"
+		[file]="$1"
+	)
+	mapfile -t -O 1 "${current_buffer}_buffer" <"${bufferdata[file]}" # Read file into an array
+	make-syntax < "${bufferdata[file]}" | mapfile -t -O 1 "${current_buffer}_buffersyntax" # TODO: make fast
+	expand-char < "${bufferdata[file]}" | mapfile -t -O 1 "${current_buffer}_bufferexpand" # TODO: make fast
 	buffer-lenght
 	if [[ "${buffer[1]}" ]]; then # Ensure that something was actually read into the file
-		line=1 # Indicate that we have a buffer loaded
-		modified=false
-		info="${file}: ${#buffer[@]}"
+		bufferdata[line]=1 # Indicate that we have a buffer loaded
+		bufferdata[modified]=0
+		bufferdata[info]="${bufferdata[file]}}: ${#buffer[@]}"
 	else
-		info="{$file}: empty"
+		bufferdata[info]="{${bufferdata[file]}}: empty"
 	fi
 }
 function clear-buffer {
-	buffer=
-	buffersyntax=
-	bufferexpand=
+	buffer=()
+	buffersyntax=()
+	bufferexpand=()
+	bufferdata=()
 }
 
 function topline {
@@ -595,7 +596,7 @@ function dired-select {
 		read-buffer "$line" || exit 1
 		help_message="${options[help_message]}"
 		declare -gn menuline=menulineedit
-		mode=edit
+		bufferdata[mode]=edit
 		redraw
 	fi
 }
@@ -641,10 +642,10 @@ function restore {
 	
 	local -n savedcurrent_buffer="current_buffer${name}"
 	
-	local -n savedhelp_message="help_message${name}"
-	local -n savedfiletype="filetype${name}"
-	local -n savedfile="file${name}"
-	local -n savedmode="mode${name}"
+	#local -n savedhelp_message="help_message${name}"
+	#local -n savedfiletype="filetype${name}"
+	#local -n savedfile="file${name}"
+	#local -n savedmode="mode${name}"
 
 	local -n savedmenuline="menuline${name}"
 	
@@ -656,11 +657,12 @@ function restore {
 	declare -ng buffer="${savedcurrent_buffer}_buffer"
 	declare -ng buffersyntax="${savedcurrent_buffer}_buffersyntax"
 	declare -ng bufferexpand="${savedcurrent_buffer}_bufferexpand"
+	declare -ng bufferdata="${savedcurrent_buffer}_bufferdata"
 	
-	help_message="$savedhelp_message"
-	filetype="$savedfiletype"
-	file="$savedfile"
-	mode="$savedmode"
+	#help_message="$savedhelp_message"
+	#filetype="$savedfiletype"
+	#file="$savedfile"
+	#mode="$savedmode"
 	
 	declare -ng menuline="${savedmenuline}"
 }
@@ -669,6 +671,7 @@ function set-buffers {
 	declare -ng buffer="${current_buffer}_buffer"
 	declare -ng buffersyntax="${current_buffer}_buffersyntax"
 	declare -ng bufferexpand="${current_buffer}_bufferexpand"
+	declare -ng bufferdata="${current_buffer}_bufferdata"
 }
 
 function about {
@@ -715,11 +718,11 @@ function quit-view {
 
 
 function write-buffer {
-    true >"$file" # Set the file to an empty text file
+    true >"${bufferdata[file]}" # Set the file to an empty text file
     for ln in "${buffer[@]}"; do # Write in the buffer to the file
-        echo "$ln" >>"$file"
+        echo "$ln" >>"${bufferdata[file]}"
     done
-    modified=false
+    bufferdata[modified]=0
     message="Wrote ${#buffer[@]} lines to '$file'"
 }
 
@@ -728,8 +731,8 @@ function make-render {
 	printf '%s\n' "${buffer[@]}" | expand-char | mapfile -t -O 1 bufferexpand
 }
 function make-render-line {
-	buffersyntax[line]="$(make-syntax <<< "${buffer[line]}")"
-	bufferexpand[line]="$(expand-char <<< "${buffer[line]}")"
+	buffersyntax[bufferdata[line]]="$(make-syntax <<< "${buffer[bufferdata[line]]}")"
+	bufferexpand[bufferdata[line]]="$(expand-char <<< "${buffer[bufferdata[line]]}")"
 }
 
 function expand-char {
@@ -753,54 +756,54 @@ function expand-char {
 }
 
 function newline {
-    buffer=("" "${buffer[@]:1:line}" "" "${buffer[@]:line+1}")
-    unset 'buffer[0]'
-    modified=true
-	buffer[line+1]=${buffer[line]:rl:${#buffer[line]}}
-	buffer[line]=${buffer[line]:0:rl}
-	rl=0
+	bufferdata[modified]=1
+	buffer=("" "${buffer[@]:1:${bufferdata[line]}-1}" "" "${buffer[@]:${bufferdata[line]}}")
+	unset 'buffer[0]'
+	buffer[${bufferdata[line]}]="${buffer[${bufferdata[line]}+1]:0:${bufferdata[column]}}"
+	buffer[${bufferdata[line]}+1]="${buffer[${bufferdata[line]}+1]:${bufferdata[column]}:${#buffer[${bufferdata[line]}+1]}}"
+	bufferdata[column]=0
 	buffer-lenght
 	make-render
 	next-line
-	redraw
 }
 
 function delete_line {
-    buffer=("" "${buffer[@]:1:line-1}" "${buffer[@]:line+1}")
-    unset 'buffer[0]'
-    ((line > ${#buffer[@]})) && previous-line
-    modified=true
+	bufferdata[modified]=1
+	buffer=("" "${buffer[@]:1:${bufferdata[line]}-1}" "${buffer[@]:${bufferdata[line]}+1}")
+	unset 'buffer[0]'
+	((bufferdata[line] > ${#buffer[@]})) && previous-line
+	bufferdata[modified]=true
 	buffer-lenght
-    make-render
+	make-render
 	redraw
 }
 
 function backspace {
-	if [ "${#buffer[line]}" = 0 ]; then
+	if [ "${#buffer[${bufferdata[line]}]}" = 0 ]; then
 		delete_line
-		rl="${#buffer[line]}"
+		bufferdata[column]="${#buffer[${bufferdata[line]}]}"
 		redraw
 		return 0
 	fi
 	local -i rlr
 	unset ta
 	local ta
-	ta=${bufferexpand[line]:0:rl}
+	ta=${bufferexpand[${bufferdata[line]}]:0:${bufferdata[column]}}
 	ta=${ta//[^t]}
 	ta=${#ta}
-	rlr=$((rl + ta / 4 - ta))
+	rlr=$((bufferdata[column] + ta / 4 - ta))
 	if [ $rlr = 0 ]; then
-		buffer[line-1]="${buffer[line-1]}${buffer[line]}"
+		buffer[${bufferdata[line]}-1]="${buffer[${bufferdata[line]}-1]}${buffer[${bufferdata[line]}]}"
 		delete_line
-		rl=${#bufferexpand[line]}
+		bufferdata[column]=${#bufferexpand[${bufferdata[line]}]}
 		redraw
 		return 0
 	fi
-	buffer[line]="${buffer[line]:0:$(( rlr - 1 ))}${buffer[line]:${rlr}}"
+	buffer[${bufferdata[line]}]="${buffer[${bufferdata[line]}]:0:$(( rlr - 1 ))}${buffer[${bufferdata[line]}]:${rlr}}"
 	backward-char #go back with cursor
 	make-render-line # copy the buffer into buffersyntax and bufferexpand
 	redraw #draw it
-	modified=true
+	bufferdata[modified]=1
 }
 declare -A keys_quit
 keys_quit=(
@@ -813,14 +816,14 @@ function save-quit {
 	die
 }
 function quit-quit {
-	mode="$bckmode"
+	bufferdata[mode]="$bckmode"
 	message='Quit canceled'
 	redraw
 }
 function quit {
-	if [[ "$modified" == "true" ]]; then
+	if ((bufferdata[modified])); then
 		[ -z "$bckmode" ] && bckmode="$mode"
-		mode='quit'
+		bufferdata[mode]='quit'
 		redraw-statusline
 		printf '\e[%s;0H' $((sizy + offy))
 		printf '%s' 'Buffer modified, save before close? [Y/n/c]'
@@ -830,14 +833,14 @@ function quit {
 }
 
 function previous-line {
-    for ((i = 0; i < ${1:-1}; i++)); do
-        ((line > 1)) && ((line--)) # As long as we can keep going up, go up
-        ((line < base + 1)) && ((base--)) && # Push back the top if we need to
-        ((base <= 0)) && base=1 # Don't push back if our base is at 1
-        [ -z "$bckrl" ] && bckrl="${rl}"
-        (( "${#buffer[line]}" < "${rl}" )) && rl="${#buffer[line]}"
-        (( "${#buffer[line]}" > "${rl}" )) && rl=bckrl
-    done
+	for ((i = 0; i < ${1:-1}; i++)); do
+		((bufferdata[line] > 1)) && ((bufferdata[line]--)) # As long as we can keep going up, go up
+		((bufferdata[line] < bufferdata[base] + 1)) && ((bufferdata[base]--)) && # Push back the top if we need to
+			((bufferdata[base] <= 0)) && bufferdata[base]=1 # Don't push back if our base is at 1
+		[ -z "$bckrl" ] && bckrl="${bufferdata[column]}"
+		(( "${#buffer[${bufferdata[line]}]}" < bufferdata[column] )) && bufferdata[column]="${#buffer[${bufferdata[line]}]}"
+		(( "${#buffer[${bufferdata[line]}]}" > bufferdata[column] )) && bufferdata[column]=${bckrl}
+	done
 	redraw
 }
 
@@ -846,13 +849,13 @@ function scroll-down {
 }
 
 function next-line {
-    for ((i = 0; i < ${1:-1}; i++)); do
-        ((line < ${#buffer[@]})) && ((line++)) # If we can go down, go down
-        ((line > base + sizy - 3 - bottomlines)) && ((base++)) && # Move window down if needed
-        [ -z "$bckrl" ] && bckrl="${rl}"
-        (( "${#buffer[line]}" < "${rl}" )) && rl="${#buffer[line]}"
-        (( "${#buffer[line]}" > "${rl}" )) && rl=bckrl
-    done
+	for ((i = 0; i < ${1:-1}; i++)); do
+		((bufferdata[line] < ${#buffer[@]})) && ((bufferdata[line]++)) # If we can go down, go down
+		((bufferdata[line] > bufferdata[base] + sizy - 3 - bottomlines)) && ((bufferdata[base]++)) # Move window down if needed
+			[ -z "$bckrl" ] && bckrl="${bufferdata[column]}"
+		(( "${#buffer[${bufferdata[line]}]}" < bufferdata[column] )) && bufferdata[column]="${#buffer[${bufferdata[line]}]}"
+		(( "${#buffer[${bufferdata[line]}]}" > bufferdata[column] )) && bufferdata[column]=${bckrl}
+	done
 	redraw
 }
 
@@ -861,23 +864,24 @@ function scroll-up {
 }
 
 function execute {
-    ((line == 0)) && return # If the line is not possible, do nothing
-    printf '\e[?25h\e[%sH' "$((line + 2 - base))" # Reset cursor position and enable cursor
+    ((bufferdata[line] == 0)) && return # If the line is not possible, do nothing
+    printf '\e[?25h\e[%sH' "$((bufferdata[line] + 2 - bufferdata[base]))" # Reset cursor position and enable cursor
     read -re -p "$(printf '%4s ' "$")" # Present editable line
-    if [[ "$REPLY" != "${buffer[line]}" ]]; then # If the line is changed, update and inform
-        buffer[line]="$($REPLY)"
-        modified=true
+    if [[ "$REPLY" != "${buffer[${bufferdata[line]}]}" ]]; then # If the line is changed, update and inform
+        buffer[${bufferdata[line]}]="$($REPLY)"
+        bufferdata[modified]=1
     fi
     make-render
     redraw
 }
+
 function forward-char {
 	for ((i = 0; i < ${1:-1}; i++)); do
-		case "${bufferexpand[line]:rl+1:1}" in
-			't') rl=$(( rl + ${#options[tabchar]}));;
-			*) ((rl++));;
+		case "${bufferexpand[${bufferdata[line]}]:${bufferdata[column]}+1:1}" in
+			't') bufferdata[column]=$(( bufferdata[column] + ${#options[tabchar]}));;
+			*) ((bufferdata[column]++));;
 		esac
-		[ "$rl" -gt "${#bufferexpand[line]}" ] && { rl=0; next-line; }
+		((bufferdata[column] > ${#bufferexpand[${bufferdata[line]}]})) && { bufferdata[column]=0; next-line; }
 		bckrl=
 	done
 	redraw-statusline
@@ -885,52 +889,54 @@ function forward-char {
 }
 function backward-char {
 	for ((i = 0; i < ${1:-1}; i++)); do
-		case "${bufferexpand[line]:rl-1:1}" in
-			't') rl=$(( rl - ${#options[tabchar]}));;
-			*) ((rl--));;
+		case "${bufferexpand[${bufferdata[line]}]:${bufferdata[column]}-1:1}" in
+			't') bufferdata[column]=$(( bufferdata[column] - ${#options[tabchar]}));;
+			*) ((bufferdata[column]--));;
 		esac
-		[ "$rl" -lt 0 ] && { previous-line; rl="${#bufferexpand[line]}"; }
+		((bufferdata[column] < 0)) && { previous-line; bufferdata[column]="${#bufferexpand[${bufferdata[line]}]}"; }
 	done
 	bckrl=
 	redraw-statusline
 	redraw-cursor
 }
 function move-beginning-of-line {
-	rl=0
+	bufferdata[column]=0
 	redraw-statusline
 	redraw-cursor
 }
 function move-end-of-line {
-	rl="${#bufferexpand[line]}"
+	bufferdata[column]="${#bufferexpand[${bufferdata[line]}]}"
 	redraw-statusline
 	redraw-cursor
 }
+
 function forward-word {
-	((rl == ${#bufferexpand[line]})) && {
+	((bufferdata[column] == ${#bufferexpand[bufferdata[line]]})) && {
 		next-line
 		move-beginning-of-line
 	}
 	while :; do
-		((rl < ${#bufferexpand[line]})) && ((rl++)) || break
-		case "${bufferexpand[line]:rl:1}" in
+		((bufferdata[column] < ${#bufferexpand[bufferdata[line]]})) && ((bufferdata[column]++)) || break
+		case "${bufferexpand[bufferdata[line]]:${bufferdata[column]}:1}" in
 			't'|'s') break;;
 		esac
 	done
 	redraw
 }
 function backward-word {
-	((rl == 0)) && {
+	((bufferdata[column] == 0)) && {
 		previous-line
 		move-end-of-line
 	}
 	while :; do
-		((rl > 0)) && ((rl--)) || break
-		case "${bufferexpand[line]:rl:1}" in
+		((bufferdata[column] > 0)) && ((bufferdata[column]--)) || break
+		case "${bufferexpand[bufferdata[line]]:${bufferdata[column]}:1}" in
 			't'|'s') break;;
 		esac
 	done
 	redraw
 }
+
 function shell {
 	clear-screen
 	bash # NOTE: in theory an external command
@@ -1017,13 +1023,13 @@ function redraw {
 		sizy=$((LINES - 1))
 	}
 	(("${options[menuline]}"==1)) && {
-		printf "\e[0m\e[%s;%sH${style[menuline]}\e[?25l%*s\r%s" "$offy" "$offx" "$sizx" "$help_message"
+		printf "\e[0m\e[%s;%sH${style[menuline]}\e[?25l%*s\r%s" "$offy" "$offx" "$sizx" "${bufferdata[help_message]}"
 		printf '\e[%sG%s\e[0m\n' "$offx" "${!menuline[*]}"
 	} || printf "\e[%s;%sH" "$offy" "$offx"
 	# Iterate over shown lines
-	for ((i = base; i - base < sizy - ( bottomlines + toplines ) + 1; i++)); do
+	for ((i = bufferdata[base]; i - bufferdata[base] < sizy - ( bottomlines + toplines ) + 1; i++)); do
 		printf "${style[number]}"
-		((i == line)) && printf "${style[numberselected]}" # Highlight line number if selected
+		((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
 		((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((buffer_lenght/2))s~\e[m\n" "$offx"\
 				|| printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n" "$offx" "$i" "${buffersyntax[i]}"
 	done
@@ -1036,12 +1042,12 @@ function redraw {
 	}
 }
 function redraw-cursor {
-	printf '\e[?25h\e[%s;%sH' $((line + 1 - base + offy)) $((rl + buffer_lenght + 2 + offx)) # move cursor to the line
+	printf '\e[?25h\e[%s;%sH' $((bufferdata[line] + 1 - bufferdata[base] + offy)) $((bufferdata[column] + buffer_lenght + 2 + offx)) # move cursor to the line
 }
 function redraw-statusline {
 	printf "\e[%s;%sH\n\e[%sG${style[infoline]}%*s\e[%sG%s %s (%s,%s) (screen: %s)\e[m" \
-	       $((sizy - 2 + offy)) $((sizx + offx)) "$offx" $((sizx)) "$info" "$offx" \
-	       "$mode" "$(base-name "$file")[$filetype]" "$line" "${rl}" "$current_buffer"
+	       $((sizy - 2 + offy)) $((sizx + offx)) "$offx" $((sizx)) "${bufferdata[info]}" "$offx" \
+	       "${bufferdata[mode]}" "$(base-name "${bufferdata[file]}")[${bufferdata[filetype]}]" "${bufferdata[line]}" "${bufferdata[column]}" "$current_buffer"
 }
 function redraw-commandline {
 	printf "\e[%s;%sH\n${style[commandline]}%*s\r%s\e[m" \
@@ -1062,21 +1068,21 @@ function insert-word {
 	local -i rlr
 	unset ta
 	local ta
-	ta=${bufferexpand[line]:0:rl}
+	ta=${bufferexpand[${bufferdata[line]]}:0:${bufferdata[column]}}
 	ta=${ta//[^t]}
 	ta=${#ta}
-	rlr=$((rl + ta / 4 - ta))	
-	buffer[line]="${buffer[line]:0:${rlr}}$1${buffer[line]:${rlr}}" #add at cursor position - amount of tabs * tab size
+	rlr=$((bufferdata[column] + ta / 4 - ta))	
+	buffer[line]="${buffer[${bufferdata[line]}]:0:${rlr}}$1${buffer[${bufferdata[line]}]:${rlr}}" #add at cursor position - amount of tabs * tab size
 	make-render-line
 	forward-char "${#1}"
 	redraw
-	modified=true
+	bufferdata[modified]=1
 }
 function input-key {
 	local -i x y mode_contains
 	input-make-hex "$1"
 
-	local -n modekeys="keys_${mode}"
+	local -n modekeys="keys_${bufferdata[mode]}"
 	for str in "${!modekeys[@]}"; do
 		[ "$str" = "${input_hex[*]}" ] && {
 			"${modekeys[$str]}"
@@ -1084,7 +1090,7 @@ function input-key {
 		}
 	done
 	((mode_contains == 0)) && {
-		local -n key_options="key_options_${mode}"
+		local -n key_options="key_options_${bufferdata[mode]}"
 		((${#key_options[@]})) && {
 			[ -n "${key_options[else]}" ] && "${key_options[else]}"
 		}
@@ -1092,7 +1098,7 @@ function input-key {
 	((mode_contains == 1)) && {
 		return
 	}
-	[ "$mode" = 'edit' ] || return
+	[ "${bufferdata[mode]}" = 'edit' ] || return
 	
 	(("${options[mouse]}"==1)) && {
 		#parse mouse stuff somewhatish weirdly
@@ -1111,10 +1117,11 @@ function input-key {
 			x="${inputarray[1]}"
 			y="${inputarray[2]::-1}"
 			#limitations of movenment
+			#TODO:
 			[ $y = "$offy" ] && menuclick $x && return #handle menuline
 			((x < (buffer_lenght + offx + 2))) && {
 				if [ "$mousemode" = '[<0' ]; then
-					line=$(( base + ( (y - offy) - toplines) ))
+					bufferdata[line]=$(( bufferdata[base] + ( (y - offy) - toplines) ))
 					redraw
 				elif [ "$mousemode" = '[<2' ]; then #VERY BAD SOLUTION, TODO: FIX
 					clear-screen
@@ -1124,31 +1131,31 @@ function input-key {
 				fi
 				return
 			}
-			line=$(( base + ( y - offy - 1) ))
-			rl=$(( x - (offx + buffer_lenght + 2) ))
-			((line > ${#bufferexpand[@]})) && line=${#bufferexpand[@]}
-			((rl > ${#bufferexpand[line]})) && rl=${#bufferexpand[line]}
+			bufferdata[line]=$(( bufferdata[base] + ( y - offy - 1) ))
+			bufferdata[column]=$(( x - (offx + buffer_lenght + 2) ))
+			((bufferdata[line] > ${#bufferexpand[@]})) && bufferdata[line]=${#bufferexpand[@]}
+			((bufferdata[column] > ${#bufferexpand[bufferdata[line]]})) && bufferdata[column]=${#bufferexpand[bufferdata[line]]}
 			redraw
 			return
 		}
 	}
 	#[ "${input_hex[*]:0:3}" = '1b 5b 3c' ] && return
 	[ "${input_hex[*]:0:1}" = '1b' ] && return # TODO: prevent escape codes without hacky blocking
-	[ "$mode" = edit ] && {
+	[ "${bufferdata[mode]}" = edit ] && {
 		local -i rlr
 		unset ta
 		local ta
-		ta=${bufferexpand[line]:0:rl}
+		ta=${bufferexpand[${bufferdata[line]}]:0:${bufferdata[column]}}
 		ta=${ta//[^t]}
 		ta=${#ta}
-		rlr=$((rl + ta / 4 - ta))	
-		buffer[line]="${buffer[line]:0:${rlr}}$1${buffer[line]:${rlr}}" #add at cursor position - amount of tabs * tab size
+		rlr=$((bufferdata[column] + ta / 4 - ta))	
+		buffer[bufferdata[line]]="${buffer[${bufferdata[line]}]:0:${rlr}}${1}${buffer[${bufferdata[line]}]:${rlr}}" #add at cursor position - amount of tabs * tab size
 		#go right with cursor
 		make-render-line
 		forward-char
 		redraw
 		[ "$1" = '	' ] && printf '\e[%sC' $((${#options[tabchar]} - 1))
-		modified=true
+		bufferdata[modified]=1
 	}
 }
 function main {
