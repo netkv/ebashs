@@ -645,7 +645,7 @@ function set-current {
 function about {
 	save openfile
 	((current_count++))
-	current_buffer="about_${current_read}"
+	current_buffer="about_${current_count}"
 	declare -Ag "${current_buffer}_bufferdata"
 	set-current
 	copy-array overlay bckover
