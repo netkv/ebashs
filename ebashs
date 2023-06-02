@@ -558,45 +558,52 @@ function toggle_hidden {
 	dired
 }
 function dired {
-	help_message="${options[dired_message]}"
 	declare -gn menuline=diredmenu
-	line=0
-	rl=0
-	base=1
-	#clear-buffer
-	filetype="i*" # Internal file type
-	file="dired*" # All internal "files" should end with star
-	set-buffers dired
-	mapfile -t -O 1 dired_buffer <<< "$(pickls)"
+	((current_read++))
+	current_buffer="dired_$current_read"
+	declare -Ag "${current_buffer}_bufferdata"
+	declare -ng buffer="${current_buffer}_buffer"
+	declare -ng buffersyntax="${current_buffer}_buffersyntax"
+	declare -ng bufferexpand="${current_buffer}_bufferexpand"
+	declare -ng bufferdata="${current_buffer}_bufferdata"
+	bufferdata=(
+		[line]=0
+		[base]=1
+		[column]=0
+		[info]='File picker'
+		[mode]='dired'
+		[help_message]='Pick a file'
+		[filetype]='i*'
+		[file]='*dired*'
+		[modified]=0
+	)
+	mapfile -t -O 1 buffer <<< "$(pickls)"
 	for idx in "${!buffer[@]}"; do
 		if [ -d "${buffer[idx]}" ]; then
-			dired_buffersyntax[idx]="$(printf ${style[link]})""${buffer[idx]}"
+			buffersyntax[idx]="$(printf ${style[link]})""${buffer[idx]}"
 		else
-			dired_buffersyntax[idx]="${buffer[idx]}"
+			buffersyntax[idx]="${buffer[idx]}"
 		fi
-		dired_bufferexpand[idx]="${buffer[idx]}"
+		bufferexpand[idx]="${buffer[idx]}"
 	done
-	mode=dired # dired mode
 	buffer-lenght # drowning in sea of murky logic
 	if [[ "${buffer[1]}" ]]; then # Ensure that something was actually read into the file
-		line=1 # Indicate that we have a buffer loaded
-		modified=false
-		info="$PWD"
+		bufferdata+=(
+			[line]=1
+			[info]="$PWD"
+		)
 	else
-		info="error: empty"
+		bufferdata[info]="error: empty"
 	fi
 	redraw
 }
 function dired-select {
-	local line="${buffer[line]}"
+	local line="${buffer[bufferdata[line]]}"
 	if [ -d "$line" ]; then
 		cd "$line"
 		dired
 	else
 		read-buffer "$line" || exit 1
-		help_message="${options[help_message]}"
-		declare -gn menuline=menulineedit
-		bufferdata[mode]=edit
 		redraw
 	fi
 }
