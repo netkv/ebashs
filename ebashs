@@ -512,8 +512,8 @@ function find-file {
 
 }
 function read-buffer {
-	((file_count++))
-	current_buffer="file_${file_count}"
+	((current_read++))
+	current_buffer="file_$current_read"
 	declare -Ag "${current_buffer}_bufferdata"
 	declare -ng buffer="${current_buffer}_buffer"
 	declare -ng buffersyntax="${current_buffer}_buffersyntax"
@@ -537,9 +537,9 @@ function read-buffer {
 	if [[ "${buffer[1]}" ]]; then # Ensure that something was actually read into the file
 		bufferdata[line]=1 # Indicate that we have a buffer loaded
 		bufferdata[modified]=0
-		bufferdata[info]="${bufferdata[file]}}: ${#buffer[@]}"
+		bufferdata[info]="${bufferdata[file]}: ${#buffer[@]}"
 	else
-		bufferdata[info]="{${bufferdata[file]}}: empty"
+		bufferdata[info]="{${bufferdata[file]}: empty"
 	fi
 }
 function clear-buffer {
@@ -614,68 +614,34 @@ function copy-array {
 
 function save {
 	local name="$1"
-	
-	local -n savedcurrent_buffer="current_buffer${name}"
-	
-	local -n savedhelp_message="help_message${name}"
-	local -n savedfiletype="filetype${name}"
-	local -n savedfile="file${name}"
-	local -n savedmode="mode${name}"
-	
-	local -n savedmenuline="menuline${name}"
-	
-	#copy-array buffer "buffer${name}"
-	#copy-array buffersyntax "buffersyntax${name}"
-	#copy-array bufferexpand "expand${name}"
-
+	local -n savedcurrent_buffer="current_buffer${name}"	
+   	local -n savedmenuline="menuline${name}"
 	savedcurrent_buffer="$current_buffer"
-	
-	savedhelp_message="$help_message"
-	savedfiletype="$filetype"
-	savedfile="$filetype"
-	savedmode="$mode"
 	savedmenuline="${!menuline}"
 }
 function restore {
-	clear-buffer
+	#clear-buffer
 	local name="$1"
 	
 	local -n savedcurrent_buffer="current_buffer${name}"
-	
-	#local -n savedhelp_message="help_message${name}"
-	#local -n savedfiletype="filetype${name}"
-	#local -n savedfile="file${name}"
-	#local -n savedmode="mode${name}"
-
 	local -n savedmenuline="menuline${name}"
-	
-	#copy-array "buffer${name}" buffer
-	#copy-array "buffersyntax${name}" buffersyntax
-	#copy-array "expand${name}" bufferexpand
-
 	current_buffer="${savedcurrent_buffer}"
-	declare -ng buffer="${savedcurrent_buffer}_buffer"
-	declare -ng buffersyntax="${savedcurrent_buffer}_buffersyntax"
-	declare -ng bufferexpand="${savedcurrent_buffer}_bufferexpand"
-	declare -ng bufferdata="${savedcurrent_buffer}_bufferdata"
-	
-	#help_message="$savedhelp_message"
-	#filetype="$savedfiletype"
-	#file="$savedfile"
-	#mode="$savedmode"
-	
-	declare -ng menuline="${savedmenuline}"
-}
-function set-buffers {
-	current_buffer="$1"
+	declare -Ag "${current_buffer}_bufferdata"
 	declare -ng buffer="${current_buffer}_buffer"
 	declare -ng buffersyntax="${current_buffer}_buffersyntax"
 	declare -ng bufferexpand="${current_buffer}_bufferexpand"
 	declare -ng bufferdata="${current_buffer}_bufferdata"
+	declare -ng menuline="$savedmenuline"
 }
-
 function about {
 	save openfile
+	((current_read++))
+	current_buffer="about_$current_read"
+	declare -Ag "${current_buffer}_bufferdata"
+	declare -ng buffer="${current_buffer}_buffer"
+	declare -ng buffersyntax="${current_buffer}_buffersyntax"
+	declare -ng bufferexpand="${current_buffer}_bufferexpand"
+	declare -ng bufferdata="${current_buffer}_bufferdata"
 	copy-array overlay bckover
 	overlay=()
 	update=0
@@ -684,15 +650,22 @@ function about {
 	#sizy=$((LINES / 3))
 	#offx=$((COLUMNS / 2 - COLUMNS / 4))
 	#offy=$((LINES / 2 - LINES / 6))
-	mode=view
-	filetype="i*"
-	file="about*"
-	help_message="About"
+	bufferdata=(
+		[line]=1
+		[base]=1
+		[column]=0
+		[info]='About Ebashs'
+		[mode]='view'
+		[help_message]='About'
+		[filetype]='i*'
+		[file]='*about*'
+		[modified]=0
+	)
 	declare -gn menuline=menulineabout
 	menulineabout=(
 		[quit]='quit-view'
 	)
-	mapfile -t -O 1 about_buffer <<EOF
+	mapfile -t -O 1 buffer <<EOF
 This is Ebashs, one component of the Bash/Bash operating system.
 
 An editor written in pure bash via nonsense sphagetti code trying copying emacs.
@@ -705,8 +678,8 @@ Repo                     https://github.com/aeknt/spis
 
 Based on                 https://github.com/comfies/bed
 EOF
-	copy-array about_buffer about_buffersyntax
-	copy-array about_buffer about_bufferexpand
+	copy-array buffer buffersyntax
+	copy-array buffer bufferexpand
 	clear-screen
 	redraw
 }
