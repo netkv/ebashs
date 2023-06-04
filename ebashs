@@ -573,6 +573,11 @@ function read-buffer {
 		[file]="$1"
 	)
 	mapfile -t -O 1 "${current_buffer}_buffer" <"${bufferdata[file]}" # Read file into an array
+<<<<<<< HEAD
+=======
+	make-syntax < "${bufferdata[file]}" | mapfile -t -O 1 "${current_buffer}_buffersyntax" # TODO: make fast
+	expand-char < "${bufferdata[file]}" | mapfile -t -O 1 "${current_buffer}_bufferexpand" # TODO: make fast
+>>>>>>> parent of c5e6bfc (read the file only once)
 	buffer-lenght
 	make-render # TODO: make fast
 	if [[ "${buffer[@]}" ]]; then # Ensure that something was actually read into the file
