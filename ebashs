@@ -299,8 +299,8 @@ function refresh {
 	message=
 }
 function switch-mode {
-	bckmode="$mode"
-	mode="$1"
+	bckmode="${bufferdata[mode]}"
+	bufferdata[mode]="$1"
 	redraw-statusline
 }
 function prefix {
@@ -310,7 +310,7 @@ function prefix-help {
 	switch-mode prefix_help
 }
 function quit-prefix {
-	mode="$bckmode"
+	bufferdata[mode]="$bckmode"
 	unset bckmode
 	redraw-statusline
 }
@@ -545,7 +545,7 @@ function find-file {
 	bind 'set disable-completion off' 2>/dev/null # Enable completion
 	read -re -p "${options[file_prompt]}" command && {
 		read-buffer "$command"
-		[ -n "$bckmode" ] && mode="$bckmode" || mode=edit
+		[ -n "$bckmode" ] && bufferdata[mode]="$bckmode" || bufferdata[mode]=edit
 		redraw
 	}
 	bind 'set disable-completion on' 2>/dev/null
@@ -812,7 +812,7 @@ function quit-quit {
 }
 function quit {
 	if ((bufferdata[modified])); then
-		[ -z "$bckmode" ] && bckmode="$mode"
+		[ -z "$bckmode" ] && bckmode="${bufferdata[mode]}"
 		bufferdata[mode]='quit'
 		redraw-statusline
 		printf '\e[%s;0H' $((sizy + offy))
@@ -993,15 +993,15 @@ function menuselect {
 }
 function menuleave {
 	ismenu=0
-	mode="${modebackup}"
+	bufferdata[mode]="${modebackup}"
 	overlay=()
 	redraw
 }
 function menu {
-	((ismenu == 0 )) && modebackup="${mode}"
+	((ismenu == 0 )) && modebackup="${bufferdata[mode]}"
 	ismenu=1
 	declare -ig menuselection=0
-	mode='menu'
+	bufferdata[mode]='menu'
 	overlay+=('menudraw')
 	redraw
 }
