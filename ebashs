@@ -1020,16 +1020,28 @@ function redraw {
 		printf "\e[0m\e[%s;%sH${style[menuline]}\e[?25l%*s\r%s" "$offy" "$offx" "$sizx" "${bufferdata[help_message]}"
 		printf '\e[%sG%s\e[0m\n' "$offx" "${!menuline[*]}"
 	} || printf "\e[%s;%sH" "$offy" "$offx"
+	
 	# Iterate over shown lines
+	local -i line_space=$(( (sizx + offx) - (buffer_lenght + 1) ))
 	for ((i = bufferdata[base]; i - bufferdata[base] < sizy - ( bottomlines + toplines ) + 1; i++)); do
-		printf "${style[number]}"
-		((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
-		((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((buffer_lenght/2))s~\e[m\n" "$offx"\
-				|| printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n" "$offx" "$i" "${buffersyntax[i]}"
+		printf '%b' "${style[number]}"
+		# Highlight line number if selected
+		((i == bufferdata[line])) && printf "${style[numberselected]}"
+		if ((i > ${#buffer[@]})); then
+			printf "\e[%sG${style[numberempty]}\e[K%$((buffer_lenght/2))s~\e[m\n" "$offx"
+		else
+			if ((${#buffer[i]} > line_space)); then
+				printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n" "$offx" "$i" "${buffer[i]:0:line_space-1}\\"
+				printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n" "$offx" ' ' "${buffer[i]:line_space-1:line_space}"	
+			else
+				printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n" "$offx" "$i" "${buffersyntax[i]}"
+			fi
+		fi
 	done
-	redraw-statusline
-	redraw-commandline
-	redraw-cursor
+	
+	#redraw-statusline
+	#redraw-commandline
+	#redraw-cursor
 	# Render all overlays
 	for o in "${overlay[@]}"; {
 		"${o}"
