@@ -568,8 +568,7 @@ function read-buffer {
 		[file]="$1"
 	)
 	mapfile -t -O 1 "${current_buffer}_buffer" <"${bufferdata[file]}" # Read file into an array
-	make-syntax < "${bufferdata[file]}" | mapfile -t -O 1 "${current_buffer}_buffersyntax" # TODO: make fast
-	expand-char < "${bufferdata[file]}" | mapfile -t -O 1 "${current_buffer}_bufferexpand" # TODO: make fast
+	make-render # TODO: make fast
 	buffer-lenght
 	if [[ "${buffer[@]}" ]]; then # Ensure that something was actually read into the file
 		bufferdata[line]=1 # Indicate that we have a buffer loaded
