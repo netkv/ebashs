@@ -78,7 +78,7 @@ keys_edit=(
 	[0]='newline'
 	[c 0]='newline'
 	[14 0]='execute'
-	[4 0]='delete_line'
+	[4 0]='delete-line'
 	[13 0]='shell'
 	[7f 0]='backspace'
 	[1b 71 0]='die'
@@ -190,7 +190,7 @@ menukey=(
 	[Set target     M-r ]="find-file"
 	[Visit file C-x C-f ]="read-buffer"
 	[Save file  C-x C-s ]="write-buffer"
-	[Delete Line    C-d ]="delete_line"
+	[Delete Line    C-d ]="delete-line"
 	[Prev Line      C-p ]="previous-line"
 	[Next Line      C-n ]="next-line"
 	[Prev Page      C-y ]="scroll-down"
@@ -223,7 +223,7 @@ commands=(
 	[set-buffer-file]='find-file'
 	[read-file]='read-buffer'
 	[write-file]='write-buffer'
-	[delete-line]='delete_line'
+	[delete-line]='delete-line'
 	[toggle-mouse]='toggle-mouse'
 	[execute]='execute'
 	[shell]='shell'
@@ -571,12 +571,12 @@ function read-buffer {
 	make-syntax < "${bufferdata[file]}" | mapfile -t -O 1 "${current_buffer}_buffersyntax" # TODO: make fast
 	expand-char < "${bufferdata[file]}" | mapfile -t -O 1 "${current_buffer}_bufferexpand" # TODO: make fast
 	buffer-lenght
-	if [[ "${buffer[1]}" ]]; then # Ensure that something was actually read into the file
+	if [[ "${buffer[@]}" ]]; then # Ensure that something was actually read into the file
 		bufferdata[line]=1 # Indicate that we have a buffer loaded
 		bufferdata[modified]=0
 		bufferdata[info]="${bufferdata[file]}: ${#buffer[@]}"
 	else
-		bufferdata[info]="{${bufferdata[file]}: empty"
+		bufferdata[info]="${bufferdata[file]}: empty"
 	fi
 }
 function clear-buffer {
@@ -601,7 +601,7 @@ function dired {
 	declare -Ag "${current_buffer}_bufferdata"
 	set-current
 	bufferdata=(
-		[line]=0
+		[line]=1
 		[base]=1
 		[column]=0
 		[info]='File picker'
@@ -749,15 +749,15 @@ function newline {
 	bufferdata[modified]=1
 	buffer=("" "${buffer[@]:1:${bufferdata[line]}-1}" "" "${buffer[@]:${bufferdata[line]}}")
 	unset 'buffer[0]'
-	buffer[${bufferdata[line]}]="${buffer[${bufferdata[line]}+1]:0:${bufferdata[column]}}"
-	buffer[${bufferdata[line]}+1]="${buffer[${bufferdata[line]}+1]:${bufferdata[column]}:${#buffer[${bufferdata[line]}+1]}}"
+	buffer[bufferdata[line]]="${buffer[${bufferdata[line]}+1]:0:${bufferdata[column]}}"
+	buffer[bufferdata[line]+1]="${buffer[${bufferdata[line]}+1]:${bufferdata[column]}:${#buffer[${bufferdata[line]}+1]}}"
 	bufferdata[column]=0
 	buffer-lenght
 	make-render
 	next-line
 }
 
-function delete_line {
+function delete-line {
 	bufferdata[modified]=1
 	buffer=("" "${buffer[@]:1:${bufferdata[line]}-1}" "${buffer[@]:${bufferdata[line]}+1}")
 	unset 'buffer[0]'
@@ -770,7 +770,7 @@ function delete_line {
 
 function backspace {
 	if [ "${#buffer[${bufferdata[line]}]}" = 0 ]; then
-		delete_line
+		delete-line
 		bufferdata[column]="${#buffer[${bufferdata[line]}]}"
 		redraw
 		return 0
@@ -784,7 +784,7 @@ function backspace {
 	rlr=$((bufferdata[column] + ta / 4 - ta))
 	if [ $rlr = 0 ]; then
 		buffer[${bufferdata[line]}-1]="${buffer[${bufferdata[line]}-1]}${buffer[${bufferdata[line]}]}"
-		delete_line
+		delete-line
 		bufferdata[column]=${#bufferexpand[${bufferdata[line]}]}
 		redraw
 		return 0
@@ -840,7 +840,7 @@ function scroll-down {
 
 function next-line {
 	for ((i = 0; i < ${1:-1}; i++)); do
-		((bufferdata[line] < ${#buffer[@]})) && ((bufferdata[line]++)) # If we can go down, go down
+		((bufferdata[line] < ${#buffer[@]}+1)) && ((bufferdata[line]++)) # If we can go down, go down
 		((bufferdata[line] > bufferdata[base] + sizy - 3 - bottomlines)) && ((bufferdata[base]++)) # Move window down if needed
 			[ -z "$bckrl" ] && bckrl="${bufferdata[column]}"
 		(( "${#buffer[${bufferdata[line]}]}" < bufferdata[column] )) && bufferdata[column]="${#buffer[${bufferdata[line]}]}"
@@ -883,7 +883,14 @@ function backward-char {
 			't') bufferdata[column]=$(( bufferdata[column] - ${#options[tabchar]}));;
 			*) ((bufferdata[column]--));;
 		esac
-		((bufferdata[column] < 0)) && { previous-line; bufferdata[column]="${#bufferexpand[${bufferdata[line]}]}"; }
+		((bufferdata[column] < 0)) && ((bufferdata[line]==1)) && {
+			bufferdata[line]=1
+			bufferdata[column]=0
+		}
+		((bufferdata[column] < 0)) && {
+			previous-line
+			bufferdata[column]="${#bufferexpand[${bufferdata[line]}]}"
+		}
 	done
 	bckrl=
 	redraw-statusline
