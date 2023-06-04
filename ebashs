@@ -18,7 +18,7 @@ declare -a input_hex overlay
 declare -n buffer buffersyntax bufferexpand bufferdata
 declare -i menulinep menulinepy buffer_lenght toplines bottomlines hidden offx offy sizx sizy update ismenu comment current_count
 declare -n menucon menuline
-declare file message info modified filetype reset mode command cmd_prompt help_message
+declare message reset readin
 
 
 ### Config options
@@ -30,7 +30,7 @@ options=(
 	[tabchar]='│   '
 	[refresh_timeout]=1
 	[file_prompt]='Path: '
-	[cmd_prompt]='M-x '
+	[command_prompt]='M-x '
 	[cancelhex]='18 0'
 	[default_mode]='edit'
 	[help_message]='(F10 to open menu)'
@@ -113,6 +113,7 @@ keys_prefix=(
 	[7 0]='quit-prefix'
 	[13 0]='write_buffer'
 	[6 0]='find-file'
+	[62 0]='switch-to-buffer'
 )
 keys_prefix_help=(
 	[7 0]='quit-prefix'
@@ -235,6 +236,7 @@ commands=(
 	[scroll-up]='scroll-up'
 	[scroll-down]='scroll-down'
 	[dired]='dired'
+	[switch-to-buffer]='switch-to-buffer'
 )
 diredmenu=(
 	[toggle hidden \(h\)]="toggle_hidden"
@@ -312,16 +314,46 @@ function quit-prefix {
 	unset bckmode
 	redraw-statusline
 }
-function execute-extended-command {
+function read-command {
 	printf '\e[%s;0H' $((sizy + offy))
 	printf '\e[?25h'
-	if read -re -p "${options[cmd_prompt]}" command; then
-		for lcmd in "${!commands[@]}"; {
-			[ "$command" = "$lcmd" ] && "${commands[$lcmd]}" && redraw
-		}
-	fi
+	read -re -p "$1" "$2" || return 1
 }
-
+function execute-extended-command {
+	read-command "${options[command_prompt]}" readin || return 1
+	for lcmd in "${!commands[@]}"; {
+		[ "$readin" = "$lcmd" ] && "${commands[$lcmd]}" && redraw
+	}
+}
+### TODO: make this make sense
+function save {
+	local name="$1"
+	local -n savedcurrent_buffer="current_buffer${name}"	
+   	local -n savedmenuline="menuline${name}"
+	savedcurrent_buffer="$current_buffer"
+	savedmenuline="${!menuline}"
+}
+function restore {
+	local name="$1"
+	local -n savedcurrent_buffer="current_buffer${name}"
+	local -n savedmenuline="menuline${name}"
+	current_buffer="${savedcurrent_buffer}"
+	set-current
+	declare -ng menuline="$savedmenuline"
+}
+###
+function set-current {
+	declare -ng buffer="${current_buffer}_buffer"
+	declare -ng buffersyntax="${current_buffer}_buffersyntax"
+	declare -ng bufferexpand="${current_buffer}_bufferexpand"
+	declare -ng bufferdata="${current_buffer}_bufferdata"
+}
+function switch-to-buffer {
+	redraw
+	read-command "Switch to buffer: " readin
+	current_buffer="$readin"
+	set-current
+}
 function get-syntax {
 	for syntax_setting in "${!syntax[@]}"; do
 		[ "$syntax_setting" = "${bufferdata[filetype]}" ] && {
@@ -621,27 +653,6 @@ function copy-array {
 	done
 }
 
-function save {
-	local name="$1"
-	local -n savedcurrent_buffer="current_buffer${name}"	
-   	local -n savedmenuline="menuline${name}"
-	savedcurrent_buffer="$current_buffer"
-	savedmenuline="${!menuline}"
-}
-function restore {
-	local name="$1"
-	local -n savedcurrent_buffer="current_buffer${name}"
-	local -n savedmenuline="menuline${name}"
-	current_buffer="${savedcurrent_buffer}"
-	set-current
-	declare -ng menuline="$savedmenuline"
-}
-function set-current {
-	declare -ng buffer="${current_buffer}_buffer"
-	declare -ng buffersyntax="${current_buffer}_buffersyntax"
-	declare -ng bufferexpand="${current_buffer}_bufferexpand"
-	declare -ng bufferdata="${current_buffer}_bufferdata"
-}
 function about {
 	save openfile
 	((current_count++))
