@@ -224,7 +224,7 @@ commands=(
 	[read-file]='read-buffer'
 	[write-file]='write-buffer'
 	[delete-line]='delete-line'
-	[toggle-mouse]='toggle-mouse'
+	[xterm-mouse-mode]='toggle-mouse'
 	[execute]='execute'
 	[shell]='shell'
 	[force-quit]='die'
@@ -248,7 +248,8 @@ diredmenu=(
 version="Ebashs dev"menulinepy=0; menulinep=0 # menu positions
 offx=0 # TODO: abuse offsets and size of main render
 offy=1
-sizx=$COLUMNS
+#sizx=$COLUMNS
+sizx=40
 sizy=$((LINES - 1))
 update=1
 case "${options[menuline]}" in
@@ -364,6 +365,7 @@ function get-syntax {
 	syntax_function="${syntax[unknown]}"
 }
 function make-syntax {
+	local -i limit=0
 	comment=0
 	local word=''
 	bckIFS="${IFS}"
@@ -371,6 +373,8 @@ function make-syntax {
 	get-syntax
 	while read -rsn1 char
 	do
+		((limit++))
+		((limit > (sizx + offx) - (buffer_lenght + 1) )) && [ ! "$char" = '' ] && continue
 		case "$char" in
 			' ')
 				syntax-word "$word"
@@ -386,9 +390,10 @@ function make-syntax {
 				syntax-word "$word"
 				word='' comment=0
 				printf '\n'
+				limit=0
 				continue;;
 		esac
-		word="${word}${char}" && printf '%s\e[%sD' "$word" "${#word}"
+		word="${word}${char}"
 	done
 	IFS="${bckIFS}"
 }
@@ -568,8 +573,8 @@ function read-buffer {
 		[file]="$1"
 	)
 	mapfile -t -O 1 "${current_buffer}_buffer" <"${bufferdata[file]}" # Read file into an array
-	make-render # TODO: make fast
 	buffer-lenght
+	make-render # TODO: make fast
 	if [[ "${buffer[@]}" ]]; then # Ensure that something was actually read into the file
 		bufferdata[line]=1 # Indicate that we have a buffer loaded
 		bufferdata[modified]=0
@@ -577,12 +582,6 @@ function read-buffer {
 	else
 		bufferdata[info]="${bufferdata[file]}: empty"
 	fi
-}
-function clear-buffer {
-	buffer=()
-	buffersyntax=()
-	bufferexpand=()
-	bufferdata=()
 }
 
 function topline {
@@ -662,10 +661,10 @@ function about {
 	overlay=()
 	update=0
 	set-buffers about
-	#sizx=$((COLUMNS / 2))
-	#sizy=$((LINES / 3))
-	#offx=$((COLUMNS / 2 - COLUMNS / 4))
-	#offy=$((LINES / 2 - LINES / 6))
+	sizx=$((COLUMNS / 2))
+	sizy=$((LINES / 3))
+	offx=$((COLUMNS / 2 - COLUMNS / 4))
+	offy=$((LINES / 2 - LINES / 6))
 	bufferdata=(
 		[line]=1
 		[base]=1
@@ -1011,13 +1010,12 @@ function menu {
 	overlay+=('menudraw')
 	redraw
 }
-
 function redraw {
 	printf '\e[?25l'
-	((update==1)) && {
-		sizx=$COLUMNS
-		sizy=$((LINES - 1))
-	}
+	#((update==1)) && {
+	#	sizx=$COLUMNS
+	#	sizy=$((LINES - 1))
+	#}
 	(("${options[menuline]}"==1)) && {
 		printf "\e[0m\e[%s;%sH${style[menuline]}\e[?25l%*s\r%s" "$offy" "$offx" "$sizx" "${bufferdata[help_message]}"
 		printf '\e[%sG%s\e[0m\n' "$offx" "${!menuline[*]}"
