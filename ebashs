@@ -294,7 +294,7 @@ function clear-screen {
 function refresh {
 	clear-screen
 	message="reloaded..."
-	megaredraw
+	make-render
 	redraw
 	message=
 }
@@ -364,6 +364,10 @@ function get-syntax {
 	syntax_function="${syntax[unknown]}"
 }
 function make-syntax {
+	local -i syntaxline=1
+	local -n linearray="${current_buffer}_syntax${syntaxline}"
+	linearray=()
+	buffersyntax=()
 	comment=0
 	local word=''
 	bckIFS="${IFS}"
@@ -373,44 +377,49 @@ function make-syntax {
 	do
 		case "$char" in
 			' ')
-				syntax-word "$word"
+				syntax-word
 				word=''
-				printf ' '
+				style none ' '
 				continue;;
 			'	')
-				syntax-word "$word"
+				syntax-word
 				word=''
 				style tab "${options[tabchar]}"
 				continue;;
 			'')
-				syntax-word "$word"
+				syntax-word
 				word='' comment=0
-				printf '\n'
+				buffersyntax[syntaxline]+="${current_buffer}_syntax${syntaxline}"
+				((syntaxline++))
+				local -n linearray="${current_buffer}_syntax${syntaxline}"
+				linearray=()
 				continue;;
 		esac
-		word="${word}${char}" && printf '%s\e[%sD' "$word" "${#word}"
+		word="${word}${char}"
 	done
 	IFS="${bckIFS}"
 }
 function syntax-word {
 	(("${options[todonote]}"==1)) && {
 		case "$word" in
-			'NOTE:') printf "${style[NOTE]}%s${reset}" "${word}"; return ;;
-			'TODO:') printf "${style[TODO]}%s${reset}" "${word}"; return ;;
+			'NOTE:') style NOTE "${word}"; return ;;
+			'TODO:') style TODO "${word}"; return ;;
 		esac
 	}
-	"$syntax_function" "$1"
+	"$syntax_function"
 	style "$syntax_style" "$word"
 }	
 function style {
-	printf '%b%s\e[0;0m' "${style[${1}]}" "$2"
+	IFS=' '
+	[[ "$2" =~ ${2//?/(.)} ]]
+	linearray+=("$(printf '%b' "\e[0;0m${style[${1}]}")${BASH_REMATCH[@]:1}")
+	IFS=''
 }
 function set-style {
 	syntax_style="$1"
 }
 function syntax-bash {
 	((comment)) && set-style comment && return
-	local word="$1"
 	case "${word}" in
 		*'=()'|'declare'|'local'|'typeset') set-style init;;
 		'"$'*) set-style quotevar;;
@@ -441,6 +450,65 @@ function syntax-config {
 	((comment)) && set-style comment && return
 	set-style none
 }
+
+function make-render {
+	printf '%s\n' "${buffer[@]}" | make-syntax
+	printf '%s\n' "${buffer[@]}" | expand-char | mapfile -t -O 1 bufferexpand
+}
+function make-render-line {
+	bufferexpand[bufferdata[line]]="$(expand-char <<< "${buffer[bufferdata[line]]}")"
+	local -i syntaxline=${bufferdata[line]}
+	local -n linearray="${current_buffer}_syntax${syntaxline}"
+	linearray=()
+	comment=0
+	local word=''
+	bckIFS="${IFS}"
+	IFS=''
+	get-syntax
+	while read -rsn1 char
+	do
+		case "$char" in
+			' ')
+				syntax-word
+				word=''
+				style none ' '
+				continue;;
+			'	')
+				syntax-word
+				word=''
+				style tab "${options[tabchar]}"
+				continue;;
+			'')
+				syntax-word
+				word=''
+				style none ' '
+				IFS="${bckIFS}"
+				return;;
+		esac
+		word="${word}${char}"
+	done  <<< "${buffer[bufferdata[line]]}"
+}
+
+function expand-char {
+	bckIFS="${IFS}"
+	IFS=
+	while read -rsn1 char
+	do
+		[ -z "$char" ] && echo && continue
+		case "${char}" in
+			'	')
+				local -i i
+				for ((i = ${#options[tabchar]}; i > 0 ; i--)); do
+					printf '%s' "${charmap[	]}"
+				done;;
+			' ') printf '%s' "${charmap[ ]}";;
+			*)
+				printf '0';;
+		esac
+	done
+	IFS="${bckIFS}"
+}
+
 
 keys_debuginput=(
 	[18 0]='quit-debuginput'
@@ -566,11 +634,12 @@ function read-buffer {
 		[help_message]="${options[help_message]}"
 		[filetype]="$(filetype "$1")"
 		[file]="$1"
+		[basecolumn]=0
 	)
 	mapfile -t -O 1 "${current_buffer}_buffer" <"${bufferdata[file]}" # Read file into an array
-	make-render # TODO: make fast
 	buffer-lenght
-	if [[ "${buffer[@]}" ]]; then # Ensure that something was actually read into the file
+	make-render # TODO: make fast
+	if [[ "${buffer[*]}" ]]; then # Ensure that something was actually read into the file
 		bufferdata[line]=1 # Indicate that we have a buffer loaded
 		bufferdata[modified]=0
 		bufferdata[info]="${bufferdata[file]}: ${#buffer[@]}"
@@ -705,7 +774,6 @@ function quit-view {
 	redraw
 }
 
-
 function write-buffer {
     true >"${bufferdata[file]}" # Set the file to an empty text file
     for ln in "${buffer[@]}"; do # Write in the buffer to the file
@@ -713,35 +781,6 @@ function write-buffer {
     done
     bufferdata[modified]=0
     message="Wrote ${#buffer[@]} lines to '$file'"
-}
-
-function make-render {
-	printf '%s\n' "${buffer[@]}" | make-syntax | mapfile -t -O 1 buffersyntax
-	printf '%s\n' "${buffer[@]}" | expand-char | mapfile -t -O 1 bufferexpand
-}
-function make-render-line {
-	buffersyntax[bufferdata[line]]="$(make-syntax <<< "${buffer[bufferdata[line]]}")"
-	bufferexpand[bufferdata[line]]="$(expand-char <<< "${buffer[bufferdata[line]]}")"
-}
-
-function expand-char {
-	bckIFS="${IFS}"
-	IFS=
-	while read -rsn1 char
-	do
-		[ -z "$char" ] && echo && continue
-		case "${char}" in
-			'	')
-				local -i i
-				for ((i = ${#options[tabchar]}; i > 0 ; i--)); do
-					printf '%s' "${charmap[	]}"
-				done;;
-			' ') printf '%s' "${charmap[ ]}";;
-			*)
-				printf '0';;
-		esac
-	done
-	IFS="${bckIFS}"
 }
 
 function newline {
@@ -873,6 +912,11 @@ function forward-char {
 		((bufferdata[column] > ${#bufferexpand[${bufferdata[line]}]})) && { bufferdata[column]=0; next-line; }
 		bckrl=
 	done
+	((bufferdata[column] > (sizx+offx) - (buffer_lenght + 1) -3 )) && {
+		((bufferdata[basecolumn]++))
+		((bufferdata[column]--))
+		redraw
+	}
 	redraw-statusline
 	redraw-cursor
 }
@@ -889,6 +933,11 @@ function backward-char {
 		((bufferdata[column] < 0)) && {
 			previous-line
 			bufferdata[column]="${#bufferexpand[${bufferdata[line]}]}"
+		}
+		((bufferdata[column] < 2 )) && ((bufferdata[basecolumn] > 0)) && {
+			((bufferdata[basecolumn] > 0)) && ((bufferdata[basecolumn]--))
+			((bufferdata[column]++))
+			redraw
 		}
 	done
 	bckrl=
@@ -1013,6 +1062,7 @@ function menu {
 }
 
 function redraw {
+	bckIFS="$IFS"
 	printf '\e[?25l'
 	((update==1)) && {
 		sizx=$COLUMNS
@@ -1023,12 +1073,19 @@ function redraw {
 		printf '\e[%sG%s\e[0m\n' "$offx" "${!menuline[*]}"
 	} || printf "\e[%s;%sH" "$offy" "$offx"
 	# Iterate over shown lines
+	IFS=''
 	for ((i = bufferdata[base]; i - bufferdata[base] < sizy - ( bottomlines + toplines ) + 1; i++)); do
 		printf "${style[number]}"
 		((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
 		((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((buffer_lenght/2))s~\e[m\n" "$offx"\
-				|| printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n" "$offx" "$i" "${buffersyntax[i]}"
+				|| {
+				# cut the line to fit requested size
+				# due to escape codes present in buffersyntax, the buffersyntax has to be multidimensional nonsense for perfomance reasons
+				local -n linearray="${buffersyntax[i]}"
+				printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n" "$offx" "$i" "${linearray[*]:bufferdata[basecolumn]:(sizx+offx) - (buffer_lenght + 1)}"
+			}
 	done
+	IFS="$bckIFS"
 	redraw-statusline
 	redraw-commandline
 	redraw-cursor
