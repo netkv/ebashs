@@ -215,6 +215,7 @@ syntax=(
 	[ksh]=syntax-bash	[mksh]=syntax-bash
 	[dash]=syntax-bash	[zsh]=syntax-bash
 	[conf]=syntax-config	[unknown]=syntax-unknown
+	[i*dired]=dired-render
 )
 
 commands=(
@@ -444,11 +445,16 @@ function syntax-bash {
 function syntax-unknown {
 	set-style none
 }
+function dired-render {
+	[ -d "$word" ] && set-style link
+	[ -f "$word" ] && set-style none
+}
 function syntax-config {
-	local word="$1"
-	[[ "${word}" =~ "#" ]] && set-style comment && comment=1 && return
 	((comment)) && set-style comment && return
-	set-style none
+	case "${word}" in
+		'#'*) set-style comment && comment=1;;
+		   *) set-style none;;
+	esac
 }
 
 function make-render {
@@ -516,14 +522,16 @@ keys_debuginput=(
 key_options_debuginput=(
 	[else]='insert-debug-hex'
 )
+
 function insert-debug-hex {
 	buffer+=(
 		"${input_hex[*]}"
 	)
-	copy-array buffer buffersyntax
-	copy-array buffer bufferexpand
+	#copy-array buffer buffersyntax
+	#copy-array buffer bufferexpand
 	buffer-lenght
 	next-line
+	make-render-line
 }
 function inputcodes {
 	save openfile
@@ -539,9 +547,10 @@ function inputcodes {
 		[info]='Get input codes'
 		[mode]='debuginput'
 		[help_message]='C-x (18 0) to close'
-		[filetype]='i*'
+		[filetype]='i*term'
 		[file]='*debuginput*'
 		[modified]=0
+		[raw]=1
 	)
 	buffer=("")
 	copy-array overlay bckover
@@ -675,19 +684,12 @@ function dired {
 		[info]='File picker'
 		[mode]='dired'
 		[help_message]='Pick a file'
-		[filetype]='i*'
+		[filetype]='i*dired'
 		[file]='*dired*'
 		[modified]=0
 	)
 	mapfile -t -O 1 buffer <<< "$(pickls)"
-	for idx in "${!buffer[@]}"; do
-		if [ -d "${buffer[idx]}" ]; then
-			buffersyntax[idx]="$(printf ${style[link]})""${buffer[idx]}"
-		else
-			buffersyntax[idx]="${buffer[idx]}"
-		fi
-		bufferexpand[idx]="${buffer[idx]}"
-	done
+	make-render
 	buffer-lenght # drowning in sea of murky logic
 	if [[ "${buffer[1]}" ]]; then # Ensure that something was actually read into the file
 		bufferdata+=(
@@ -730,7 +732,6 @@ function about {
 	copy-array overlay bckover
 	overlay=()
 	update=0
-	set-buffers about
 	#sizx=$((COLUMNS / 2))
 	#sizy=$((LINES / 3))
 	#offx=$((COLUMNS / 2 - COLUMNS / 4))
@@ -742,9 +743,10 @@ function about {
 		[info]='About Ebashs'
 		[mode]='view'
 		[help_message]='About'
-		[filetype]='i*'
+		[filetype]='i*view'
 		[file]='*about*'
 		[modified]=0
+		[raw]=1
 	)
 	declare -gn menuline=menulineabout
 	menulineabout=(
@@ -763,8 +765,6 @@ Repo                     https://github.com/aeknt/spis
 
 Based on                 https://github.com/comfies/bed
 EOF
-	copy-array buffer buffersyntax
-	copy-array buffer bufferexpand
 	clear-screen
 	redraw
 }
@@ -1080,9 +1080,15 @@ function redraw {
 		((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((buffer_lenght/2))s~\e[m\n" "$offx"\
 				|| {
 				# cut the line to fit requested size
-				# due to escape codes present in buffersyntax, the buffersyntax has to be multidimensional nonsense for perfomance reasons
-				local -n linearray="${buffersyntax[i]}"
-				printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n" "$offx" "$i" "${linearray[*]:bufferdata[basecolumn]:(sizx+offx) - (buffer_lenght + 1)}"
+				if ((bufferdata[raw])); then
+					printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n"\
+						   "$offx" "$i" "${buffer[i]:bufferdata[basecolumn]:(sizx+offx) - (buffer_lenght + 1)}"
+				else
+					# due to escape codes present in buffersyntax, the buffersyntax has to be multidimensional nonsense for perfomance reasons
+					local -n linearray="${buffersyntax[i]}"
+					printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n"\
+						   "$offx" "$i" "${linearray[*]:bufferdata[basecolumn]:(sizx+offx) - (buffer_lenght + 1)}"
+					fi
 			}
 	done
 	IFS="$bckIFS"
