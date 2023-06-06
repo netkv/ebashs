@@ -246,7 +246,8 @@ diredmenu=(
 # source extensions/evil
 ## rest of this garbageware
 
-version="Ebashs dev"menulinepy=0; menulinep=0 # menu positions
+version="0.1.0"
+menulinepy=0; menulinep=0 # menu positions
 offx=0 # TODO: abuse offsets and size of main render
 offy=1
 sizx=$COLUMNS
@@ -753,6 +754,9 @@ function about {
 		[quit]='quit-view'
 	)
 	mapfile -t -O 1 buffer <<EOF
+Ebashs $version
+Copyrightn't () 2023 Aeknt. 
+
 This is Ebashs, one component of the Bash/Bash operating system.
 
 An editor written in pure bash via nonsense sphagetti code trying copying emacs.
@@ -764,6 +768,20 @@ Repo                     https://github.com/aeknt/spis
 
 
 Based on                 https://github.com/comfies/bed
+
+
+  ─[bsd0]─────────────────────────────────────────────────────────────────────────────────────
+  Permission to use, copy, modify, and/or distribute this software for any purpose
+  with or without fee is hereby granted.
+
+  THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD
+  TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.
+  IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+  DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+  WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+  ────────────────────────────────────────────────────────────────────────────────────────────
+
 EOF
 	clear-screen
 	redraw
@@ -866,8 +884,8 @@ function previous-line {
 		((bufferdata[line] < bufferdata[base] + 1)) && ((bufferdata[base]--)) && # Push back the top if we need to
 			((bufferdata[base] <= 0)) && bufferdata[base]=1 # Don't push back if our base is at 1
 		[ -z "$bckrl" ] && bckrl="${bufferdata[column]}"
-		(( "${#buffer[${bufferdata[line]}]}" < bufferdata[column] )) && bufferdata[column]="${#buffer[${bufferdata[line]}]}"
-		(( "${#buffer[${bufferdata[line]}]}" > bufferdata[column] )) && bufferdata[column]=${bckrl}
+		(( ${#bufferexpand[bufferdata[line]]} < bufferdata[column] )) && bufferdata[column]=${#bufferexpand[bufferdata[line]]}
+		(( ${#bufferexpand[bufferdata[line]]} > bckrl )) && bufferdata[column]=${bckrl}
 	done
 	redraw
 }
@@ -881,8 +899,8 @@ function next-line {
 		((bufferdata[line] < ${#buffer[@]}+1)) && ((bufferdata[line]++)) # If we can go down, go down
 		((bufferdata[line] > bufferdata[base] + sizy - 3 - bottomlines)) && ((bufferdata[base]++)) # Move window down if needed
 			[ -z "$bckrl" ] && bckrl="${bufferdata[column]}"
-		(( "${#buffer[${bufferdata[line]}]}" < bufferdata[column] )) && bufferdata[column]="${#buffer[${bufferdata[line]}]}"
-		(( "${#buffer[${bufferdata[line]}]}" > bufferdata[column] )) && bufferdata[column]=${bckrl}
+		(( ${#bufferexpand[bufferdata[line]]} < bufferdata[column] )) && bufferdata[column]=${#bufferexpand[bufferdata[line]]}
+		(( ${#bufferexpand[bufferdata[line]]} > bckrl )) && bufferdata[column]=${bckrl}
 	done
 	redraw
 }
@@ -912,13 +930,7 @@ function forward-char {
 		((bufferdata[column] > ${#bufferexpand[${bufferdata[line]}]})) && { bufferdata[column]=0; next-line; }
 		bckrl=
 	done
-	((bufferdata[column] > (sizx+offx) - (buffer_lenght + 1) -3 )) && {
-		((bufferdata[basecolumn]++))
-		((bufferdata[column]--))
-		redraw
-	}
-	redraw-statusline
-	redraw-cursor
+	redraw
 }
 function backward-char {
 	for ((i = 0; i < ${1:-1}; i++)); do
@@ -934,25 +946,19 @@ function backward-char {
 			previous-line
 			bufferdata[column]="${#bufferexpand[${bufferdata[line]}]}"
 		}
-		((bufferdata[column] < 2 )) && ((bufferdata[basecolumn] > 0)) && {
-			((bufferdata[basecolumn] > 0)) && ((bufferdata[basecolumn]--))
-			((bufferdata[column]++))
-			redraw
-		}
+		bckrl=
 	done
-	bckrl=
-	redraw-statusline
-	redraw-cursor
+	redraw
 }
 function move-beginning-of-line {
 	bufferdata[column]=0
 	redraw-statusline
-	redraw-cursor
+	redraw
 }
 function move-end-of-line {
 	bufferdata[column]="${#bufferexpand[${bufferdata[line]}]}"
 	redraw-statusline
-	redraw-cursor
+	redraw
 }
 
 function forward-word {
@@ -1062,6 +1068,8 @@ function menu {
 }
 
 function redraw {
+	((bufferdata[column] +3 < sizx + offx - buffer_lenght - 1)) && bufferdata[basecolumn]=0
+	((bufferdata[column] +3> sizx + offx - buffer_lenght - 1)) && bufferdata[basecolumn]=$((bufferdata[column] - (sizx + offx - buffer_lenght - 1) +3 ))
 	bckIFS="$IFS"
 	printf '\e[?25l'
 	((update==1)) && {
@@ -1101,7 +1109,7 @@ function redraw {
 	}
 }
 function redraw-cursor {
-	printf '\e[?25h\e[%s;%sH' $((bufferdata[line] + 1 - bufferdata[base] + offy)) $((bufferdata[column] + buffer_lenght + 2 + offx)) # move cursor to the line
+	printf '\e[?25h\e[%s;%sH' $((bufferdata[line] + 1 - bufferdata[base] + offy)) $((bufferdata[column] - bufferdata[basecolumn] + buffer_lenght + 2 + offx)) # move cursor to the line
 }
 function redraw-statusline {
 	printf "\e[%s;%sH\n\e[%sG${style[infoline]}%*s\e[%sG%s %s (%s,%s) (screen: %s)\e[m" \
