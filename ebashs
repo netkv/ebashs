@@ -12,9 +12,9 @@ trap quit SIGTERM
 declare -A syntax style options charmap commands
 declare -A menulineedit menulineabout diredmenu menulinedebug
 declare -A menufile menuhelp menukey menudebug menufancy
-declare -A keys_def keys_edit keys_prefix keys_dired keys_view keys_menu keys_debuginput keys_prefix_help
-declare -A key_options_menu key_options_debuginput
-declare -a input_hex overlay
+declare -A keys_def keys_edit keys_prefix keys_dired keys_view keys_menu keys_debuginput keys_prefix_help keys_list_buffers
+declare -A key_options_menu key_options_debuginput key_options_list_buffers
+declare -a input_hex overlay listbuffers
 declare -n buffer buffersyntax bufferexpand bufferdata
 declare -i menulinep menulinepy buffer_lenght toplines bottomlines hidden offx offy sizx sizy update ismenu comment current_count
 declare -n menucon menuline
@@ -108,11 +108,22 @@ keys_view=(
 	[${keys_def[scroll_up]}]='scroll-up'
 	[${keys_def[select]}]='quit-view'
 )
+keys_list_buffers=(
+	[${keys_def[previous_line]}]='previous-line'
+	[${keys_def[next_line]}]='next-line'
+	[${keys_def[scroll_down]}]='scroll-down'
+	[${keys_def[scroll_up]}]='scroll-up'
+	[${keys_def[select]}]='buffer-select'
+)
+key_options_list_buffers=(
+	[else]='quit-view'
+)
 keys_prefix=(
 	[18 0]='quit'
 	[7 0]='quit-prefix'
 	[13 0]='write_buffer'
 	[6 0]='find-file'
+	[2 0]='list-buffers'
 	[62 0]='switch-to-buffer'
 )
 keys_prefix_help=(
@@ -238,6 +249,7 @@ commands=(
 	[scroll-down]='scroll-down'
 	[dired]='dired'
 	[switch-to-buffer]='switch-to-buffer'
+	[list-buffers]='list-buffers'
 )
 diredmenu=(
 	[toggle hidden \(h\)]="toggle_hidden"
@@ -246,13 +258,14 @@ diredmenu=(
 # source extensions/evil
 ## rest of this garbageware
 
-version="0.1.0"
+version="0.2.0"
 menulinepy=0; menulinep=0 # menu positions
 offx=0 # TODO: abuse offsets and size of main render
 offy=1
 sizx=$COLUMNS
 sizy=$((LINES - 1))
 update=1
+listbuffers=('')
 case "${options[menuline]}" in
 	1) toplines=1;;
 	0) toplines=0;;
@@ -355,7 +368,49 @@ function switch-to-buffer {
 	read-command "Switch to buffer: " readin
 	current_buffer="$readin"
 	set-current
+	redraw
 }
+add-to-list() {
+	listbuffers+=("$current_buffer")
+}
+function list-buffers {
+	save openfile
+	current_buffer="list_buffers"
+	declare -Ag "${current_buffer}_bufferdata"
+	set-current
+	copy-array overlay bckover
+	overlay=()
+	update=0
+	#sizx=$((COLUMNS / 2))
+	#sizy=$((LINES / 3))
+	#offx=$((COLUMNS / 2 - COLUMNS / 4))
+	#offy=$((LINES / 2 - LINES / 6))
+	bufferdata=(
+		[line]=1
+		[base]=1
+		[column]=0
+		[info]='Currently open buffers'
+		[mode]='list_buffers'
+		[help_message]=''
+		[filetype]='i*buffer-list'
+		[file]='*Buffer List*'
+		[modified]=0
+		[raw]=1
+	)
+	declare -gn menuline=menulineabout
+	menulineabout=(
+		[quit]='quit-view'
+	)
+	copy-array listbuffers buffer
+	redraw
+}
+buffer-select() {
+	current_buffer="${buffer[bufferdata[line]]}"
+	set-current
+	[ "${bufferdata[mode]}" = 'prefix' ] && bufferdata[mode]="$bckmode"
+	redraw
+}
+
 function get-syntax {
 	for syntax_setting in "${!syntax[@]}"; do
 		[ "$syntax_setting" = "${bufferdata[filetype]}" ] && {
@@ -539,6 +594,7 @@ function inputcodes {
 	declare -gn menuline=menulinedebug
 	((current_count++))
 	current_buffer="debuginput_${current_count}"
+	add-to-list # add buffer to list of active buffers
 	declare -Ag "${current_buffer}_bufferdata"
 	set-current
 	bufferdata=(
@@ -632,6 +688,7 @@ function find-file {
 function read-buffer {
 	((current_count++))
 	current_buffer="file_${current_count}"
+	add-to-list
 	declare -Ag "${current_buffer}_bufferdata"
 	set-current
 	declare -ng menuline=menulineedit # Set default menuline for file editing
@@ -676,6 +733,7 @@ function dired {
 	declare -gn menuline=diredmenu
 	((current_count++))
 	current_buffer="dired_${current_count}"
+	add-to-list
 	declare -Ag "${current_buffer}_bufferdata"
 	set-current
 	bufferdata=(
@@ -723,11 +781,11 @@ function copy-array {
 		target[idx]="${source[idx]}"
 	done
 }
-
 function about {
 	save openfile
 	((current_count++))
 	current_buffer="about_${current_count}"
+	add-to-list
 	declare -Ag "${current_buffer}_bufferdata"
 	set-current
 	copy-array overlay bckover
@@ -783,6 +841,7 @@ Based on                 https://github.com/comfies/bed
   ────────────────────────────────────────────────────────────────────────────────────────────
 
 EOF
+	copy-array buffer bufferexpand
 	clear-screen
 	redraw
 }
