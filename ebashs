@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.3.0-WIP-3"
+version="0.3.0-WIP-4"
 printf '\e[?1049h'
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
@@ -1026,7 +1026,8 @@ function previous-line {
 
 function scroll-down {
     previous-line $((sizy - 3))
-	make-render-area ${bufferdata[base]} $((bufferdata[base] + sizy -3))
+	make-render
+	redraw
 }
 
 function next-line {
@@ -1042,8 +1043,8 @@ function next-line {
 
 function scroll-up {
     next-line $((sizy - 3))
-	[ -z "${buffersyntax[bufferdata[base]]}" ] || [ -z "${buffersyntax[bufferdata[base]+sizy]}" ] &&
-		make-render-area "${bufferdata[base]}" $((bufferdata[base] + sizy))
+	make-render
+	redraw
 }
 
 function execute {
@@ -1219,29 +1220,42 @@ function redraw {
 	} || printf "\e[%s;%sH" "$offy" "$offx"
 	# Iterate over shown lines
 	IFS=''
-	for ((i = bufferdata[base]; i - bufferdata[base] < sizy - ( bottomlines + toplines ) + 1; i++)); do
-		printf "${style[number]}"
-		((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
-		((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((buffer_lenght/2))s~\e[m\n" "$offx"\
-				|| {
-				# cut the line to fit requested size
-				if ((bufferdata[raw])); then
+	if ((bufferdata[raw])); then
+		for ((i = bufferdata[base]; i - bufferdata[base] < sizy - ( bottomlines + toplines ) + 1; i++)); do
+			printf "${style[number]}"
+			((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
+			((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((buffer_lenght/2))s~\e[m\n" "$offx"\
+					|| {
 					printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n"\
 						   "$offx" "$i" "${buffer[i]:bufferdata[basecolumn]:(sizx+offx) - (buffer_lenght + 1)}"
-				else
+				}
+		done
+	else
+		for ((i = bufferdata[base]; i - bufferdata[base] < sizy - ( bottomlines + toplines ) + 1; i++)); do
+			printf "${style[number]}"
+			((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
+			((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((buffer_lenght/2))s~\e[m\n" "$offx"\
+					|| {
+					# cut the line to fit requested size
 					# to improve speed syntaxing has to be "lazy"
 					# if the bottomest line is empty, syntax another 10 lines
 					[ -z "${buffersyntax[bufferdata[base]+sizy-(bottomlines+toplines)+2]}" ] && {
 						bottomest=$((bufferdata[base]+sizy-(bottomlines+toplines)+2))
 						make-render-area $bottomest $((bottomest+options[render_chunk]))
 					}
-					# due to escape codes present in buffersyntax, the buffersyntax has to be multidimensional nonsense for perfomance reasons
-					local -n linearray="${buffersyntax[i]}"
-					printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n"\
-						   "$offx" "$i" "${linearray[*]:bufferdata[basecolumn]:(sizx+offx) - (buffer_lenght + 1)}"
-				fi
-			}
-	done
+					if [ -n "${buffersyntax[i]}" ]; then
+						# due to escape codes present in buffersyntax,
+						# the buffersyntax has to be multidimensional nonsense for perfomance reasons
+						local -n linearray="${buffersyntax[i]}"
+						   printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n"\
+								  "$offx" "$i" "${linearray[*]:bufferdata[basecolumn]:(sizx+offx) - (buffer_lenght + 1)}"
+					else
+						printf "\e[%sG\e[K%${buffer_lenght}s\e[m ${style[comment]}%s\n"\
+							   "$offx" "$i" "loading syntax..."
+					fi
+				}
+		done
+	fi
 	IFS="$bckIFS"
 	redraw-statusline
 	redraw-commandline
