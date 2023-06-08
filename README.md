@@ -8,6 +8,8 @@ A component of the Bash/Bash operating system.
 > Versions of Ebashs ending in WIP-x are and will be broken, you can check version via M-x about
 or by reading the second line of Ebashs script.
 
+![Ebashs logo](etc/Ebashs.png)
+
 # FEATURES
 
 - Syntax highlighting
