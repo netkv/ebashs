@@ -35,6 +35,7 @@ options=(
 	[default_mode]='edit'
 	[help_message]='(F10 to open menu)'
 	[dired_message]='Pick a file'
+	[render_chunk]=8
 )
 ## Key bindings configuration
 #      A keybindings for a mode x have to be in associative array named keys_${x}, else spis won't see them
@@ -420,7 +421,63 @@ function get-syntax {
 	done
 	syntax_function="${syntax[unknown]}"
 }
-function make-syntax {
+
+function make-render {
+	buffersyntax=()
+	make-render-area "${bufferdata[base]}" $((bufferdata[base] + sizy + offy))
+	#printf '%s\n' "${buffer[@]}" | make-syntax
+	#printf '%s\n' "${buffer[@]}" | expand-char | mapfile -t -O 1 bufferexpand
+}
+
+function make-render-area {
+	local -i syntaxline="$1"
+	local -n linearray="${current_buffer}_syntax${syntaxline}"
+	linearray=()
+	#buffersyntax=()
+	bckeIFS="${IFS}"
+	IFS=''
+	get-syntax
+	for ((l=syntaxline;l<${2};l++)); do
+		((l > $2)) && break
+		#make-render-line "$l"
+		#style none "${buffer[l]}"
+		local -n linearray="${current_buffer}_syntax${syntaxline}"
+		linearray=()
+		buffersyntax[syntaxline]="${current_buffer}_syntax${syntaxline}"
+		((syntaxline++))
+		make-render-iline "$l"
+	done
+	IFS="$bckeIFS"
+}
+function make-render-iline {
+	line="$1"
+	bufferexpand[line]="$(expand-char <<< "${buffer[line]}")"
+	comment=0
+	local word=''
+	while read -rsn1 char
+	do
+		case "$char" in
+			' ')
+				syntax-word
+				word=''
+				style none ' '
+				continue;;
+			'	')
+				syntax-word
+				word=''
+				style tab "${options[tabchar]}"
+				continue;;
+			'')
+				syntax-word
+				word=''
+				style none ' '
+				return;;
+		esac
+		word="${word}${char}"
+	done  <<< "${buffer[line]}"
+}
+
+function make-syntax-whole {
 	local -i syntaxline=1
 	local -n linearray="${current_buffer}_syntax${syntaxline}"
 	linearray=()
@@ -513,13 +570,11 @@ function syntax-config {
 	esac
 }
 
-function make-render {
-	printf '%s\n' "${buffer[@]}" | make-syntax
-	printf '%s\n' "${buffer[@]}" | expand-char | mapfile -t -O 1 bufferexpand
-}
 function make-render-line {
-	bufferexpand[bufferdata[line]]="$(expand-char <<< "${buffer[bufferdata[line]]}")"
-	local -i syntaxline=${bufferdata[line]}
+	line="$1"
+	((${#1})) || local -i line=${bufferdata[line]}
+	bufferexpand[line]="$(expand-char <<< "${buffer[line]}")"
+	local -i syntaxline=$line
 	local -n linearray="${current_buffer}_syntax${syntaxline}"
 	linearray=()
 	comment=0
@@ -548,7 +603,7 @@ function make-render-line {
 				return;;
 		esac
 		word="${word}${char}"
-	done  <<< "${buffer[bufferdata[line]]}"
+	done  <<< "${buffer[line]}"
 }
 
 function expand-char {
@@ -1151,11 +1206,17 @@ function redraw {
 					printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n"\
 						   "$offx" "$i" "${buffer[i]:bufferdata[basecolumn]:(sizx+offx) - (buffer_lenght + 1)}"
 				else
+					# to improve speed syntaxing has to be "lazy"
+					# if the bottomest line is empty, syntax another 10 lines
+					[ -z "${buffersyntax[bufferdata[base]+sizy-(bottomlines+toplines)+2]}" ] && {
+						bottomest=$((bufferdata[base]+sizy-(bottomlines+toplines)+2))
+						make-render-area $bottomest $((bottomest+options[render_chunk]))
+					}
 					# due to escape codes present in buffersyntax, the buffersyntax has to be multidimensional nonsense for perfomance reasons
 					local -n linearray="${buffersyntax[i]}"
 					printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n"\
 						   "$offx" "$i" "${linearray[*]:bufferdata[basecolumn]:(sizx+offx) - (buffer_lenght + 1)}"
-					fi
+				fi
 			}
 	done
 	IFS="$bckIFS"
