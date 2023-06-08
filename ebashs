@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.3.0-WIP-2"
+version="0.3.0-WIP-3"
 printf '\e[?1049h'
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
@@ -1026,6 +1026,7 @@ function previous-line {
 
 function scroll-down {
     previous-line $((sizy - 3))
+	make-render-area ${bufferdata[base]} $((bufferdata[base] + sizy -3))
 }
 
 function next-line {
@@ -1041,6 +1042,8 @@ function next-line {
 
 function scroll-up {
     next-line $((sizy - 3))
+	[ -z "${buffersyntax[bufferdata[base]]}" ] || [ -z "${buffersyntax[bufferdata[base]+sizy]}" ] &&
+		make-render-area "${bufferdata[base]}" $((bufferdata[base] + sizy))
 }
 
 function execute {
@@ -1306,7 +1309,6 @@ function input-key {
 		return
 	}
 	[ "${bufferdata[mode]}" = 'edit' ] || return
-	
 	(("${options[mouse]}"==1)) && {
 		#parse mouse stuff somewhatish weirdly
 		[ "${input_hex[*]:0:5}" = '1b 5b 3c 36 34' ] && previous-line && return
@@ -1349,6 +1351,7 @@ function input-key {
 	#[ "${input_hex[*]:0:3}" = '1b 5b 3c' ] && return
 	[ "${input_hex[*]:0:1}" = '1b' ] && return # TODO: prevent escape codes without hacky blocking
 	[ "${bufferdata[mode]}" = edit ] && {
+		[[ $1 =~ [[:cntrl:]] ]] && return
 		local -i rlr
 		unset ta
 		local ta
