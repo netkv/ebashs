@@ -1,5 +1,7 @@
 Note that the readme, may be currently outdated as I am changing the core functioning of Ebashs.
 
+Versions of Ebashs ending in WIP-x are and will be broken, you can check version via M-x about
+or by reading the second line of Ebashs script
 
 This is Ebashs, one component of the Bash/Bash operating system.
 
