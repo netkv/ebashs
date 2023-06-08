@@ -25,7 +25,7 @@ Ebashs is configured via variables defined at start, you can turn it into a conf
 - `mouse` *(0)* - enables mouse at launch
 - `todonote` *(1)* - highlight TODO & NOTE
 - `menuline` *(1)* - display menuline
-- `tabchar` *('|   ')* - what should tab display as
+- `tabchar` *`('|   ')`* - what should tab display as
 - `refresh_timeout` *(1)* - how often to refresh input
 - `file_prompt` *('Path: ')* - how often to refresh input
 - `cmd_prompt` *(M-x)* - command line prompt
