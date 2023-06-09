@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.3.0-WIP-4"
+version="0.3.0-WIP-5"
 printf '\e[?1049h'
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
@@ -131,6 +131,7 @@ keys_prefix=(
 keys_prefix_help=(
 	[7 0]='quit-prefix'
 	[1 0]='about'
+	[72 0]='manual'
 )
 keys_menu=(
 	[${keys_def[previous_line]}]='menuup'
@@ -900,6 +901,374 @@ EOF
 	clear-screen
 	redraw
 }
+function table-init {
+	table_columns="$1"
+	shift
+	local -i i=0
+	for col in "$@"; do
+		local -n n="table_column_$i"
+		n="$col"
+		((i++))
+	done
+}
+function table-char {
+	if (( ${#@} == 11 )); then
+		table_char=("$@")
+	else
+		table_char=(─ │ ┌ ┬ ┐ ├ ┼ ┤ └ ┴ ┘)
+	fi
+}
+function table-top {
+	printf '%s' "${table_char[2]}"
+	for ((i=0; i<table_columns; i++)); do
+		local -n n="table_column_$i"
+		for ((ii=1; ii-1<n; ii++)); do
+			printf '%s' "${table_char[0]}"
+		done
+		((i==table_columns-1)) || printf '%s' "${table_char[3]}"
+		((i==table_columns-1)) && printf '%s' "${table_char[4]}"
+	done
+	printf '\n'
+}
+function table-divider {
+	printf '%s' "${table_char[5]}"
+	for ((i=0; i<table_columns; i++)); do
+		local -n n="table_column_$i"
+		for ((ii=1; ii-1<n; ii++)); do
+			printf '%s' "${table_char[0]}"
+		done
+		((i==table_columns-1)) || printf '%s' "${table_char[6]}"
+		((i==table_columns-1)) && printf '%s' "${table_char[7]}"
+	done
+	printf '\n'
+}
+function table-bottom {
+	printf '%s' "${table_char[8]}"
+	for ((i=0; i<table_columns; i++)); do
+		local -n n="table_column_$i"
+		for ((ii=1; ii-1<n; ii++)); do
+			printf '%s' "${table_char[0]}"
+		done
+		((i==table_columns-1)) || printf '%s' "${table_char[9]}"
+		((i==table_columns-1)) && printf '%s' "${table_char[10]}"
+	done
+	printf '\n'
+}
+function table-item {
+	local -i i=0
+	for item in "$@"; do
+		local -n n="table_column_$i"
+		printf '%s' "${table_char[1]}"
+		printf '%s' "$item"
+		printf '%*s' $(( n - ${#item} )) ''
+		((i++))
+	done
+	printf '%s' "${table_char[1]}"
+	printf '\n'
+}
+function table-title {
+	local -i i=0
+	for title in "$@"; do
+		local -n n="table_column_$i"
+		printf '%s' "${table_char[1]}"
+		printf '%*s' $(( n / 2 - ( ${#title} / 2 ) )) ''
+		printf '%s' "$title"
+		if ((${#title}%2==0)) && ((n%2==1)); then
+			printf '%*s' $(( ( n / 2 - ( ${#title} / 2 ) ) + 1 )) ''
+		else
+			printf '%*s' $(( n / 2 - ( ${#title} / 2 ) )) ''
+		fi
+		((i++))
+	done
+	printf '%s' "${table_char[1]}"
+	printf '\n'
+}
+function print-stdin {
+	# basically cat
+	while read -r; do echo "$REPLY"; done
+}
+function title {
+	printf '[ %s ]' "$@"
+}
+function manual {
+	save openfile
+	((current_count++))
+	current_buffer="about_${current_count}"
+	add-to-list
+	declare -Ag "${current_buffer}_bufferdata"
+	set-current
+	copy-array overlay bckover
+	overlay=()
+	update=0
+	#sizx=$((COLUMNS / 2))
+	#sizy=$((LINES / 3))
+	#offx=$((COLUMNS / 2 - COLUMNS / 4))
+	#offy=$((LINES / 2 - LINES / 6))
+	bufferdata=(
+		[line]=1
+		[base]=1
+		[column]=0
+		[info]='About Ebashs'
+		[mode]='view'
+		[help_message]='About'
+		[filetype]='i*render'
+		[file]='*about*'
+		[modified]=0
+		[raw]=1
+	)
+	declare -gn menuline=menulineabout
+	menulineabout=(
+		[quit]='quit-view'
+	)
+	mapfile -t -O 1 buffer <<EOF
+Manual for Ebashs, one component of the Bash/Bash operating system.
+
+$(table-init 1 14
+table-char ═ ║ ╔ X ╗ X X X ╚ X ╝
+print-stdin <<EOF2
+                                     $(table-top)
+                                     $(table-title EBASHS)
+                                     $(table-bottom)
+EOF2
+)
+
+$(title DESCRIPTION)
+
+An attempt to clone GNU Emacs but in bash.
+
+$(title FEATURES)
+
+syntax highlighting
+custom keybindings
+custom modes -- so you can implement the evil too
+file picker
+mouse support
+
+$(title CONFIG)
+
+Ebashs is configured via variables defined at start, you can separate it into file
+and then source it.
+
+    $(title 'OPTIONS ARRAY')
+
+$(table-init 3 19 19 39; table-char
+print-stdin <<EOF2
+    $(table-top)
+    $(table-title NAME DEFAULT DESCRIPTION)
+    $(table-divider)
+    $(table-item mouse ' 0' 'enable mouse at launch')
+    $(table-item todonote ' 1' "highlight 'TODO:' & 'NOTE:'")
+    $(table-item menuline ' 1' 'display menuline')
+    $(table-item tabchar "'|   '" 'what should tab display as')
+    $(table-item refresh_timeout ' 1' 'how often to refresh input')
+    $(table-item file_prompt "'Path: '" 'file setting prompt')
+    $(table-item cmd_prompt "'M-x '" 'command line prompt')
+    $(table-item cancelhex "'18 0' (C-x)" 'keybinding to exit debug input menu')
+    $(table-item default_mode ' edit' 'what mode should be set on launch')
+    $(table-item help_message "'F10 to open menu'" 'top right help message')
+    $(table-item dired_message "'Pick a file'" 'same as above but for dired buffer')
+    $(table-item rendr_chunk ' 8' 'how many lines to syntax while moving')
+    $(table-bottom)
+EOF2
+)
+
+    $(title 'KEYBINDING ARRAYS')
+
+    Keybinding arrays match with modes. The array has to be associative and nammed
+    keys_<mode>. keys_def is reserved and used as reference for other arrays, it's
+    also reversed compared to other keybinding arrays.
+
+    There is also a optionable option array possible for all keybinding arrays.
+    Currently only defined option is [else] which defines what should happen if no key
+    is matched from the keybinding. These arrays have to be named key_options_<mode>.
+
+    $(title MODES)
+
+    Modes determine used keybinding and other properties of buffer.
+$(table-init 2 19 43; table-char
+print-stdin <<EOF2
+    $(table-top)
+    $(table-title NAME DESCRIPTION)
+    $(table-divider)
+    $(table-item edit "general editing mode")
+    $(table-item dired "mode used in file picker")
+    $(table-item view "read-only mode")
+    $(table-item menu "mode of menus")
+    $(table-item debuginput "for getting input codes (M-x input)")
+    $(table-item prefix "for C-x prefix")
+    $(table-item prefix_help "for C-h prefix")
+    $(table-item quit "for quit confirmation")
+    $(table-item list_buffers "used in buffer switcher")
+    $(table-bottom)
+EOF2
+)
+
+    $(title STYLE)
+
+    Style of stuff is defined as escape code.
+
+$(table-init 3 19 19 39; table-char
+print-stdin <<EOF2
+    $(table-top)
+    $(table-title NAME DEFAULT DESCRIPTION)
+    $(table-divider)
+    $(table-item none ' \e[m' 'Style reset')
+    $(table-item TODO ' \e[0;97;45m' "Highlighting of 'TODO: '")
+    $(table-item NOTE ' \e[0;97;100m' "Highlighting of 'NOTE: '")
+    $(table-item menuline ' \e[0;37;40' 'Menuline')
+    $(table-item menuitem ' \e[0;37;40' 'Items of menuline')
+    $(table-item link ' \e[94m' 'Redirects')
+    $(table-item menuitemselected ' \e[30;45m' 'Selected item of menu')
+    $(table-item infoline ' \e[40;97m' 'Bottom statusline')
+    $(table-item number ' \e[0;90m' 'Line count')
+    $(table-item numberempty ' \e[0;90m' 'Lines that do not exist')
+    $(table-item numberselected ' \e[0;91m' 'Currently selected line')
+    $(table-item tab ' \e[0;90m' 'Tabs')
+    $(table-divider)
+    $(table-item qutevar ' \e[0;36;48m' 'Quoted variables')
+    $(table-item comment ' \e[3;37;48m' 'Comments')
+    $(table-item variable ' \e[0;96m' 'Variables')
+    $(table-item option ' \e[0;93m' 'Options')
+    $(table-item flow ' \e[0;93m' 'Control flow')
+    $(table-item bracket ' \e[1;95m' 'Brackets')
+    $(table-item quote ' \e[0;92m' 'String literals')
+    $(table-item dquote ' \e[0;32m' 'Strings')
+    $(table-item set ' \e[0;94;108m' 'Variable assignments')
+    $(table-item fn ' \e[0;30;44m' 'Function definitions')
+    $(table-item keyword ' \e[0;91m' 'Keywords')
+    $(table-bottom)
+EOF2
+)
+
+    $(title SYNTAX)
+
+    Defines which syntax functions should be used for which file types.
+
+    $(title MENULINE)
+
+    Defines items in menuline, content of keys defines which functions should be ran
+    on invocation.
+
+    $(title MENUS)
+
+    Each menu has to have helper function to set it up on request:
+        <menu>() { declare -ng menucon=<menu>; menu; }
+    The contents of menu are defined by an associative  array.
+
+    $(title COMMANDS)
+
+    Defines commands that can be used in M-x.
+
+$(title EXTENDING)
+
+Some of usesfull variables and for extending Ebashs
+
+$(table-init 2 19 43; table-char
+print-stdin <<EOF2
+$(table-top)
+$(table-title NAME DESCRIPTION)
+$(table-divider)
+$(table-item buffer 'File data')
+$(table-item buffersyntax 'Multidimensional buffer for rendering')
+$(table-item bufferexpand 'Special characters filtered out')
+$(table-item bufferdata 'Options of current buffer')
+$(table-item charmap 'Definitions for bufferexpand')
+$(table-item mode 'Current mode')
+$(table-item commands 'List of M-x commands')
+$(table-bottom)
+EOF2
+)
+
+$(title 'SYNTAX HIGHLIGHTING')
+
+Ebashs handles highlighting via checking 'syntax' array which consists of
+[file type]=syntax-function
+
+    $(title 'SYNTAX FUNCTIONS')
+
+    Here is sample bash syntax function included with Ebashs:
+
+    syntax+=(
+        [bash]=syntax-bash
+    )
+    syntax-bash() {
+        ((comment)) && set-style comment && return
+        local word="$1"
+        case "${word}" in
+            '"$'*) set-style quotevar;;
+             '#'*) set-style comment && comment=1;;
+             '$'*) set-style variable;;
+             '-'*) set-style option;;
+            *'()') set-style fn;;
+            '||'|'&&'|';') set-style flow;;
+            '('|')'|'{'|'}'|'[['|']]'|'['|']') set-style bracket;;
+            'function') set-style fn;;
+            *"'"*) set-style quote;;
+            *'"'*) set-style dquote;;
+            *'='*) set-style set;;
+            'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|\\
+            'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|'declare'|\\
+            'typeset'|'local'|'let'|'shopt'|'trap'|'set'|'eval'\\
+             ) set-style keyword;;
+            *) set-style none;;
+        esac
+    }
+
+    The comments are handled specially via comment variable which gets reseted
+	at every newline. (I really need to make this less bash specific I guess.)
+
+$(title EXAMPLES)
+
+A simple function to jump to line 11 when C-x M-e is pressed:
+
+    keys_prefix+=( # prefix is the mode for C-x
+        [1b 65 0]='jump-to-11' # '1b 65 0' is the M-e in hex.
+                               # You can use the M-x input to convert to hex. format.
+    )
+    jump-to-11() {
+        [[ -n "${buffer[11]}" ]] && line=11 # If line 11 exists, set current line to 11.
+        [[ "${bufferdata[mode]}" = 'prefix' ]] && quit-prefix
+                                    # Since the key stroke contains C-x as prefix,
+                                    # quit-prefix is is required as otherwise
+                                    # it would stay in 'prefix' mode.
+        redraw # Redraw whole buffer.
+    }
+
+A function to write 'Hello world!' at current cursor position when M-x hi is typed
+
+    commands+=(
+        [hi]='hello-world' # Add command 'hi' invoking 'hello-world' function:
+    )
+    hello-world() {
+        insert-word 'Hello-world!' # The function 'insert-word' handles insertion
+                                   # of stuff, so no redraw or other magic is needed.
+    }
+
+Create a menu containing previous functions 'jump-to-11' & 'hello-world':
+
+    example-menu-function() { declare -ng menucon='example_menu'; menu; }
+    # A function with which the menu will be invoked.
+
+    declare -A example_menu
+    example_menu=(
+        [Jump to 11  ]='jump-to-11'  # The names of items in menu should have
+        [Hello world!]='hello-world' # same width to display correctly.
+    )
+
+    # Add the example_menu into default menuline
+    menulineedit+=(
+        [Example]='example-menu-function'
+    )
+
+$(title CREDITS)
+
+Based on https://github.com/comfies/bed
+EOF
+	copy-array buffer bufferexpand
+	clear-screen
+	redraw
+}
+
 function quit-view {
 	copy-array bckover overlay
 	restore openfile
@@ -1238,7 +1607,7 @@ function redraw {
 					|| {
 					# cut the line to fit requested size
 					# to improve speed syntaxing has to be "lazy"
-					# if the bottomest line is empty, syntax another 10 lines
+					# if the bottomest line is empty, syntax another <render_chunk> lines
 					[ -z "${buffersyntax[bufferdata[base]+sizy-(bottomlines+toplines)+2]}" ] && {
 						bottomest=$((bufferdata[base]+sizy-(bottomlines+toplines)+2))
 						make-render-area $bottomest $((bottomest+options[render_chunk]))
@@ -1407,5 +1776,4 @@ function begin {
 		fi
 	done
 }
-
 main "$@"
