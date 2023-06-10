@@ -1,6 +1,5 @@
 #!/bin/bash
-version="0.3.0-WIP-5"
-printf '\e[?1049h'
+version="0.3.0-WIP-6"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -931,6 +930,9 @@ function table-top {
 	printf '\n'
 }
 function table-divider {
+	table-title-line "$@"
+}
+function table-title-line {
 	printf '%s' "${table_char[5]}"
 	for ((i=0; i<table_columns; i++)); do
 		local -n n="table_column_$i"
@@ -983,12 +985,32 @@ function table-title {
 	printf '%s' "${table_char[1]}"
 	printf '\n'
 }
-function print-stdin {
-	# basically cat
+function code-block {
 	while read -r; do echo "$REPLY"; done
+}
+function print-stdin {
+	while read -r; do echo "$REPLY"; done
+}
+function text {
+	while read -r; do
+		l=${#REPLY}
+		for ((i=0; i<l; i+=(sizx/3)*2)); do
+			printf '%s%s\n' "$1" "${REPLY:i:(sizx/3)*2}"
+		done
+	done
 }
 function title {
 	printf '[ %s ]' "$@"
+}
+function header {
+	arg=$*
+	table-init 1 $(( ${#arg} * 2 ))
+	table-char ═ ║ ╔ X ╗ X X X ╚ X ╝
+	print-stdin <<EOF2
+                                     $(table-top)
+                                     $(table-title "${1}")
+                                     $(table-bottom)
+EOF2
 }
 function manual {
 	save openfile
@@ -1020,34 +1042,52 @@ function manual {
 	menulineabout=(
 		[quit]='quit-view'
 	)
+	get-manual
+	copy-array buffer bufferexpand
+	clear-screen
+	redraw
+}
+function get-manual {
 	mapfile -t -O 1 buffer <<EOF
-Manual for Ebashs, one component of the Bash/Bash operating system.
-
-$(table-init 1 14
-table-char ═ ║ ╔ X ╗ X X X ╚ X ╝
-print-stdin <<EOF2
-                                     $(table-top)
-                                     $(table-title EBASHS)
-                                     $(table-bottom)
+$(text <<EOF2
+This is Ebashs, one component of the Bash/Bash operating system.
+… or even better an attempt to clone GNU Emacs in bash.
 EOF2
 )
 
+$(text '    '<<EOF2
+Note that the readme, may be currently outdated as I am changing the core functioning of Ebashs.
+
+Versions of Ebashs ending in WIP-x are and will be broken, you can check version via M-x about or by reading the second line of Ebashs script.
+EOF2
+)
+
+$(header EBASHS)
+
 $(title DESCRIPTION)
 
+$(text <<EOF2
 An attempt to clone GNU Emacs but in bash.
+EOF2
+)
 
 $(title FEATURES)
 
+$(text <<EOF2
 syntax highlighting
 custom keybindings
 custom modes -- so you can implement the evil too
 file picker
 mouse support
+EOF2
+)
 
 $(title CONFIG)
 
-Ebashs is configured via variables defined at start, you can separate it into file
-and then source it.
+$(text <<EOF2
+Ebashs is configured via variables defined at start, you can separate it into file and then source it.
+EOF2
+)
 
     $(title 'OPTIONS ARRAY')
 
@@ -1055,7 +1095,7 @@ $(table-init 3 19 19 39; table-char
 print-stdin <<EOF2
     $(table-top)
     $(table-title NAME DEFAULT DESCRIPTION)
-    $(table-divider)
+    $(table-title-line)
     $(table-item mouse ' 0' 'enable mouse at launch')
     $(table-item todonote ' 1' "highlight 'TODO:' & 'NOTE:'")
     $(table-item menuline ' 1' 'display menuline')
@@ -1074,22 +1114,28 @@ EOF2
 
     $(title 'KEYBINDING ARRAYS')
 
-    Keybinding arrays match with modes. The array has to be associative and nammed
-    keys_<mode>. keys_def is reserved and used as reference for other arrays, it's
-    also reversed compared to other keybinding arrays.
+$(text '    ' <<EOF2
+Keybinding arrays match with modes. The array has to be associative and nammed keys_<mode>. keys_def is reserved and used as reference for other arrays, it's also reversed compared to other keybinding arrays.
+EOF2
+)
 
-    There is also a optionable option array possible for all keybinding arrays.
-    Currently only defined option is [else] which defines what should happen if no key
-    is matched from the keybinding. These arrays have to be named key_options_<mode>.
+$(text '    ' <<EOF2
+There is also a optionable option array possible for all keybinding arrays. Currently only defined option is [else] which defines what should happen if no key is matched from the keybinding. These arrays have to be named key_options_<mode>.
+EOF2
+)
 
     $(title MODES)
 
-    Modes determine used keybinding and other properties of buffer.
+$(text '    ' <<EOF2
+Modes determine used keybinding and other properties of buffer.
+EOF2
+)
+
 $(table-init 2 19 43; table-char
 print-stdin <<EOF2
     $(table-top)
     $(table-title NAME DESCRIPTION)
-    $(table-divider)
+    $(table-title-line)
     $(table-item edit "general editing mode")
     $(table-item dired "mode used in file picker")
     $(table-item view "read-only mode")
@@ -1105,13 +1151,16 @@ EOF2
 
     $(title STYLE)
 
-    Style of stuff is defined as escape code.
+$(text '    ' <<EOF2
+Style of stuff is defined as escape code.
+EOF2
+)
 
 $(table-init 3 19 19 39; table-char
 print-stdin <<EOF2
     $(table-top)
     $(table-title NAME DEFAULT DESCRIPTION)
-    $(table-divider)
+    $(table-title-line)
     $(table-item none ' \e[m' 'Style reset')
     $(table-item TODO ' \e[0;97;45m' "Highlighting of 'TODO: '")
     $(table-item NOTE ' \e[0;97;100m' "Highlighting of 'NOTE: '")
@@ -1142,32 +1191,52 @@ EOF2
 
     $(title SYNTAX)
 
-    Defines which syntax functions should be used for which file types.
+$(text '    ' <<EOF2
+Defines which syntax functions should be used for which file types.
+EOF2
+)
 
     $(title MENULINE)
 
-    Defines items in menuline, content of keys defines which functions should be ran
-    on invocation.
+$(text '    ' <<EOF2
+Defines items in menuline, content of keys defines which functions should be ran on invocation.
+EOF2
+)
 
     $(title MENUS)
 
-    Each menu has to have helper function to set it up on request:
+$(text '    ' <<EOF2
+Each menu has to have helper function to set it up on request:
+EOF2
+)
+$(code-block bash <<EOF2
         <menu>() { declare -ng menucon=<menu>; menu; }
-    The contents of menu are defined by an associative  array.
+EOF2
+)
+$(text '    ' <<EOF2
+The contents of menu are defined by an associative  array.
+EOF2
+)
 
     $(title COMMANDS)
 
-    Defines commands that can be used in M-x.
+$(text '    ' <<EOF2
+Defines commands that can be used in M-x.
+EOF2
+)
 
 $(title EXTENDING)
 
-Some of usesfull variables and for extending Ebashs
+$(text <<EOF2
+Some of useful variables and for extending Ebashs
+EOF2
+)
 
 $(table-init 2 19 43; table-char
 print-stdin <<EOF2
 $(table-top)
 $(table-title NAME DESCRIPTION)
-$(table-divider)
+$(table-title-line)
 $(table-item buffer 'File data')
 $(table-item buffersyntax 'Multidimensional buffer for rendering')
 $(table-item bufferexpand 'Special characters filtered out')
@@ -1181,13 +1250,19 @@ EOF2
 
 $(title 'SYNTAX HIGHLIGHTING')
 
-Ebashs handles highlighting via checking 'syntax' array which consists of
-[file type]=syntax-function
+$(text <<EOF2
+Ebashs handles highlighting via checking 'syntax' array which consists of [file type]=syntax-function
+EOF2
+)
 
     $(title 'SYNTAX FUNCTIONS')
 
-    Here is sample bash syntax function included with Ebashs:
+$(text '    ' <<EOF2
+Here is sample bash syntax function included with Ebashs:
+EOF2
+)
 
+$(code-block bash <<EOF2
     syntax+=(
         [bash]=syntax-bash
     )
@@ -1213,14 +1288,22 @@ Ebashs handles highlighting via checking 'syntax' array which consists of
             *) set-style none;;
         esac
     }
+EOF2
+)
 
-    The comments are handled specially via comment variable which gets reseted
-	at every newline. (I really need to make this less bash specific I guess.)
+$(text '    ' <<EOF2
+The comments are handled specially via comment variable which gets reseted at every newline.
+EOF2
+)
 
 $(title EXAMPLES)
 
+$(text <<EOF2
 A simple function to jump to line 11 when C-x M-e is pressed:
+EOF2
+)
 
+$(code-block bash <<EOF2
     keys_prefix+=( # prefix is the mode for C-x
         [1b 65 0]='jump-to-11' # '1b 65 0' is the M-e in hex.
                                # You can use the M-x input to convert to hex. format.
@@ -1233,9 +1316,15 @@ A simple function to jump to line 11 when C-x M-e is pressed:
                                     # it would stay in 'prefix' mode.
         redraw # Redraw whole buffer.
     }
+EOF2
+)
 
+$(text <<EOF2
 A function to write 'Hello world!' at current cursor position when M-x hi is typed
+EOF2
+)
 
+$(code-block bash <<EOF2
     commands+=(
         [hi]='hello-world' # Add command 'hi' invoking 'hello-world' function:
     )
@@ -1243,9 +1332,15 @@ A function to write 'Hello world!' at current cursor position when M-x hi is typ
         insert-word 'Hello-world!' # The function 'insert-word' handles insertion
                                    # of stuff, so no redraw or other magic is needed.
     }
+EOF2
+)
 
+$(text '    ' <<EOF2
 Create a menu containing previous functions 'jump-to-11' & 'hello-world':
+EOF2
+)
 
+$(code-block bash <<EOF2
     example-menu-function() { declare -ng menucon='example_menu'; menu; }
     # A function with which the menu will be invoked.
 
@@ -1259,16 +1354,110 @@ Create a menu containing previous functions 'jump-to-11' & 'hello-world':
     menulineedit+=(
         [Example]='example-menu-function'
     )
+EOF2
+)
+
+$(title ETC)
+
+$(text <<EOF2
+Logo and it's krita file is in etc/
+
+Reame is atomatically generated from internal manual, ebashs --generate readme
+EOF2
+)
 
 $(title CREDITS)
 
+$(text '    ' <<EOF2
 Based on https://github.com/comfies/bed
+EOF2
+)
 EOF
-	copy-array buffer bufferexpand
-	clear-screen
-	redraw
 }
-
+function generate-readme {
+	function table-init {
+		divide=1
+		table_columns="$1"
+		shift
+		local -i i=0
+		for col in "$@"; do
+			local -n n="table_column_$i"
+			n="$col"
+			((i++))
+		done
+	}
+	function table-char {
+		table_char=('-' '|' X X X '|' '|' '|' X X X)
+	}
+	function table-top {
+		true
+	}
+	function table-bottom {
+		true
+	}
+	function title {
+		printf '## %s' "$@"
+	}
+	function header {
+		printf '# %s' "$@"
+	}
+	function code-block {
+		printf '```%s\n' "$1"
+		while read -r; do echo "$REPLY"; done
+		printf '```'
+	}
+	function text {
+		while read -r; do echo "$REPLY"; done
+	}
+	function table-divider {
+		printf '%s' "${table_char[5]}"
+		for ((i=0; i<table_columns; i++)); do
+			local -n n="table_column_$i"
+			for ((ii=1; ii-1<n; ii++)); do
+				printf ' '
+			done
+			((i==table_columns-1)) || printf '%s' "${table_char[6]}"
+			((i==table_columns-1)) && printf '%s' "${table_char[7]}"
+		done
+		printf '\n'
+	}
+	unset buffer
+	get-manual
+	skip=0
+	function remove-indentation {
+		[[ "${1:0:3}" = '```' ]] && {
+			printf '%s\n' "$1"
+			if ((skip)); then
+				skip=0
+			else
+				skip=1
+			fi
+			return
+		}
+		((skip)) && {
+			printf '%s\n' "$1"
+			return
+		}
+		IFS=''
+		line_start=1
+		while read -rsn1 char; do
+			if ((line_start)); then
+				case "${char}" in
+					' ') continue;;
+					*) line_start=0 && printf '%s' "$char";;
+				esac
+			else
+				printf '%s' "$char"
+			fi
+		done <<< "$1"
+		printf '\n'
+	}
+	for line in "${buffer[@]}"; do
+		remove-indentation "${line}"
+	done
+	no_cleanup=1
+	die
+}
 function quit-view {
 	copy-array bckover overlay
 	restore openfile
@@ -1502,6 +1691,7 @@ function shell {
 }
 
 function die {
+	((no_cleanup)) && exit
     echo -e "\e[?1000;1006;1015l" #disable mouse tracking
 	clear-screen # TODO fix the buffer switching
 	printf '\e[?25h\e[?7h\e[?1049l' # Reset terminal to sane mode
@@ -1752,6 +1942,8 @@ function input-key {
 	}
 }
 function main {
+	[[ "$1" = '--generate-readme' ]] && generate-readme
+	printf '\e[?1049h'
 	(("${options[mouse]}")) && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
     if [[ "$1" ]]; then # If a file was provided in the terminal pre-load it
         if [ -d "$1" ]; then
