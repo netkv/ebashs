@@ -1,0 +1,167 @@
+#!/bin/bash
+shopt -s lastpipe
+IFS=$'\n'
+declare -i i=1
+file="${2:-ebashs}"
+doc="doc/README.bml"
+function print-stdin {
+	while read -r; do echo "$REPLY"; done
+}
+function readme {
+	function table-init {
+		divide=1
+		table_columns="$1"
+		shift
+		local -i i=0
+		for col in "$@"; do
+			local -n n="table_column_$i"
+			n="$col"
+			((i++))
+		done
+	}
+	function table-char {
+		table_char=('-' '|' X X X '|' '|' '|' X X X)
+	}
+	function table-top {
+		true
+	}
+	function table-bottom {
+		true
+	}
+	function title {
+		printf '## %s' "$@"
+	}
+	function header {
+		printf '# %s' "$@"
+	}
+	function code-block {
+		printf '```%s\n' "$1"
+		while read -r; do echo "$REPLY"; done
+		printf '```'
+	}
+	function text {
+		while read -r; do echo "$REPLY"; done
+	}
+	function table-divider {
+		printf '%s' "${table_char[5]}"
+		for ((i=0; i<table_columns; i++)); do
+			local -n n="table_column_$i"
+			for ((ii=1; ii-1<n; ii++)); do
+				printf ' '
+			done
+			((i==table_columns-1)) || printf '%s' "${table_char[6]}"
+			((i==table_columns-1)) && printf '%s' "${table_char[7]}"
+		done
+		printf '\n'
+	}
+	function table-title-line {
+		printf '%s' "${table_char[5]}"
+		for ((i=0; i<table_columns; i++)); do
+			local -n n="table_column_$i"
+			for ((ii=1; ii-1<n; ii++)); do
+				printf '%s' "${table_char[0]}"
+			done
+			((i==table_columns-1)) || printf '%s' "${table_char[6]}"
+			((i==table_columns-1)) && printf '%s' "${table_char[7]}"
+		done
+		printf '\n'
+	}
+	function table-item {
+		local -i i=0
+		for item in "$@"; do
+			local -n n="table_column_$i"
+			printf '%s' "${table_char[1]}"
+			printf '%s' "$item"
+			printf '%*s' $(( n - ${#item} )) ''
+			((i++))
+		done
+		printf '%s' "${table_char[1]}"
+		printf '\n'
+	}
+	function table-title {
+		local -i i=0
+		for title in "$@"; do
+			local -n n="table_column_$i"
+			printf '%s' "${table_char[1]}"
+			printf '%*s' $(( n / 2 - ( ${#title} / 2 ) )) ''
+			printf '%s' "$title"
+			if ((${#title}%2==0)) && ((n%2==1)); then
+				printf '%*s' $(( ( n / 2 - ( ${#title} / 2 ) ) + 1 )) ''
+			else
+				printf '%*s' $(( n / 2 - ( ${#title} / 2 ) )) ''
+			fi
+			((i++))
+		done
+		printf '%s' "${table_char[1]}"
+		printf '\n'
+	}
+	function code {
+		printf '`%s`' "$@"
+	}
+	unset buffer
+	skip=0
+	function remove-indentation {
+		[[ "${1:0:3}" = '```' ]] && {
+			printf '%s\n' "$1"
+			if ((skip)); then
+				skip=0
+			else
+				skip=1
+			fi
+			return
+		}
+		((skip)) && {
+			printf '%s\n' "$1"
+			return
+		}
+		IFS=''
+		line_start=1
+		while read -rsn1 char; do
+			if ((line_start)); then
+				case "${char}" in
+					' ') continue;;
+					*) line_start=0 && printf '%s' "$char";;
+				esac
+			else
+				printf '%s' "$char"
+			fi
+		done <<< "$1"
+		printf '\n'
+	}
+	source "$doc"
+	true > README.md
+	for line in "${buffer[@]}"; do
+		remove-indentation "${line}" >> README.md
+	done
+}
+function file {
+	{
+		mapfile -t -O 1 fileload < "$file"
+		for line in "${fileload[@]}"; do
+			((skip)) || printf '%s\n' "$line"
+			case "$line" in
+				'	# MAKEDOC INSERT README START')
+					print-stdin < "$doc"
+					skip=1
+					;;
+				'	# MAKEDOC INSERT README STOP')
+					skip=0
+					printf '%s\n' "$line"
+					;;
+			esac
+			((i++))
+		done
+	} | mapfile -t -O 1 output
+	true > "$file"
+	for line in "${output[@]}"; do
+		printf '%s\n' "$line" >> "$file"
+	done
+}
+case "$1" in
+	'-r') readme;;
+	'-f') file;;
+	'-a')
+		readme
+		file
+		;;
+esac

@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.3.1"
+version="0.3.1-2"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -1052,7 +1052,9 @@ function manual {
 	redraw
 }
 function get-manual {
-	mapfile -t -O 1 buffer <<EOF
+	#DO NOT edit following lines, makedoc handles them automatically
+	# MAKEDOC INSERT README START
+mapfile -t -O 1 buffer <<EOF
 $(text <<EOF2
 This is Ebashs, one component of the Bash/Bash operating system.
 … or even better an attempt to clone GNU Emacs in bash.
@@ -1364,7 +1366,7 @@ $(title ETC)
 $(text <<EOF2
 Logo and it's krita file is in etc/
 
-Reame is atomatically generated from internal manual, ebashs --generate-readme
+This readme is generated from doc/README.bml via makedoc script via either makedoc -r (README.md only) or makedoc -a (README.md & internal manual), the makedoc -f does internal manual only
 EOF2
 )
 
@@ -1375,6 +1377,7 @@ Based on https://github.com/comfies/bed
 EOF2
 )
 EOF
+	# MAKEDOC INSERT README STOP
 }
 function generate-readme {
 	function table-init {

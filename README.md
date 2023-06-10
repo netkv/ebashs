@@ -223,7 +223,7 @@ Create a menu containing previous functions `jump-to-11` & `hello-world`:
 
 Logo and it's krita file is in etc/
 
-Reame is atomatically generated from internal manual, ebashs --generate-readme
+This readme is generated from doc/README.bml via makedoc script via either makedoc -r (README.md only) or makedoc -a (README.md & internal manual), the makedoc -f does internal manual only
 
 ## CREDITS
 

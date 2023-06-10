@@ -1,0 +1,323 @@
+mapfile -t -O 1 buffer <<EOF
+$(text <<EOF2
+This is Ebashs, one component of the Bash/Bash operating system.
+… or even better an attempt to clone GNU Emacs in bash.
+EOF2
+)
+
+$(text '    '<<EOF2
+Note that the readme, may be currently outdated as I am changing the core functioning of Ebashs.
+
+Versions of Ebashs ending in WIP-x are and will be broken, you can check version via M-x about or by reading the second line of Ebashs script.
+EOF2
+)
+
+$(header EBASHS)
+
+$(title DESCRIPTION)
+
+$(text <<EOF2
+An attempt to clone GNU Emacs but in bash.
+EOF2
+)
+
+$(title FEATURES)
+
+$(text <<EOF2
+syntax highlighting
+custom keybindings
+custom modes -- so you can implement the evil too
+file picker
+mouse support
+EOF2
+)
+
+$(title CONFIG)
+
+$(text <<EOF2
+Ebashs is configured via variables defined at start, you can separate it into file and then source it.
+EOF2
+)
+
+    $(title 'OPTIONS ARRAY')
+
+$(table-init 3 19 19 39; table-char
+print-stdin <<EOF2
+    $(table-top)
+    $(table-title NAME DEFAULT DESCRIPTION)
+    $(table-title-line)
+    $(table-item mouse ' 0' 'enable mouse at launch')
+    $(table-item todonote ' 1' "highlight 'TODO:' & 'NOTE:'")
+    $(table-item menuline ' 1' 'display menuline')
+    $(table-item tabchar "$(code '|   ')" 'what should tab display as')
+    $(table-item file_prompt "'Path: '" 'file setting prompt')
+    $(table-item cmd_prompt "'M-x '" 'command line prompt')
+    $(table-item cancelhex "'18 0' (C-x)" 'keybinding to exit debug input menu')
+    $(table-item default_mode ' edit' 'what mode should be set on launch')
+    $(table-item help_message "'F10 to open menu'" 'top right help message')
+    $(table-item dired_message "'Pick a file'" 'same as above but for dired buffer')
+    $(table-bottom)
+EOF2
+)
+
+    $(title 'KEYBINDING ARRAYS')
+
+$(text '    ' <<EOF2
+Keybinding arrays match with modes. The array has to be associative and nammed $(code 'keys_<mode>'). $(code 'keys_def') is reserved and used as reference for other arrays, it's also reversed compared to other keybinding arrays.
+EOF2
+)
+
+$(text '    ' <<EOF2
+There is also a optionable option array possible for all keybinding arrays. Currently only defined option is [else] which defines what should happen if no key is matched from the keybinding. These arrays have to be named $(code 'key_options_<mode>').
+EOF2
+)
+
+    $(title MODES)
+
+$(text '    ' <<EOF2
+Modes determine used keybinding and other properties of buffer.
+EOF2
+)
+
+$(table-init 2 19 43; table-char
+print-stdin <<EOF2
+    $(table-top)
+    $(table-title NAME DESCRIPTION)
+    $(table-title-line)
+    $(table-item edit "general editing mode")
+    $(table-item dired "mode used in file picker")
+    $(table-item view "read-only mode")
+    $(table-item menu "mode of menus")
+    $(table-item debuginput "for getting input codes (M-x input)")
+    $(table-item prefix "for C-x prefix")
+    $(table-item prefix_help "for C-h prefix")
+    $(table-item quit "for quit confirmation")
+    $(table-item list_buffers "used in buffer switcher")
+    $(table-bottom)
+EOF2
+)
+
+    $(title STYLE)
+
+$(text '    ' <<EOF2
+Style of stuff is defined as escape code.
+EOF2
+)
+
+$(table-init 3 19 19 39; table-char
+print-stdin <<EOF2
+    $(table-top)
+    $(table-title NAME DEFAULT DESCRIPTION)
+    $(table-title-line)
+    $(table-item none ' \e[m' 'Style reset')
+    $(table-item TODO ' \e[0;97;45m' "Highlighting of 'TODO: '")
+    $(table-item NOTE ' \e[0;97;100m' "Highlighting of 'NOTE: '")
+    $(table-item menuline ' \e[0;37;40' 'Menuline')
+    $(table-item menuitem ' \e[0;37;40' 'Items of menuline')
+    $(table-item link ' \e[94m' 'Redirects')
+    $(table-item menuitemselected ' \e[30;45m' 'Selected item of menu')
+    $(table-item infoline ' \e[40;97m' 'Bottom statusline')
+    $(table-item number ' \e[0;90m' 'Line count')
+    $(table-item numberempty ' \e[0;90m' 'Lines that do not exist')
+    $(table-item numberselected ' \e[0;91m' 'Currently selected line')
+    $(table-item tab ' \e[0;90m' 'Tabs')
+    $(table-divider)
+    $(table-item qutevar ' \e[0;36;48m' 'Quoted variables')
+    $(table-item comment ' \e[3;37;48m' 'Comments')
+    $(table-item variable ' \e[0;96m' 'Variables')
+    $(table-item option ' \e[0;93m' 'Options')
+    $(table-item flow ' \e[0;93m' 'Control flow')
+    $(table-item bracket ' \e[1;95m' 'Brackets')
+    $(table-item quote ' \e[0;92m' 'String literals')
+    $(table-item dquote ' \e[0;32m' 'Strings')
+    $(table-item set ' \e[0;94;108m' 'Variable assignments')
+    $(table-item fn ' \e[0;30;44m' 'Function definitions')
+    $(table-item keyword ' \e[0;91m' 'Keywords')
+    $(table-bottom)
+EOF2
+)
+
+    $(title SYNTAX)
+
+$(text '    ' <<EOF2
+Defines which syntax functions should be used for which file types.
+EOF2
+)
+
+    $(title MENULINE)
+
+$(text '    ' <<EOF2
+Defines items in menuline, content of keys defines which functions should be ran on invocation.
+EOF2
+)
+
+    $(title MENUS)
+
+$(text '    ' <<EOF2
+Each menu has to have helper function to set it up on request:
+EOF2
+)
+$(code-block bash <<EOF2
+        <menu>() { declare -ng menucon=<menu>; menu; }
+EOF2
+)
+$(text '    ' <<EOF2
+The contents of menu are defined by an associative  array.
+EOF2
+)
+
+    $(title COMMANDS)
+
+$(text '    ' <<EOF2
+Defines commands that can be used in $(code 'M-x').
+EOF2
+)
+
+$(title EXTENDING)
+
+$(text <<EOF2
+Some of useful variables and for extending Ebashs
+EOF2
+)
+
+$(table-init 2 19 43; table-char
+print-stdin <<EOF2
+$(table-top)
+$(table-title NAME DESCRIPTION)
+$(table-title-line)
+$(table-item buffer 'File data')
+$(table-item buffersyntax 'Multidimensional buffer for rendering')
+$(table-item bufferexpand 'Special characters filtered out')
+$(table-item bufferdata 'Options of current buffer')
+$(table-item charmap 'Definitions for bufferexpand')
+$(table-item mode 'Current mode')
+$(table-item commands 'List of M-x commands')
+$(table-bottom)
+EOF2
+)
+
+$(title 'SYNTAX HIGHLIGHTING')
+
+$(text <<EOF2
+Ebashs handles highlighting via checking 'syntax' array which consists of $(code '[file type]=syntax-function')
+EOF2
+)
+
+    $(title 'SYNTAX FUNCTIONS')
+
+$(text '    ' <<EOF2
+Here is sample bash syntax function included with Ebashs:
+EOF2
+)
+
+$(code-block bash <<EOF2
+    syntax+=(
+        [bash]=syntax-bash
+    )
+    syntax-bash() {
+        ((comment)) && set-style comment && return
+        local word="$1"
+        case "${word}" in
+            '"$'*) set-style quotevar;;
+             '#'*) set-style comment && comment=1;;
+             '$'*) set-style variable;;
+             '-'*) set-style option;;
+            *'()') set-style fn;;
+            '||'|'&&'|';') set-style flow;;
+            '('|')'|'{'|'}'|'[['|']]'|'['|']') set-style bracket;;
+            'function') set-style fn;;
+            *"'"*) set-style quote;;
+            *'"'*) set-style dquote;;
+            *'='*) set-style set;;
+            'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|\\
+            'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|'declare'|\\
+            'typeset'|'local'|'let'|'shopt'|'trap'|'set'|'eval'\\
+             ) set-style keyword;;
+            *) set-style none;;
+        esac
+    }
+EOF2
+)
+
+$(text '    ' <<EOF2
+The comments are handled specially via comment variable which gets reseted at every newline.
+EOF2
+)
+
+$(title EXAMPLES)
+
+$(text <<EOF2
+A simple function to jump to line 11 when $(code 'C-x M-e') is pressed:
+EOF2
+)
+
+$(code-block bash <<EOF2
+    keys_prefix+=( # prefix is the mode for C-x
+        [1b 65 0]='jump-to-11' # '1b 65 0' is the M-e in hex.
+                               # You can use the M-x input to convert to hex. format.
+    )
+    jump-to-11() {
+        [[ -n "${buffer[11]}" ]] && line=11 # If line 11 exists, set current line to 11.
+        [[ "${bufferdata[mode]}" = 'prefix' ]] && quit-prefix
+                                    # Since the key stroke contains C-x as prefix,
+                                    # quit-prefix is is required as otherwise
+                                    # it would stay in 'prefix' mode.
+        redraw # Redraw whole buffer.
+    }
+EOF2
+)
+
+$(text <<EOF2
+A function to write $(code 'Hello world!') at current cursor position when $(code 'M-x hi') is typed
+EOF2
+)
+
+$(code-block bash <<EOF2
+    commands+=(
+        [hi]='hello-world' # Add command 'hi' invoking 'hello-world' function:
+    )
+    hello-world() {
+        insert-word 'Hello-world!' # The function 'insert-word' handles insertion
+                                   # of stuff, so no redraw or other magic is needed.
+    }
+EOF2
+)
+
+$(text '    ' <<EOF2
+Create a menu containing previous functions $(code 'jump-to-11') & $(code 'hello-world'):
+EOF2
+)
+
+$(code-block bash <<EOF2
+    example-menu-function() { declare -ng menucon='example_menu'; menu; }
+    # A function with which the menu will be invoked.
+
+    declare -A example_menu
+    example_menu=(
+        [Jump to 11  ]='jump-to-11'  # The names of items in menu should have
+        [Hello world!]='hello-world' # same width to display correctly.
+    )
+
+    # Add the example_menu into default menuline
+    menulineedit+=(
+        [Example]='example-menu-function'
+    )
+EOF2
+)
+
+$(title ETC)
+
+$(text <<EOF2
+Logo and it's krita file is in etc/
+
+This readme is generated from doc/README.bml via makedoc script via either makedoc -r (README.md only) or makedoc -a (README.md & internal manual), the makedoc -f does internal manual only
+EOF2
+)
+
+$(title CREDITS)
+
+$(text '    ' <<EOF2
+Based on https://github.com/comfies/bed
+EOF2
+)
+EOF
