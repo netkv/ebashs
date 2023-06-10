@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.3.0"
+version="0.3.1"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -28,7 +28,6 @@ options=(
 	[todonote]=1
 	[menuline]=1
 	[tabchar]='│   '
-	[refresh_timeout]=1
 	[file_prompt]='Path: '
 	[command_prompt]='M-x '
 	[cancelhex]='18 0'
@@ -1105,14 +1104,12 @@ print-stdin <<EOF2
     $(table-item todonote ' 1' "highlight 'TODO:' & 'NOTE:'")
     $(table-item menuline ' 1' 'display menuline')
     $(table-item tabchar "$(code '|   ')" 'what should tab display as')
-    $(table-item refresh_timeout ' 1' 'how often to refresh input')
     $(table-item file_prompt "'Path: '" 'file setting prompt')
     $(table-item cmd_prompt "'M-x '" 'command line prompt')
     $(table-item cancelhex "'18 0' (C-x)" 'keybinding to exit debug input menu')
     $(table-item default_mode ' edit' 'what mode should be set on launch')
     $(table-item help_message "'F10 to open menu'" 'top right help message')
     $(table-item dired_message "'Pick a file'" 'same as above but for dired buffer')
-    $(table-item rendr_chunk ' 8' 'how many lines to syntax while moving')
     $(table-bottom)
 EOF2
 )
@@ -1592,8 +1589,6 @@ function previous-line {
 
 function scroll-down {
     previous-line $((sizy - 3))
-	make-render
-	redraw
 }
 
 function next-line {
@@ -1609,8 +1604,6 @@ function next-line {
 
 function scroll-up {
     next-line $((sizy - 3))
-	make-render
-	redraw
 }
 
 function execute {
@@ -1803,23 +1796,19 @@ function redraw {
 			((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
 			((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((buffer_lenght/2))s~\e[m\n" "$offx"\
 					|| {
-					# cut the line to fit requested size
-					# to improve speed syntaxing has to be "lazy"
-					# if the bottomest line is empty, syntax another <render_chunk> lines
+					# to improve speed syntaxing has to be "lazy" -- having to be heavily cached as ram is far less expensive to waste
 					[ -z "${buffersyntax[bufferdata[base]+sizy-(bottomlines+toplines)+2]}" ] && {
 						bottomest=$((bufferdata[base]+sizy-(bottomlines+toplines)+2))
 						make-render-area $bottomest $((bottomest+options[render_chunk]))
 					}
-					if [ -n "${buffersyntax[i]}" ]; then
-						# due to escape codes present in buffersyntax,
-						# the buffersyntax has to be multidimensional nonsense for perfomance reasons
-						local -n linearray="${buffersyntax[i]}"
-						   printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n"\
-								  "$offx" "$i" "${linearray[*]:bufferdata[basecolumn]:(sizx+offx) - (buffer_lenght + 1)}"
-					else
-						printf "\e[%sG\e[K%${buffer_lenght}s\e[m ${style[comment]}%s\n"\
-							   "$offx" "$i" "loading syntax..."
-					fi
+					[ -z "${buffersyntax[i]}" ] && {
+						make-render-area $((base + i)) $((base + i + 1)) # idk why make-render-line doesnt work here
+					}
+					# due to escape codes present in buffersyntax,
+					# the buffersyntax has to be multidimensional nonsense for perfomance reasons
+					local -n linearray="${buffersyntax[i]}"
+					printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n"\
+						   "$offx" "$i" "${linearray[*]:bufferdata[basecolumn]:(sizx+offx) - (buffer_lenght + 1)}"
 				}
 		done
 	fi
@@ -1970,7 +1959,7 @@ function begin {
 	while :; do
 		local -a k=()
 		local -i i=1    
-		if read -rsN1 -t"${options[refresh_timeout]}" k[0]; then # Check for ready input
+		if read -rsN1 k[0]; then # Check for ready input
 			while read -rsN1 -t0.0001 k[$i]; do ((i++)); done # Multibyte hack
 			input-key "$(printf '%s' "${k[@]}")" # Handle keypress event
 		fi

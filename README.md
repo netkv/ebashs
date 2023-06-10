@@ -32,14 +32,12 @@ Ebashs is configured via variables defined at start, you can separate it into fi
 |todonote           | 1                 |highlight 'TODO:' & 'NOTE:'            |
 |menuline           | 1                 |display menuline                       |
 |tabchar            |`|   `             |what should tab display as             |
-|refresh_timeout    | 1                 |how often to refresh input             |
 |file_prompt        |'Path: '           |file setting prompt                    |
 |cmd_prompt         |'M-x '             |command line prompt                    |
 |cancelhex          |'18 0' (C-x)       |keybinding to exit debug input menu    |
 |default_mode       | edit              |what mode should be set on launch      |
 |help_message       |'F10 to open menu' |top right help message                 |
 |dired_message      |'Pick a file'      |same as above but for dired buffer     |
-|rendr_chunk        | 8                 |how many lines to syntax while moving  |
 
 
 ## KEYBINDING ARRAYS
