@@ -31,7 +31,7 @@ Ebashs is configured via variables defined at start, you can separate it into fi
 |mouse              | 0                 |enable mouse at launch                 |
 |todonote           | 1                 |highlight 'TODO:' & 'NOTE:'            |
 |menuline           | 1                 |display menuline                       |
-|tabchar            |'|   '             |what should tab display as             |
+|tabchar            |`|   `             |what should tab display as             |
 |refresh_timeout    | 1                 |how often to refresh input             |
 |file_prompt        |'Path: '           |file setting prompt                    |
 |cmd_prompt         |'M-x '             |command line prompt                    |
@@ -44,9 +44,9 @@ Ebashs is configured via variables defined at start, you can separate it into fi
 
 ## KEYBINDING ARRAYS
 
-Keybinding arrays match with modes. The array has to be associative and nammed keys_<mode>. keys_def is reserved and used as reference for other arrays, it's also reversed compared to other keybinding arrays.
+Keybinding arrays match with modes. The array has to be associative and nammed `keys_<mode>`. `keys_def` is reserved and used as reference for other arrays, it's also reversed compared to other keybinding arrays.
 
-There is also a optionable option array possible for all keybinding arrays. Currently only defined option is [else] which defines what should happen if no key is matched from the keybinding. These arrays have to be named key_options_<mode>.
+There is also a optionable option array possible for all keybinding arrays. Currently only defined option is [else] which defines what should happen if no key is matched from the keybinding. These arrays have to be named `key_options_<mode>`.
 
 ## MODES
 
@@ -117,7 +117,7 @@ The contents of menu are defined by an associative  array.
 
 ## COMMANDS
 
-Defines commands that can be used in M-x.
+Defines commands that can be used in `M-x`.
 
 ## EXTENDING
 
@@ -136,7 +136,7 @@ Some of useful variables and for extending Ebashs
 
 ## SYNTAX HIGHLIGHTING
 
-Ebashs handles highlighting via checking 'syntax' array which consists of [file type]=syntax-function
+Ebashs handles highlighting via checking 'syntax' array which consists of `[file type]=syntax-function`
 
 ## SYNTAX FUNCTIONS
 
@@ -174,7 +174,7 @@ The comments are handled specially via comment variable which gets reseted at ev
 
 ## EXAMPLES
 
-A simple function to jump to line 11 when C-x M-e is pressed:
+A simple function to jump to line 11 when `C-x M-e` is pressed:
 
 ```bash
     keys_prefix+=( # prefix is the mode for C-x
@@ -191,7 +191,7 @@ A simple function to jump to line 11 when C-x M-e is pressed:
     }
 ```
 
-A function to write 'Hello world!' at current cursor position when M-x hi is typed
+A function to write `Hello world!` at current cursor position when `M-x hi` is typed
 
 ```bash
     commands+=(
@@ -203,7 +203,7 @@ A function to write 'Hello world!' at current cursor position when M-x hi is typ
     }
 ```
 
-Create a menu containing previous functions 'jump-to-11' & 'hello-world':
+Create a menu containing previous functions `jump-to-11` & `hello-world`:
 
 ```bash
     example-menu-function() { declare -ng menucon='example_menu'; menu; }
@@ -225,7 +225,7 @@ Create a menu containing previous functions 'jump-to-11' & 'hello-world':
 
 Logo and it's krita file is in etc/
 
-Reame is atomatically generated from internal manual, ebashs --generate readme
+Reame is atomatically generated from internal manual, ebashs --generate-readme
 
 ## CREDITS
 

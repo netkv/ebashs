@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.3.0-WIP-6"
+version="0.3.0"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -423,10 +423,12 @@ function get-syntax {
 }
 
 function make-render {
-	make-render-area "${bufferdata[base]}" $((bufferdata[base] + sizy + offy))
+	((bufferdata[raw])) ||
+		make-render-area "${bufferdata[base]}" $((bufferdata[base] + sizy + offy))
 }
 
 function make-render-area {
+	((bufferdata[raw])) && return
 	local -i syntaxline="$1"
 	local -n linearray="${current_buffer}_syntax${syntaxline}"
 	linearray=()
@@ -1002,6 +1004,9 @@ function text {
 function title {
 	printf '[ %s ]' "$@"
 }
+function code {
+	printf '%s' "$@"
+}
 function header {
 	arg=$*
 	table-init 1 $(( ${#arg} * 2 ))
@@ -1099,7 +1104,7 @@ print-stdin <<EOF2
     $(table-item mouse ' 0' 'enable mouse at launch')
     $(table-item todonote ' 1' "highlight 'TODO:' & 'NOTE:'")
     $(table-item menuline ' 1' 'display menuline')
-    $(table-item tabchar "'|   '" 'what should tab display as')
+    $(table-item tabchar "$(code '|   ')" 'what should tab display as')
     $(table-item refresh_timeout ' 1' 'how often to refresh input')
     $(table-item file_prompt "'Path: '" 'file setting prompt')
     $(table-item cmd_prompt "'M-x '" 'command line prompt')
@@ -1115,12 +1120,12 @@ EOF2
     $(title 'KEYBINDING ARRAYS')
 
 $(text '    ' <<EOF2
-Keybinding arrays match with modes. The array has to be associative and nammed keys_<mode>. keys_def is reserved and used as reference for other arrays, it's also reversed compared to other keybinding arrays.
+Keybinding arrays match with modes. The array has to be associative and nammed $(code 'keys_<mode>'). $(code 'keys_def') is reserved and used as reference for other arrays, it's also reversed compared to other keybinding arrays.
 EOF2
 )
 
 $(text '    ' <<EOF2
-There is also a optionable option array possible for all keybinding arrays. Currently only defined option is [else] which defines what should happen if no key is matched from the keybinding. These arrays have to be named key_options_<mode>.
+There is also a optionable option array possible for all keybinding arrays. Currently only defined option is [else] which defines what should happen if no key is matched from the keybinding. These arrays have to be named $(code 'key_options_<mode>').
 EOF2
 )
 
@@ -1221,7 +1226,7 @@ EOF2
     $(title COMMANDS)
 
 $(text '    ' <<EOF2
-Defines commands that can be used in M-x.
+Defines commands that can be used in $(code 'M-x').
 EOF2
 )
 
@@ -1251,7 +1256,7 @@ EOF2
 $(title 'SYNTAX HIGHLIGHTING')
 
 $(text <<EOF2
-Ebashs handles highlighting via checking 'syntax' array which consists of [file type]=syntax-function
+Ebashs handles highlighting via checking 'syntax' array which consists of $(code '[file type]=syntax-function')
 EOF2
 )
 
@@ -1299,7 +1304,7 @@ EOF2
 $(title EXAMPLES)
 
 $(text <<EOF2
-A simple function to jump to line 11 when C-x M-e is pressed:
+A simple function to jump to line 11 when $(code 'C-x M-e') is pressed:
 EOF2
 )
 
@@ -1320,7 +1325,7 @@ EOF2
 )
 
 $(text <<EOF2
-A function to write 'Hello world!' at current cursor position when M-x hi is typed
+A function to write $(code 'Hello world!') at current cursor position when $(code 'M-x hi') is typed
 EOF2
 )
 
@@ -1336,7 +1341,7 @@ EOF2
 )
 
 $(text '    ' <<EOF2
-Create a menu containing previous functions 'jump-to-11' & 'hello-world':
+Create a menu containing previous functions $(code 'jump-to-11') & $(code 'hello-world'):
 EOF2
 )
 
@@ -1362,7 +1367,7 @@ $(title ETC)
 $(text <<EOF2
 Logo and it's krita file is in etc/
 
-Reame is atomatically generated from internal manual, ebashs --generate readme
+Reame is atomatically generated from internal manual, ebashs --generate-readme
 EOF2
 )
 
@@ -1420,6 +1425,9 @@ function generate-readme {
 			((i==table_columns-1)) && printf '%s' "${table_char[7]}"
 		done
 		printf '\n'
+	}
+	function code {
+		printf '`%s`' "$@"
 	}
 	unset buffer
 	get-manual
