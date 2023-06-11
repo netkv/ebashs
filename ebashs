@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.4.0-WIP-1"
+version="0.4.0-WIP-2"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -35,6 +35,7 @@ options=(
 	[help_message]='(F10 to open menu)'
 	[dired_message]='Pick a file'
 	[render_chunk]=8
+	[tile_mode]='vertical'
 )
 ## Key bindings configuration
 #      A keybindings for a mode x have to be in associative array named keys_${x}, else spis won't see them
@@ -251,6 +252,9 @@ commands=(
 	[dired]='dired'
 	[switch-to-buffer]='switch-to-buffer'
 	[list-buffers]='list-buffers'
+	[tile]='tile-buffers'
+	[vertical]='tile-vertical'
+	[horizontal]='tile-horizontal'
 )
 diredmenu=(
 	[toggle hidden \(h\)]="toggle_hidden"
@@ -1392,93 +1396,6 @@ EOF2
 EOF
 	# MAKEDOC INSERT README STOP
 }
-function generate-readme {
-	function table-init {
-		divide=1
-		table_columns="$1"
-		shift
-		local -i i=0
-		for col in "$@"; do
-			local -n n="table_column_$i"
-			n="$col"
-			((i++))
-		done
-	}
-	function table-char {
-		table_char=('-' '|' X X X '|' '|' '|' X X X)
-	}
-	function table-top {
-		true
-	}
-	function table-bottom {
-		true
-	}
-	function title {
-		printf '## %s' "$@"
-	}
-	function header {
-		printf '# %s' "$@"
-	}
-	function code-block {
-		printf '```%s\n' "$1"
-		while read -r; do echo "$REPLY"; done
-		printf '```'
-	}
-	function text {
-		while read -r; do echo "$REPLY"; done
-	}
-	function table-divider {
-		printf '%s' "${table_char[5]}"
-		for ((i=0; i<table_columns; i++)); do
-			local -n n="table_column_$i"
-			for ((ii=1; ii-1<n; ii++)); do
-				printf ' '
-			done
-			((i==table_columns-1)) || printf '%s' "${table_char[6]}"
-			((i==table_columns-1)) && printf '%s' "${table_char[7]}"
-		done
-		printf '\n'
-	}
-	function code {
-		printf '`%s`' "$@"
-	}
-	unset buffer
-	get-manual
-	skip=0
-	function remove-indentation {
-		[[ "${1:0:3}" = '```' ]] && {
-			printf '%s\n' "$1"
-			if ((skip)); then
-				skip=0
-			else
-				skip=1
-			fi
-			return
-		}
-		((skip)) && {
-			printf '%s\n' "$1"
-			return
-		}
-		IFS=''
-		line_start=1
-		while read -rsn1 char; do
-			if ((line_start)); then
-				case "${char}" in
-					' ') continue;;
-					*) line_start=0 && printf '%s' "$char";;
-				esac
-			else
-				printf '%s' "$char"
-			fi
-		done <<< "$1"
-		printf '\n'
-	}
-	for line in "${buffer[@]}"; do
-		remove-indentation "${line}"
-	done
-	no_cleanup=1
-	die
-}
 function quit-view {
 	copy-array bckover overlay
 	restore openfile
@@ -1780,26 +1697,48 @@ function menu {
 	overlay+=('menudraw')
 	redraw
 }
-#set -x
-#no_cleanup=1
-function redraw {
+function tile-buffers {
 	bck_current_buffer="$current_buffer"
-	target_x=$(( COLUMNS / ${#listbuffers[@]} ))
-	target_x_offset=0
+	case "${options[tile_mode]}" in
+		vertical)
+			target_x=$(( COLUMNS / ${#listbuffers[@]} ))
+			target_x_offset=0
+			target_y=$LINES
+			target_y_offset=0;;
+		horizontal)
+			target_y=$(( LINES / ${#listbuffers[@]} ))
+			target_y_offset=0
+			target_x=$COLUMNS
+			target_x_offset=0;;
+	esac
 	for b in "${listbuffers[@]}"; do
 		current_buffer="$b"
 		set-current
 		bufferdata[size_x]=$target_x
 		bufferdata[position_x]=$target_x_offset
+		bufferdata[size_y]=$target_y
+		bufferdata[position_y]=$target_y_offset
+		case "${options[tile_mode]}" in
+			vertical)
+				target_x_offset=$((target_x_offset + target_x));;
+			horizontal)
+				target_y_offset=$((target_y_offset + target_y));;
+		esac
 		buffer-lenght
-		redraw-buffer
-		target_x_offset=$((target_x_offset + target_x))
+		redraw
+		
 	done
 	current_buffer="$bck_current_buffer"
 	set-current
 	buffer-lenght
 }
-function redraw-buffer {
+function tile-vertical {
+	options[tile_mode]='vertical'
+}
+function tile-horizontal {
+	options[tile_mode]='horizontal'
+}
+function redraw {
 	((bufferdata[column] +3 < bufferdata[size_x] - buffer_lenght - 1)) && bufferdata[basecolumn]=0
 	((bufferdata[column] +3 > bufferdata[size_x] - buffer_lenght - 1)) && bufferdata[basecolumn]=$((bufferdata[column] - (bufferdata[size_x] + bufferdata[position_x] - buffer_lenght - 1) +3 ))
 	bckIFS="$IFS"
@@ -1983,7 +1922,6 @@ function input-key {
 	}
 }
 function main {
-	[[ "$1" = '--generate-readme' ]] && generate-readme
 	printf '\e[?1049h'
 	(("${options[mouse]}")) && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
     if [[ "$1" ]]; then # If a file was provided in the terminal pre-load it
