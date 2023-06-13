@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.4.0-WIP-4"
+version="0.4.0"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -16,259 +16,266 @@ declare -A keys_def keys_edit keys_prefix keys_dired keys_view keys_menu keys_de
 declare -A key_options_menu key_options_debuginput key_options_list_buffers
 declare -a input_hex overlay listbuffers
 declare -n buffer buffersyntax bufferexpand bufferdata
-declare -i menulinep menulinepy buffer_lenght toplines bottomlines hidden update ismenu comment current_count
+declare -i menulinep menulinepy buffer_lenght toplines bottomlines hidden ismenu comment current_count
 declare -n menucon menuline
 declare message reset readin
 
-
-### Config options
-## General options
-options=(
-	[mouse]=0
-	[todonote]=1
-	[menuline]=1
-	[tabchar]='│   '
-	[file_prompt]='Path: '
-	[command_prompt]='M-x '
-	[cancelhex]='18 0'
-	[default_mode]='edit'
-	[help_message]='(F10 to open menu)'
-	[dired_message]='Pick a file'
-	[render_chunk]=8
-	[tile_mode]='vertical'
-)
-## Key bindings configuration
-#      A keybindings for a mode x have to be in associative array named keys_${x}, else spis won't see them
-#      keys_def is special case containing the common definitions.
-#      It isn't used by itself anywhere, it exists purely for simplification.
-#
-#      A options for the keybings of given mode are defined by ass. array named key_options_${x}
-#          [else] option defines what should happen if the input wasn't any of keys defined in keybings
-keys_def=(
-	[previous_line]='1b 5b 41 0'
-	[next_line]='1b 5b 42 0'
-	[forward_char]='1b 5b 43 0'
-	[backward_char]='1b 5b 44 0'
-	[scroll_down]='1b 5b 35 7e 0'
-	[scroll_up]='1b 5b 36 7e 0'
-	[select]='0'
-)
-keys_edit=(
-	[${keys_def[previous_line]}]='previous-line'
-	[${keys_def[next_line]}]='next-line'
-	[${keys_def[forward_char]}]='forward-char'
-	[${keys_def[backward_char]}]='backward-char'
-	[${keys_def[scroll_down]}]='scroll-down'
-	[${keys_def[scroll_up]}]='scroll-up'
-	#[1b 5b 31 3b 32 41 0]='select_up'
-	#[1b 5b 31 3b 32 42 0]='select_down'
-	#[1b 5b 31 3b 32 43 0]='select_right'
-	#[1b 5b 31 3b 32 44 0]='select_left'
-	# TODO: selection
-	[18 0]='prefix'
-	[8 0]='prefix-help'
-	[1b 5b 32 31 7e 0]='menulinemenu'
-	[10 0]='previous-line'
-	[e 0]='next-line'
-	[6 0]='forward-char'
-	[1b 66 0]='forward-word'
-	[2 0]='backward-char'
-	[1b 62 0]='backward-word'
-	[10 0]='scroll-down'
-	[16 0]='scroll-up'
-	[0]='newline'
-	[c 0]='newline'
-	[14 0]='execute'
-	[4 0]='delete-line'
-	[13 0]='shell'
-	[7f 0]='backspace'
-	[1b 71 0]='die'
-	[1b 67 0]='menukey'
-	[1b 78 0]='execute-extended-command'
-	[1 0]='move-beginning-of-line'
-	[1b 5b 48 0]='move-beginning-of-line'
-	[5 0]='move-end-of-line'
-	[1b 5b 46 0]='move-end-of-line'
-)
-keys_dired=(
-	[${keys_def[previous_line]}]='previous-line'
-	[${keys_def[next_line]}]='next-line'
-	[${keys_def[forward_char]}]='forward-char'
-	[${keys_def[backward_char]}]='backward-char'
-	[${keys_def[scroll_down]}]='scroll-down'
-	[${keys_def[scroll_up]}]='scroll-up'
-	[${keys_def[select]}]='dired-select'
-	[68 0]='toggle_hidden'
-)
-keys_view=(
-	[${keys_def[previous_line]}]='previous-line'
-	[${keys_def[next_line]}]='next-line'
-	[${keys_def[forward_char]}]='forward-char'
-	[${keys_def[backward_char]}]='backward-char'
-	[${keys_def[scroll_down]}]='scroll-down'
-	[${keys_def[scroll_up]}]='scroll-up'
-	[${keys_def[select]}]='quit-view'
-)
-keys_list_buffers=(
-	[${keys_def[previous_line]}]='previous-line'
-	[${keys_def[next_line]}]='next-line'
-	[${keys_def[scroll_down]}]='scroll-down'
-	[${keys_def[scroll_up]}]='scroll-up'
-	[${keys_def[select]}]='buffer-select'
-)
-key_options_list_buffers=(
-	[else]='quit-view'
-)
-keys_prefix=(
-	[18 0]='quit'
-	[7 0]='quit-prefix'
-	[13 0]='write_buffer'
-	[6 0]='find-file'
-	[2 0]='list-buffers'
-	[62 0]='switch-to-buffer'
-	[30 0]='delete-window'
-)
-keys_prefix_help=(
-	[7 0]='quit-prefix'
-	[1 0]='about'
-	[72 0]='manual'
-)
-keys_menu=(
-	[${keys_def[previous_line]}]='menuup'
-	[${keys_def[next_line]}]='menudown'
-	[${keys_def[select]}]='menuselect'
-)
-key_options_menu=(
-	[else]='menuleave'
-)
-## Style
-#      Defined in escape codes.
-style=(
-	[none]='\e[m'
-	[TODO]='\e[0;97;45m'
-	[NOTE]='\e[0;97;100m'
-	[menuline]='\e[0;37;40m'
-	[menuitem]='\e[0;37;40m'
-	[selected]='\e[30;45m'
-	[link]='\e[94m'
-	[menuitemselected]='\e[30;45m'
-	[infoline]='\e[40;97m'
-	[number]='\e[0;90m'
-	[numberempty]='\e[0;90m'
-	[numberselected]='\e[0;91m'
-	[tab]='\e[0;90m'
-	#syntax
-	[quotevar]='\e[0;36;48m'
-	[comment]='\e[3;37;48m'
-	[variable]='\e[0;96m'
-	[option]='\e[0;93m'
-	[flow]='\e[0;93m'
-	[pipe]='\e[1;94m'
-	[bracket]='\e[1;95m'
-	[quote]='\e[0;92m'
-	[dquote]='\e[0;32m'
-	[set]='\e[0;94;108m'
-	[fn]='\e[0;30;44m'
-	[keyword]='\e[0;91m'
-	[init]='\e[0;31m'
-)
-function menulinemenu {
+function config {
 	+log
-	declare -ng menucon=menufancy
-	#menulinepy=$(( bufferdata[size_y] - ${#menufancy[@]} ))
-	menu
+	### Config options
+	## General options
+	options=(
+		[mouse]=0
+		[todonote]=1
+		[menuline]=1
+		[tabchar]='│   '
+		[file_prompt]='Path: '
+		[command_prompt]='M-x '
+		[cancelhex]='18 0'
+		[default_mode]='edit'
+		[help_message]='(F10 to open menu)'
+		[dired_message]='Pick a file'
+		[render_chunk]=8
+		[tile_mode]='vertical'
+		[log]=1
+		[log_functions]=0
+	)
+	## Key bindings configuration
+	#      A keybindings for a mode x have to be in associative array named keys_${x}, else spis won't see them
+	#      keys_def is special case containing the common definitions.
+	#      It isn't used by itself anywhere, it exists purely for simplification.
+	#
+	#      A options for the keybings of given mode are defined by ass. array named key_options_${x}
+	#          [else] option defines what should happen if the input wasn't any of keys defined in keybings
+	keys_def=(
+		[previous_line]='1b 5b 41 0'
+		[next_line]='1b 5b 42 0'
+		[forward_char]='1b 5b 43 0'
+		[backward_char]='1b 5b 44 0'
+		[scroll_down]='1b 5b 35 7e 0'
+		[scroll_up]='1b 5b 36 7e 0'
+		[select]='0'
+	)
+	keys_edit=(
+		[${keys_def[previous_line]}]='previous-line'
+		[${keys_def[next_line]}]='next-line'
+		[${keys_def[forward_char]}]='forward-char'
+		[${keys_def[backward_char]}]='backward-char'
+		[${keys_def[scroll_down]}]='scroll-down'
+		[${keys_def[scroll_up]}]='scroll-up'
+		#[1b 5b 31 3b 32 41 0]='select_up'
+		#[1b 5b 31 3b 32 42 0]='select_down'
+		#[1b 5b 31 3b 32 43 0]='select_right'
+		#[1b 5b 31 3b 32 44 0]='select_left'
+		# TODO: selection
+		[18 0]='prefix'
+		[8 0]='prefix-help'
+		[1b 5b 32 31 7e 0]='menulinemenu'
+		[10 0]='previous-line'
+		[e 0]='next-line'
+		[6 0]='forward-char'
+		[1b 66 0]='forward-word'
+		[2 0]='backward-char'
+		[1b 62 0]='backward-word'
+		[10 0]='scroll-down'
+		[16 0]='scroll-up'
+		[0]='newline'
+		[c 0]='newline'
+		[14 0]='execute'
+		[4 0]='delete-line'
+		[13 0]='shell'
+		[7f 0]='backspace'
+		[1b 67 0]='menukey'
+		[1b 78 0]='execute-extended-command'
+		[1 0]='move-beginning-of-line'
+		[1b 5b 48 0]='move-beginning-of-line'
+		[5 0]='move-end-of-line'
+		[1b 5b 46 0]='move-end-of-line'
+	)
+	keys_dired=(
+		[${keys_def[previous_line]}]='previous-line'
+		[${keys_def[next_line]}]='next-line'
+		[${keys_def[forward_char]}]='forward-char'
+		[${keys_def[backward_char]}]='backward-char'
+		[${keys_def[scroll_down]}]='scroll-down'
+		[${keys_def[scroll_up]}]='scroll-up'
+		[${keys_def[select]}]='dired-select'
+		[68 0]='toggle_hidden'
+	)
+	keys_view=(
+		[${keys_def[previous_line]}]='previous-line'
+		[${keys_def[next_line]}]='next-line'
+		[${keys_def[forward_char]}]='forward-char'
+		[${keys_def[backward_char]}]='backward-char'
+		[${keys_def[scroll_down]}]='scroll-down'
+		[${keys_def[scroll_up]}]='scroll-up'
+		[${keys_def[select]}]='quit-view'
+	)
+	keys_list_buffers=(
+		[${keys_def[previous_line]}]='previous-line'
+		[${keys_def[next_line]}]='next-line'
+		[${keys_def[scroll_down]}]='scroll-down'
+		[${keys_def[scroll_up]}]='scroll-up'
+		[${keys_def[select]}]='buffer-select'
+	)
+	key_options_list_buffers=(
+		[else]='quit-view'
+	)
+	keys_prefix=(
+		[18 0]='quit'
+		[7 0]='quit-prefix'
+		[13 0]='write_buffer'
+		[6 0]='find-file'
+		[2 0]='list-buffers'
+		[62 0]='switch-to-buffer'
+		[30 0]='delete-window'
+	)
+	keys_prefix_help=(
+		[7 0]='quit-prefix'
+		[1 0]='about'
+		[72 0]='manual'
+	)
+	keys_menu=(
+		[${keys_def[previous_line]}]='menuup'
+		[${keys_def[next_line]}]='menudown'
+		[${keys_def[select]}]='menuselect'
+	)
+	key_options_menu=(
+		[else]='menuleave'
+	)
+	## Style
+	#      Defined in escape codes.
+	style=(
+		[none]='\e[m'
+		[TODO]='\e[0;97;45m'
+		[NOTE]='\e[0;97;100m'
+		[menuline]='\e[0;37;40m'
+		[menuitem]='\e[0;37;40m'
+		[selected]='\e[30;45m'
+		[link]='\e[94m'
+		[menuitemselected]='\e[30;45m'
+		[infoline]='\e[40;97m'
+		[number]='\e[0;90m'
+		[numberempty]='\e[0;90m'
+		[numberselected]='\e[0;91m'
+		[tab]='\e[0;90m'
+		#syntax
+		[quotevar]='\e[0;36;48m'
+		[comment]='\e[3;37;48m'
+		[variable]='\e[0;96m'
+		[option]='\e[0;93m'
+		[flow]='\e[0;93m'
+		[pipe]='\e[1;94m'
+		[bracket]='\e[1;95m'
+		[quote]='\e[0;92m'
+		[dquote]='\e[0;32m'
+		[set]='\e[0;94;108m'
+		[fn]='\e[0;30;44m'
+		[keyword]='\e[0;91m'
+		[init]='\e[0;31m'
+	)
+
+	## Commands
+	#		List of commands for M-x.
+	commands=(
+		[quit]='quit'
+		[newline]='newline'
+		[set-buffer-file]='find-file'
+		[read-file]='read-buffer'
+		[write-file]='write-buffer'
+		[delete-line]='delete-line'
+		[toggle-mouse]='toggle-mouse'
+		[execute]='execute'
+		[shell]='shell'
+		[force-quit]='die'
+		[about]='about'
+		[backspace]='backspace'
+		[menu]='menu'
+		[menul]='menulinemenu'
+		[input]='inputcodes'
+		[scroll-up]='scroll-up'
+		[scroll-down]='scroll-down'
+		[dired]='dired'
+		[switch-to-buffer]='switch-to-buffer'
+		[list-buffers]='list-buffers'
+		[tile]='tile-buffers'
+		[vertical]='tile-vertical'
+		[horizontal]='tile-horizontal'
+		[single]='tile-single'
+		[log]='view-log'
+	)
+
+	function menulinemenu {
+		+log
+		declare -ng menucon=menufancy
+		#menulinepy=$(( bufferdata[size_y] - ${#menufancy[@]} ))
+		menu
+	}
+	menulineedit=(
+		[File]=menufile	[Help]=menuhelp
+		[Keys]=menukey	    [Redraw]=refresh
+		[Debug]=menudebug
+	)
+	function menufile { +log; declare -ng menucon=menufile; menu; }
+	menufile=(
+		[Quit       C-x C-c ]="quit"
+		[Visit file C-x C-f ]="find-file"
+		[Execute        C-t ]="execute"
+		[Save       C-x C-s ]="write-buffer"
+		[File picker        ]="dired"
+	)
+
+	function menuhelp { +log; declare -ng menucon=menuhelp; menu; }
+	menuhelp=(
+		[Keybinding          ]=menukey
+		[About               ]=about
+	)
+
+	function menukey { +log; declare -ng menucon=menukey; menu; }
+	menukey=(
+		[Exit       C-x C-c ]="quit"
+		[New Line   C-l | ⏎ ]="newline"
+		[Set target     M-r ]="find-file"
+		[Visit file C-x C-f ]="read-buffer"
+		[Save file  C-x C-s ]="write-buffer"
+		[Delete Line    C-d ]="delete-line"
+		[Prev Line      C-p ]="previous-line"
+		[Next Line      C-n ]="next-line"
+		[Prev Page      C-y ]="scroll-down"
+		[Next Page      C-v ]="scroll-up"
+		[Execute        C-t ]="execute"
+		[Shell          C-s ]="shell"
+		[Force exist    M-q ]="die"
+	)
+
+	function menudebug { +log; declare -ng menucon=menudebug; menu; }
+	menudebug=(
+		[clear      ]=clear-screen
+		[refresh    ]=refresh
+		[backspace  ]=backspace
+		[right      ]=forward-char
+		[left       ]=backward-char
+		[inputcodes ]=inputcodes
+	)
+
+	syntax=(
+		[bash]=syntax-bash	[sh]=syntax-bash
+		[ksh]=syntax-bash	[mksh]=syntax-bash
+		[dash]=syntax-bash	[zsh]=syntax-bash
+		[conf]=syntax-config	[unknown]=syntax-unknown
+		[i*dired]=dired-render
+	)
+
+	diredmenu=(
+		[toggle hidden \(h\)]="toggle_hidden"
+	)
 }
-menulineedit=(
-	[File]=menufile	[Help]=menuhelp
-	[Keys]=menukey	    [Redraw]=refresh
-	[Debug]=menudebug
-)
-function menufile { +log; declare -ng menucon=menufile; menu; }
-menufile=(
-	[Quit       C-x C-c ]="quit"
-	[Visit file C-x C-f ]="find-file"
-	[Execute        C-t ]="execute"
-	[Save       C-x C-s ]="write-buffer"
-	[File picker        ]="dired"
-)
 
-function menuhelp { +log; declare -ng menucon=menuhelp; menu; }
-menuhelp=(
-	[Keybinding          ]=menukey
-	[About               ]=about
-)
-
-function menukey { +log; declare -ng menucon=menukey; menu; }
-menukey=(
-	[Exit       C-x C-c ]="quit"
-	[New Line   C-l | ⏎ ]="newline"
-	[Set target     M-r ]="find-file"
-	[Visit file C-x C-f ]="read-buffer"
-	[Save file  C-x C-s ]="write-buffer"
-	[Delete Line    C-d ]="delete-line"
-	[Prev Line      C-p ]="previous-line"
-	[Next Line      C-n ]="next-line"
-	[Prev Page      C-y ]="scroll-down"
-	[Next Page      C-v ]="scroll-up"
-	[Execute        C-t ]="execute"
-	[Shell          C-s ]="shell"
-	[Force exist    M-q ]="die"
-)
-
-function menudebug { +log; declare -ng menucon=menudebug; menu; }
-menudebug=(
-	[clear      ]=clear-screen
-	[refresh    ]=refresh
-	[backspace  ]=backspace
-	[right      ]=forward-char
-	[left       ]=backward-char
-	[inputcodes ]=inputcodes
-)
-
-syntax=(
-	[bash]=syntax-bash	[sh]=syntax-bash
-	[ksh]=syntax-bash	[mksh]=syntax-bash
-	[dash]=syntax-bash	[zsh]=syntax-bash
-	[conf]=syntax-config	[unknown]=syntax-unknown
-	[i*dired]=dired-render
-)
-
-commands=(
-	[quit]='quit'
-	[newline]='newline'
-	[set-buffer-file]='find-file'
-	[read-file]='read-buffer'
-	[write-file]='write-buffer'
-	[delete-line]='delete-line'
-	[toggle-mouse]='toggle-mouse'
-	[execute]='execute'
-	[shell]='shell'
-	[force-quit]='die'
-	[about]='about'
-	[backspace]='backspace'
-	[menu]='menu'
-	[menul]='menulinemenu'
-	[input]='inputcodes'
-	[scroll-up]='scroll-up'
-	[scroll-down]='scroll-down'
-	[dired]='dired'
-	[switch-to-buffer]='switch-to-buffer'
-	[list-buffers]='list-buffers'
-	[tile]='tile-buffers'
-	[vertical]='tile-vertical'
-	[horizontal]='tile-horizontal'
-	[log]='view-log'
-)
-diredmenu=(
-	[toggle hidden \(h\)]="toggle_hidden"
-)
 ## source extensions here
 # source extensions/evil
 ## rest of this garbageware
 
 menulinepy=0; menulinep=0 # menu positions
-update=1
-log=0
 case "${options[menuline]}" in
 	1) toplines=1;;
 	0) toplines=0;;
@@ -276,7 +283,6 @@ esac
 bottomlines=2
 reset='\e[0;0m'
 function update-menuline-menu {
-	+log
 	declare -Ag menufancy
 	for item in "${!menulineedit[@]}"; do
 		menufancy+=(["$(printf '%-12s' "$item")"]="${menulineedit["$item"]}")
@@ -404,7 +410,6 @@ function list-buffers {
 	declare -Ag "${current_buffer}_bufferdata"
 	copy-array overlay bckover
 	overlay=()
-	update=0
 	#bufferdata[size_x]=$((COLUMNS / 2))
 	#bufferdata[size_y]=$((LINES / 3))
 	#bufferdata[position_x]=$((COLUMNS / 2 - COLUMNS / 4))
@@ -707,7 +712,6 @@ function inputcodes {
 	buffer=("")
 	copy-array overlay bckover
 	overlay=()
-	update=0
 	menulinedebug=(
 		[quit]='quit-debuginput'
 	)
@@ -803,7 +807,7 @@ function size-full {
 }
 function read-buffer {
 	+log
-	log "READ-BUFFER" "arg: $@"
+	log info "arg: $@"
 	((current_count++))
 	current_buffer="file_${current_count}"
 	add-to-list
@@ -920,7 +924,6 @@ function about {
 	declare -Ag "${current_buffer}_bufferdata"
 	copy-array overlay bckover
 	overlay=()
-	update=0
 	#bufferdata[size_x]=$((COLUMNS / 2))
 	#bufferdata[size_y]=$((LINES / 3))
 	#bufferdata[position_x]=$((COLUMNS / 2 - COLUMNS / 4))
@@ -1114,11 +1117,6 @@ function manual {
 	declare -Ag "${current_buffer}_bufferdata"
 	copy-array overlay bckover
 	overlay=()
-	update=0
-	#bufferdata[size_x]=$((COLUMNS / 2))
-	#bufferdata[size_y]=$((LINES / 3))
-	#bufferdata[position_x]=$((COLUMNS / 2 - COLUMNS / 4))
-	#bufferdata[position_y]=$((LINES / 2 - LINES / 6))
 	bufferdata=(
 		[line]=1
 		[base]=1
@@ -1803,15 +1801,16 @@ function menu {
 }
 function tile-buffers {
 	+log
+	log info "tile redraw-set ${options[tile_mode]}"
 	bck_current_buffer="$current_buffer"
 	case "${options[tile_mode]}" in
 		vertical)
 			target_x=$(( COLUMNS / ${#listbuffers[@]} ))
 			target_x_offset=1
-			target_y=$LINES
+			target_y=$((LINES - 1))
 			target_y_offset=1;;
 		horizontal)
-			target_y=$(( LINES / ${#listbuffers[@]} ))
+			target_y=$(( LINES / ${#listbuffers[@]} - 1 ))
 			target_y_offset=1
 			target_x=$COLUMNS
 			target_x_offset=1;;
@@ -1852,10 +1851,14 @@ function tile-horizontal {
 	options[tile_mode]='horizontal'
 	tile-buffers
 }
-function singe {
+function tile-single {
 	+log
 	options[tile_mode]='single'
-	tile-buffers
+	bufferdata[size_x]=$COLUMNS
+	bufferdata[size_y]=$((LINES - 1))
+	bufferdata[position_x]=1
+	bufferdata[position_y]=1
+	redraw
 }
 function delete-window {
 	+log
@@ -1879,10 +1882,6 @@ function redraw {
 	((bufferdata[column] +3 > bufferdata[size_x] - buffer_lenght - 1)) && bufferdata[basecolumn]=$((bufferdata[column] - (bufferdata[size_x] + bufferdata[position_x] - buffer_lenght - 1) +3 ))
 	bckIFS="$IFS"
 	printf '\e[?25l'
-	#((update==1)) && {
-	#	bufferdata[size_x]=$COLUMNS
-	#	bufferdata[size_y]=$((LINES - 1))
-	#}
 	(("${options[menuline]}"==1)) && {
 		printf "\e[0m\e[%s;%sH${style[menuline]}\e[?25l%*s\r%s"\
 			   "${bufferdata[position_y]}"\
@@ -2068,8 +2067,15 @@ function init-log {
 		[modified]=0
 		[raw]=1
 	)
-	bufferlog=('' '    [ LOG START ]')
-	
+	menulineabout=(
+		[quit]='quit-view'
+	)
+	bufferlog=(
+		''
+		"[ LOG START ] Ebashs version $version"
+		'time function            level  message'
+	)
+	lasttime="$(current-time '%s')"
 }
 function view-log {
 	+log
@@ -2079,9 +2085,7 @@ function view-log {
 	copy-array overlay bckover
 	overlay=()
 	declare -gn menuline=menulineabout
-	menulineabout=(
-		[quit]='quit-view'
-	)
+	file-lenght
 	copy-array buffer bufferexpand
 	clear-screen
 	redraw
@@ -2089,66 +2093,82 @@ function view-log {
 		printf '%s: %s\n' "$ae" "${bufferdata[$ae]}" >> d
 	done
 }
+function current-time {
+	printf "%($1)T\\n"
+}
 function log {
-	+log
 	((log)) || return
 	local type="$1"
 	shift
+	tooktime="$(( $(current-time '%s') - lasttime ))"
 	case "$type" in
 		warn)
 			bufferlog+=(
-				"[WARN] $@"
+				"${tooktime}s $(printf '%-20s' "${FUNCNAME[1]}") [ WARN ] $@"
 			);;
 		info)
 			bufferlog+=(
-				"[INFO]: $@"
+				"${tooktime}s $(printf '%-20s' "${FUNCNAME[1]}") [ INFO ] $@"
 			);;
 		error)
 			bufferlog+=(
-				"[ERROR] $@"
+				"! ${tooktime}s [ ERROR ] $(printf '%-20s' "${FUNCNAME[1]}") $@"
 			);;
 		bash)
 			(($1==1)) && return
 			bufferlog+=(
-				"[BASH]"
-				"    code $1"
-				"    line $2"
-				"    cmd  $3"
+			    "${tooktime}s $(printf '%-20s' "${FUNCNAME[1]}") [ BASH ]"
+				"$(printf '%30s' ' ') code $1"
+				"$(printf '%30s' ' ') line $2"
+				"$(printf '%30s' ' ') cmd  $3"
 			);;
 
 		*)
 			bufferlog+=(
-				"[${type}]: $@"
+				"$type => ${tooktime}s in ${FUNCNAME[1]}() $@"
 			);;
 
 	esac
+	lasttime="$(current-time '%s')"
 }
+## debug
+# +log -- reports errors (and optinally function names) into log
+#     make sure it's included with every function
+# +debug -- basically like set -x but reports stuff into log
 function +log {
 	((log)) || return
+	((options[log_functions])) && log '*' "${FUNCNAME[1]}"
 	trap 'log bash $? $LINENO ${BASH_COMMAND}' ERR
 }
-function main {
-	init-log # set up log buffer (M-x log)
+function +debug {
+	((log)) || return
+	trap 'log DEBUG "${BASH_COMMAND}"' DEBUG
+}
+function init {
 	+log
-	log ARGUMENTS "$@"
-	[ "$a" = c ] && log info err
+	config
+	((options[log])) && init-log # set up log buffer (M-x log)
 	printf '\e[?1049h'
 	(("${options[mouse]}")) && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
     if [[ "$1" ]]; then # If a file was provided in the terminal pre-load it
+		log info "argument $1"
         if [ -d "$1" ]; then
+			log info "[$1] is directory => dired"
 			cd "$1" || exit
 			dired # enter the file selector in specified folder
 		else
+			log info "[$1] is file => read-buffer"
 			read-buffer "$1"
 		fi
     else
+		log info "no arg => dired"
 		dired # enter the file selector
 	fi
-	begin
+	main
 }
-function begin {
+function main {
 	+log
-	log info begin
+	log info 'entering main loop...'
 	redraw
 	while :; do
 		local -a k=()
@@ -2159,4 +2179,4 @@ function begin {
 		fi
 	done
 }
-main "$@"
+init "$@"
