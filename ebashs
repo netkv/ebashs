@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.4.0"
+version="0.4.1"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -10,7 +10,7 @@ trap quit INT
 trap quit SIGTERM
 
 declare -A syntax style options charmap commands
-declare -A menulineedit menulineabout diredmenu menulinedebug
+declare -A menulineedit diredmenu menulinedebug
 declare -A menufile menuhelp menukey menudebug menufancy
 declare -A keys_def keys_edit keys_prefix keys_dired keys_view keys_menu keys_debuginput keys_prefix_help keys_list_buffers
 declare -A key_options_menu key_options_debuginput key_options_list_buffers
@@ -372,8 +372,7 @@ function restore {
 	local name="$1"
 	local -n savedcurrent_buffer="current_buffer${name}"
 	local -n savedmenuline="menuline${name}"
-	current_buffer="${savedcurrent_buffer}"
-	set-current
+	set-buffer "${savedcurrent_buffer}"
 	declare -ng menuline="$savedmenuline"
 }
 ###
@@ -381,11 +380,6 @@ function set-buffer {
 	+log
 	log info "switch to buffer [$1]"
 	current_buffer="$1"
-	set-current
-}
-function set-current {
-	+log
-	log info "setting current: ${current_buffer}"
 	declare -ng buffer="${current_buffer}_buffer"
 	declare -ng buffersyntax="${current_buffer}_buffersyntax"
 	declare -ng bufferexpand="${current_buffer}_bufferexpand"
@@ -395,12 +389,12 @@ function switch-to-buffer {
 	+log
 	redraw
 	read-command "Switch to buffer: " readin
-	current_buffer="$readin"
-	set-current
+	set-buffer "$readin"
 	redraw
 }
 add-to-list() {
 	+log
+	log info "added into buffer list: $current_buffer"
 	listbuffers+=("$current_buffer")
 }
 function list-buffers {
@@ -410,10 +404,6 @@ function list-buffers {
 	declare -Ag "${current_buffer}_bufferdata"
 	copy-array overlay bckover
 	overlay=()
-	#bufferdata[size_x]=$((COLUMNS / 2))
-	#bufferdata[size_y]=$((LINES / 3))
-	#bufferdata[position_x]=$((COLUMNS / 2 - COLUMNS / 4))
-	#bufferdata[position_y]=$((LINES / 2 - LINES / 6))
 	bufferdata=(
 		[line]=1
 		[base]=1
@@ -435,8 +425,7 @@ function list-buffers {
 }
 function buffer-select {
 	+log
-	current_buffer="${buffer[bufferdata[line]]}"
-	set-current
+	set-buffer "${buffer[bufferdata[line]]}"
 	[ "${bufferdata[mode]}" = 'prefix' ] && bufferdata[mode]="$bckmode"
 	redraw
 }
@@ -692,10 +681,9 @@ function inputcodes {
 	save openfile
 	declare -gn menuline=menulinedebug
 	((current_count++))
-	current_buffer="debuginput_${current_count}"
+	set-buffer "debuginput_${current_count}"
 	add-to-list # add buffer to list of active buffers
 	declare -Ag "${current_buffer}_bufferdata"
-	set-current
 	bufferdata=(
 		[line]=1
 		[base]=1
@@ -809,10 +797,9 @@ function read-buffer {
 	+log
 	log info "arg: $@"
 	((current_count++))
-	current_buffer="file_${current_count}"
+	set-buffer "file_${current_count}"
 	add-to-list
 	declare -Ag "${current_buffer}_bufferdata"
-	set-current
 	declare -ng menuline=menulineedit # Set default menuline for file editing
 	bufferdata=(
 		[line]=0 # Currently selected line (0 means the buffer is empty)
@@ -859,10 +846,9 @@ function dired {
 	+log
 	declare -gn menuline=diredmenu
 	((current_count++))
-	current_buffer="dired_${current_count}"
+	set-buffer "dired_${current_count}"
 	add-to-list
 	declare -Ag "${current_buffer}_bufferdata"
-	set-current
 	bufferdata=(
 		[line]=1
 		[base]=1
@@ -915,36 +901,43 @@ function copy-array {
 		target[idx]="${source[idx]}"
 	done
 }
-function about {
+function buffer-dialog {
 	+log
+	declare -Ag "menuline_$1"
 	save openfile
 	((current_count++))
-	set-buffer "about_${current_count}"
+	set-buffer "$1_${current_count}"
 	add-to-list
 	declare -Ag "${current_buffer}_bufferdata"
 	copy-array overlay bckover
 	overlay=()
-	#bufferdata[size_x]=$((COLUMNS / 2))
-	#bufferdata[size_y]=$((LINES / 3))
-	#bufferdata[position_x]=$((COLUMNS / 2 - COLUMNS / 4))
-	#bufferdata[position_y]=$((LINES / 2 - LINES / 6))
 	bufferdata=(
 		[line]=1
 		[base]=1
 		[column]=0
-		[info]='About Ebashs'
-		[mode]='view'
-		[help_message]='About'
+		[info]="$2"
+		[mode]=view
+		[help_message]="$3"
 		[filetype]='i*view'
-		[file]='*about*'
+		[file]="$4"
 		[modified]=0
 		[raw]=1
 	)
 	size-full
-	declare -gn menuline=menulineabout
-	menulineabout=(
+	size-full
+	declare -gn menuline="menuline_$1"
+	menuline=(
 		[quit]='quit-view'
 	)
+}
+function buffer-dialog-draw {
+	copy-array buffer bufferexpand
+	clear-screen
+	redraw
+}
+function about {
+	+log
+	buffer-dialog about 'About Ebashs' 'About' '*about*'
 	mapfile -t -O 1 buffer <<EOF
 Ebashs $version
 Copyrightn't () 2023 Aeknt. 
@@ -975,9 +968,7 @@ Based on                 https://github.com/comfies/bed
   ────────────────────────────────────────────────────────────────────────────────────────────
 
 EOF
-	copy-array buffer bufferexpand
-	clear-screen
-	redraw
+	buffer-dialog-draw
 }
 function table-init {
 	+log
@@ -1109,35 +1100,9 @@ function header {
 EOF2
 }
 function manual {
-	+log
-	save openfile
-	((current_count++))
-	set-buffer "about_${current_count}"
-	add-to-list
-	declare -Ag "${current_buffer}_bufferdata"
-	copy-array overlay bckover
-	overlay=()
-	bufferdata=(
-		[line]=1
-		[base]=1
-		[column]=0
-		[info]='About Ebashs'
-		[mode]='view'
-		[help_message]='About'
-		[filetype]='i*render'
-		[file]='*about*'
-		[modified]=0
-		[raw]=1
-	)
-	size-full
-	declare -gn menuline=menulineabout
-	menulineabout=(
-		[quit]='quit-view'
-	)
+	buffer-dialog manual 'Ebashs manual' 'Manual' '*manual*'
 	get-manual
-	copy-array buffer bufferexpand
-	clear-screen
-	redraw
+	buffer-dialog-draw
 }
 function get-manual {
 	+log
@@ -1821,8 +1786,7 @@ function tile-buffers {
 			target_x_offset=1;;
 	esac
 	for b in "${listbuffers[@]}"; do
-		current_buffer="$b"
-		set-current
+		set-buffer "$b"
 		bufferdata[size_x]=$target_x
 		bufferdata[position_x]=$target_x_offset
 		bufferdata[size_y]=$target_y
@@ -1837,8 +1801,7 @@ function tile-buffers {
 		redraw
 		
 	done
-	current_buffer="$bck_current_buffer"
-	set-current
+	set-buffer "$bck_current_buffer"
 	buffer-lenght
 }
 function tile-vertical {
