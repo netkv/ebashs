@@ -17,7 +17,7 @@ declare -A key_options_menu key_options_debuginput key_options_list_buffers
 declare -a input_hex overlay listbuffers
 declare -n buffer buffersyntax bufferexpand bufferdata
 declare -i menulinep menulinepy buffer_lenght toplines bottomlines hidden ismenu comment current_count
-declare -n menucon menuline
+declare -n menucon
 declare message reset readin
 
 function config {
@@ -362,18 +362,14 @@ function execute-extended-command {
 function save {
 	+log
 	local name="$1"
-	local -n savedcurrent_buffer="current_buffer${name}"	
-   	local -n savedmenuline="menuline${name}"
+	local -n savedcurrent_buffer="current_buffer${name}"
 	savedcurrent_buffer="$current_buffer"
-	savedmenuline="${!menuline}"
 }
 function restore {
 	+log
 	local name="$1"
 	local -n savedcurrent_buffer="current_buffer${name}"
-	local -n savedmenuline="menuline${name}"
 	set-buffer "${savedcurrent_buffer}"
-	declare -ng menuline="$savedmenuline"
 }
 ###
 function set-buffer {
@@ -415,8 +411,8 @@ function list-buffers {
 		[file]='*Buffer List*'
 		[modified]=0
 		[raw]=1
+		[menuline]='menulineabout'
 	)
-	declare -gn menuline=menulineabout
 	menulineabout=(
 		[quit]='quit-view'
 	)
@@ -679,7 +675,6 @@ function insert-debug-hex {
 function inputcodes {
 	+log
 	save openfile
-	declare -gn menuline=menulinedebug
 	((current_count++))
 	set-buffer "debuginput_${current_count}"
 	add-to-list # add buffer to list of active buffers
@@ -695,6 +690,7 @@ function inputcodes {
 		[file]='*debuginput*'
 		[modified]=0
 		[raw]=1
+		[menuline]='menulinedebug'
 	)
 	size-full
 	buffer=("")
@@ -703,8 +699,6 @@ function inputcodes {
 	menulinedebug=(
 		[quit]='quit-debuginput'
 	)
-	#clear-buffer
-	#buffer=('')
 	clear-screen
 	redraw
 }
@@ -795,12 +789,11 @@ function size-full {
 }
 function read-buffer {
 	+log
-	log info "arg: $@"
+	log info "arg: $*"
 	((current_count++))
 	set-buffer "file_${current_count}"
 	add-to-list
 	declare -Ag "${current_buffer}_bufferdata"
-	declare -ng menuline=menulineedit # Set default menuline for file editing
 	bufferdata=(
 		[line]=0 # Currently selected line (0 means the buffer is empty)
 		[base]=1 # Top-most line shown
@@ -810,6 +803,7 @@ function read-buffer {
 		[help_message]="${options[help_message]}"
 		[filetype]="$(filetype "$1")"
 		[file]="$1"
+		[menuline]='menulineedit'
 	)
 	size-full
 	mapfile -t -O 1 "${current_buffer}_buffer" <"${bufferdata[file]}" # Read file into an array
@@ -844,7 +838,6 @@ function toggle_hidden {
 }
 function dired {
 	+log
-	declare -gn menuline=diredmenu
 	((current_count++))
 	set-buffer "dired_${current_count}"
 	add-to-list
@@ -859,6 +852,7 @@ function dired {
 		[filetype]='i*dired'
 		[file]='*dired*'
 		[modified]=0
+		[menuline]='diredmenu'
 	)
 	size-full
 	mapfile -t -O 1 buffer <<< "$(pickls)"
@@ -891,7 +885,7 @@ function pickls {
 	printf '%s\n' *
 }
 
-# A univeral functions to copy both normal and associative arrays
+# A univeral function to copy both normal and associative arrays
 function copy-array {
 	+log
 	local -n source="$1"
@@ -901,9 +895,9 @@ function copy-array {
 		target[idx]="${source[idx]}"
 	done
 }
+
 function buffer-dialog {
 	+log
-	declare -Ag "menuline_$1"
 	save openfile
 	((current_count++))
 	set-buffer "$1_${current_count}"
@@ -922,10 +916,11 @@ function buffer-dialog {
 		[file]="$4"
 		[modified]=0
 		[raw]=1
+		[menuline]="menuline_$1"
 	)
 	size-full
-	size-full
-	declare -gn menuline="menuline_$1"
+	declare -Ag "menuline_$1"
+	local -n menuline="${bufferdata[menuline]}"
 	menuline=(
 		[quit]='quit-view'
 	)
@@ -1707,6 +1702,7 @@ function toggle-mouse {
 }
 function menuclick {
 	+log
+	local -n menuline="${bufferdata[menuline]}"
 	#determine which item should be triggered
 	[ -z "$1" ] && menulinep=0 || menulinep=$1
 	local cx="${bufferdata[position_x]}"
@@ -1846,6 +1842,7 @@ function redraw {
 	bckIFS="$IFS"
 	printf '\e[?25l'
 	(("${options[menuline]}"==1)) && {
+		local -n menuline="${bufferdata[menuline]}"
 		printf "\e[0m\e[%s;%sH${style[menuline]}\e[?25l%*s\r%s"\
 			   "${bufferdata[position_y]}"\
 			   "${bufferdata[position_x]}"\
@@ -1910,8 +1907,17 @@ function redraw-cursor {
 function redraw-statusline {
 	+log
 	printf "\e[%s;%sH\n\e[%sG${style[infoline]}%*s\e[%sG%s %s (%s,%s) (screen: %s)\e[m" \
-	       $((bufferdata[size_y] - 2 + bufferdata[position_y])) $((bufferdata[size_x] + bufferdata[position_x])) "${bufferdata[position_x]}" $((bufferdata[size_x])) "${bufferdata[info]}" "${bufferdata[position_x]}" \
-	       "${bufferdata[mode]}" "$(base-name "${bufferdata[file]}")[${bufferdata[filetype]}]" "${bufferdata[line]}" "${bufferdata[column]}" "$current_buffer"
+	       $((bufferdata[size_y] - 2 + bufferdata[position_y]))\
+		   $((bufferdata[size_x] + bufferdata[position_x]))\
+		   "${bufferdata[position_x]}"\
+		   $((bufferdata[size_x]))\
+		   "${bufferdata[info]}"\
+		   "${bufferdata[position_x]}" \
+	       "${bufferdata[mode]}"\
+		   "$(base-name "${bufferdata[file]}")[${bufferdata[filetype]}]"\
+		   "${bufferdata[line]}"\
+		   "${bufferdata[column]}"\
+		   "$current_buffer"
 }
 function redraw-commandline {
 	+log
@@ -2029,8 +2035,9 @@ function init-log {
 		[file]='*log*'
 		[modified]=0
 		[raw]=1
+		[menuline]='menulog'
 	)
-	menulineabout=(
+	menulog=(
 		[quit]='quit-view'
 	)
 	bufferlog=(
@@ -2047,7 +2054,6 @@ function view-log {
 	size-full
 	copy-array overlay bckover
 	overlay=()
-	declare -gn menuline=menulineabout
 	file-lenght
 	copy-array buffer bufferexpand
 	clear-screen
