@@ -12,15 +12,14 @@ trap quit SIGTERM
 declare -A syntax style options charmap commands
 declare -A menulineedit diredmenu menulinedebug
 declare -A menufile menuhelp menukey menudebug menufancy
-declare -A keys_def keys_edit keys_prefix keys_dired keys_view keys_menu keys_debuginput keys_prefix_help keys_list_buffers
-declare -A key_options_menu key_options_debuginput key_options_list_buffers
+declare -A keys_def
 declare -a input_hex overlay listbuffers
 declare -n buffer buffersyntax bufferexpand bufferdata
 declare -i menulinep menulinepy buffer_lenght toplines bottomlines hidden ismenu comment current_count
 declare -n menucon
 declare message reset readin
 
-function config {
+function +config {
 	+log
 	### Config options
 	## General options
@@ -56,6 +55,7 @@ function config {
 		[scroll_up]='1b 5b 36 7e 0'
 		[select]='0'
 	)
+	+keys edit
 	keys_edit=(
 		[${keys_def[previous_line]}]='previous-line'
 		[${keys_def[next_line]}]='next-line'
@@ -92,6 +92,7 @@ function config {
 		[5 0]='move-end-of-line'
 		[1b 5b 46 0]='move-end-of-line'
 	)
+	+keys dired
 	keys_dired=(
 		[${keys_def[previous_line]}]='previous-line'
 		[${keys_def[next_line]}]='next-line'
@@ -102,6 +103,7 @@ function config {
 		[${keys_def[select]}]='dired-select'
 		[68 0]='toggle_hidden'
 	)
+	+keys view
 	keys_view=(
 		[${keys_def[previous_line]}]='previous-line'
 		[${keys_def[next_line]}]='next-line'
@@ -111,6 +113,7 @@ function config {
 		[${keys_def[scroll_up]}]='scroll-up'
 		[${keys_def[select]}]='quit-view'
 	)
+	+keys list_buffers
 	keys_list_buffers=(
 		[${keys_def[previous_line]}]='previous-line'
 		[${keys_def[next_line]}]='next-line'
@@ -121,6 +124,7 @@ function config {
 	key_options_list_buffers=(
 		[else]='quit-view'
 	)
+	+keys prefix
 	keys_prefix=(
 		[18 0]='quit'
 		[7 0]='quit-prefix'
@@ -130,11 +134,16 @@ function config {
 		[62 0]='switch-to-buffer'
 		[30 0]='delete-window'
 	)
+	key_options_prefix=(
+		[always]='quit-prefix'
+	)
+	+keys prefix_help
 	keys_prefix_help=(
 		[7 0]='quit-prefix'
 		[1 0]='about'
 		[72 0]='manual'
 	)
+	+keys menu
 	keys_menu=(
 		[${keys_def[previous_line]}]='menuup'
 		[${keys_def[next_line]}]='menudown'
@@ -316,6 +325,12 @@ function clear-screen {
 #	IFS='[;' read -p $'\e[6n' -d R -a pos -rs || echo "failed with error: $? ; ${pos[*]}"
 #	echo "${pos[2]}"
 #}
+
+function +keys {
+	#log TODO fix
+	declare -Ag "keys_$1"
+	declare -Ag "key_options_$1"
+}
 
 function refresh {
 	+log
@@ -653,7 +668,7 @@ function expand-char {
 	IFS="${bckIFS}"
 }
 
-
++keys debuginput
 keys_debuginput=(
 	[18 0]='quit-debuginput'
 )
@@ -1854,7 +1869,7 @@ function redraw {
 	IFS=''
 	local -i max=$((bufferdata[size_y] - (toplines + bottomlines) + 1))
 	if ((bufferdata[raw])); then
-		for ((i = bufferdata[base]; i - bufferdata[base] < max; i++)); do
+		for ((i = bufferdata[base]; i - bufferdata[base] < max - options[menuline]; i++)); do
 			printf "${style[number]}"
 			((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
 			((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((buffer_lenght/2))s~\e[m\n" "${bufferdata[position_x]}"\
@@ -1866,7 +1881,7 @@ function redraw {
 				}
 		done
 	else
-		for ((i = bufferdata[base]; i - bufferdata[base] < max; i++)); do
+		for ((i = bufferdata[base]; i - bufferdata[base] < max - options[menuline]; i++)); do
 			printf "${style[number]}"
 			((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
 			((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((buffer_lenght/2))s~\e[m\n" "${bufferdata[position_x]}"\
@@ -1901,7 +1916,7 @@ function redraw {
 function redraw-cursor {
 	+log
 	printf '\e[?25h\e[%s;%sH'\
-		   $((bufferdata[line] + 1 - bufferdata[base] + bufferdata[position_y]))\
+		   $((bufferdata[line] + options[menuline] - bufferdata[base] + bufferdata[position_y]))\
 		   $((bufferdata[column] - bufferdata[basecolumn] + buffer_lenght + 1 + bufferdata[position_x]))
 }
 function redraw-statusline {
@@ -1945,7 +1960,8 @@ function insert-word {
 	ta=${ta//[^t]}
 	ta=${#ta}
 	rlr=$((bufferdata[column] + ta / 4 - ta))
-	buffer[bufferdata[line]]="${buffer[${bufferdata[line]}]:0:${rlr}}$1${buffer[${bufferdata[line]}]:${rlr}}" #add at cursor position - amount of tabs * tab size
+	buffer[bufferdata[line]]="${buffer[${bufferdata[line]}]:0:${rlr}}$1${buffer[${bufferdata[line]}]:${rlr}}"\
+		  #add at cursor position - amount of tabs * tab size
 	make-render-line
 	forward-char "${#1}"
 	redraw
@@ -1955,19 +1971,18 @@ function input-key {
 	+log
 	local -i x y mode_contains
 	input-make-hex "$1"
-
-	local -n modekeys="keys_${bufferdata[mode]}"
+	local -n modekeys="keys_${bufferdata[mode]}" key_options="key_options_${bufferdata[mode]}"
+	((${#key_options[@]})) && {
+		[ -n "${key_options[always]}" ] && "${key_options[always]}"
+	}
 	for str in "${!modekeys[@]}"; do
 		[ "$str" = "${input_hex[*]}" ] && {
 			"${modekeys[$str]}"
 			mode_contains=1
 		}
 	done
-	((mode_contains == 0)) && {
-		local -n key_options="key_options_${bufferdata[mode]}"
-		((${#key_options[@]})) && {
-			[ -n "${key_options[else]}" ] && "${key_options[else]}"
-		}
+	((${#key_options[@]})) && {
+		((mode_contains == 0)) && [ -n "${key_options[else]}" ] && "${key_options[else]}"
 	}
 	((mode_contains == 1)) && {
 		return
@@ -2115,7 +2130,7 @@ function +debug {
 }
 function init {
 	+log
-	config
+	+config
 	((options[log])) && init-log # set up log buffer (M-x log)
 	printf '\e[?1049h'
 	(("${options[mouse]}")) && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
