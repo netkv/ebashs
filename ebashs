@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.5.0-WIP-1"
+version="0.5.0-WIP-2"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -1864,14 +1864,11 @@ function delete-window {
 	tile-buffers
 }
 function draw-line {
-	printf "\e[%sG\e[K%${bufferdata[length]}s%b %s\n"\
+	printf "\e[%sG\e[K%${bufferdata[length]}s %b%s\n"\
 		   "${bufferdata[position_x]}"\
 		   "$i"\
 		   "$1"\
 		   "$2"
-}
-function draw-code {
-	printf "$1"
 }
 function redraw {
 	+log
@@ -1906,7 +1903,7 @@ function redraw {
 		done
 	else
 		for ((i = bufferdata[base]; i - bufferdata[base] < max - options[menuline]; i++)); do
-			printf "${style[number]}"
+			printf '%b' "${style[number]}"
 			((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
 			((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((bufferdata[length]/2))s~\e[m\n" "${bufferdata[position_x]}"\
 					|| {
@@ -1918,43 +1915,36 @@ function redraw {
 					[ -z "${buffersyntax[i]}" ] && {
 						make-render-area $((base + i)) $((base + i + 1)) # idk why make-render-line doesnt work here
 					}
-					((i > bufferdata[selection_start_y] - 1))\
-						&& ((i < bufferdata[selection_end_y] + 1)) && {
-						draw-line "\e[m${style[selection]}" "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
+					local -n linearray="${buffersyntax[i]}"
+					((i >= bufferdata[selection_start_y]))\
+						&& ((i <= bufferdata[selection_end_y])) && {
+						if ((i == bufferdata[selection_start_y])); then
+							printf "\e[%sG\e[K%${bufferdata[length]}s %b%s%b%s\n"\
+								   "${bufferdata[position_x]}"\
+								   "$i"\
+								   "\e[m"\
+								   "${linearray[*]:bufferdata[basecolumn]:bufferdata[selection_start_x]}"\
+								   "\e[m${style[selection]}"\
+								   "${buffer[i]:bufferdata[selection_start_x]:bufferdata[size_x] - (bufferdata[length] + 1)}"
+						elif ((i == bufferdata[selection_end_y])); then
+							printf "\e[%sG\e[K%${bufferdata[length]}s %b%s%b%s\n"\
+								   "${bufferdata[position_x]}"\
+								   "$i"\
+								   "\e[m${style[selection]}"\
+								   "${buffer[i]:bufferdata[basecolumn]:bufferdata[selection_end_x]}"\
+								   "\e[m"\
+								   "${linearray[*]:bufferdata[selection_end_x]:bufferdata[size_x]}"
+						else
+							draw-line "\e[m${style[selection]}" "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
+						fi
 						continue
 					}
 					# due to escape codes present in buffersyntax,
 					# the buffersyntax has to be multidimensional nonsense for perfomance reasons
-					local -n linearray="${buffersyntax[i]}"
 					draw-line '\e[m' "${linearray[*]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
 				}
 		done
 	fi
-	((bufferdata[selection]==9999)) && {
-		printf '\e[%s;%sH'\
-			   $((bufferdata[selection_start_y] - bufferdata[base] + ${options[menuline]} + 2)) 0
-			   #$((bufferdata[basecolumn] + bufferdata[selection_start_x] + bufferdata[length] + 2))
-		#printf '\e[%s;%sH'\
-		#	   $((bufferdata[selection_end_y] - bufferdata[base] + ${options[menuline]} + 1))\
-		#	   $((bufferdata[basecolumn] + bufferdata[selection_end_x] + bufferdata[length] + 2))
-		for ((
-				i = bufferdata[selection_start_y] - bufferdata[base] + options[menuline] + 1;
-				i < bufferdata[selection_end_y] - bufferdata[base] + options[menuline] + 1;
-				i++
-			))
-		do
-			printf "${style[number]}"
-			((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
-			((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((bufferdata[length]/2))s~\e[m\n" "${bufferdata[position_x]}"\
-					|| {
-					printf "\e[%sG\e[K%${bufferdata[length]}s\e[m%b %s\n"\
-						   "${bufferdata[position_x]}"\
-						   "$i"\
-						   "${style[selection]}"\
-						   "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
-				}
-		done
-	}
 	IFS="$bckIFS"
 	redraw-statusline
 	redraw-commandline
