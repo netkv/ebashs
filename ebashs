@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.4.4"
+version="0.5.0-WIP-1"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -63,10 +63,11 @@ function +config {
 		[${keys_def[backward_char]}]='backward-char'
 		[${keys_def[scroll_down]}]='scroll-down'
 		[${keys_def[scroll_up]}]='scroll-up'
-		#[1b 5b 31 3b 32 41 0]='select_up'
-		#[1b 5b 31 3b 32 42 0]='select_down'
-		#[1b 5b 31 3b 32 43 0]='select_right'
-		#[1b 5b 31 3b 32 44 0]='select_left'
+		#[1b 5b 31 3b 32 41 0]='select-previous'
+		#[1b 5b 31 3b 32 42 0]='select-next'
+		#[1b 5b 31 3b 32 43 0]='select-forward'
+		#[1b 5b 31 3b 32 44 0]='select-backward'
+		[1b 20 0]='set-mark-command' # in gnu emacs this is C-SPC but i cant get that to be detected in bash so M-SPC will suffice
 		# TODO: selection
 		[18 0]='prefix'
 		[8 0]='prefix-help'
@@ -168,6 +169,7 @@ function +config {
 		[numberempty]='\e[0;90m'
 		[numberselected]='\e[0;91m'
 		[tab]='\e[0;90m'
+		[selection]='\e[100m'
 		#syntax
 		[quotevar]='\e[0;36;48m'
 		[comment]='\e[3;37;48m'
@@ -1683,6 +1685,18 @@ function backward-word {
 	done
 	redraw
 }
+function set-mark-command {
+	+log
+	if ((bufferdata[selection])); then
+		log info 'selection disable'
+		bufferdata[selection]=0
+	else
+		bufferdata[selection]=1
+		bufferdata[selection_start_y]="${bufferdata[line]}"
+		bufferdata[selection_start_x]="${bufferdata[column]}"
+		log info 'selection enable'
+	fi
+}
 
 function shell {
 	+log
@@ -1849,8 +1863,22 @@ function delete-window {
 	current_buffer="${listbuffers[index-1]}"
 	tile-buffers
 }
+function draw-line {
+	printf "\e[%sG\e[K%${bufferdata[length]}s%b %s\n"\
+		   "${bufferdata[position_x]}"\
+		   "$i"\
+		   "$1"\
+		   "$2"
+}
+function draw-code {
+	printf "$1"
+}
 function redraw {
 	+log
+	((bufferdata[selection]==1)) && {
+		bufferdata[selection_end_y]="${bufferdata[line]}"
+		bufferdata[selection_end_x]="${bufferdata[column]}"
+	}
 	((bufferdata[column] +3 < bufferdata[size_x] - bufferdata[length] - 1)) && bufferdata[basecolumn]=0
 	((bufferdata[column] +3 > bufferdata[size_x] - bufferdata[length] - 1)) && bufferdata[basecolumn]=$((bufferdata[column] - (bufferdata[size_x] + bufferdata[position_x] - bufferdata[length] - 1) +3 ))
 	bckIFS="$IFS"
@@ -1873,10 +1901,7 @@ function redraw {
 			((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
 			((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((bufferdata[length]/2))s~\e[m\n" "${bufferdata[position_x]}"\
 					|| {
-					printf "\e[%sG\e[K%${bufferdata[length]}s\e[m %s\n"\
-						   "${bufferdata[position_x]}"\
-						   "$i"\
-						   "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
+					draw-line '\e[m' "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
 				}
 		done
 	else
@@ -1893,16 +1918,43 @@ function redraw {
 					[ -z "${buffersyntax[i]}" ] && {
 						make-render-area $((base + i)) $((base + i + 1)) # idk why make-render-line doesnt work here
 					}
+					((i > bufferdata[selection_start_y] - 1))\
+						&& ((i < bufferdata[selection_end_y] + 1)) && {
+						draw-line "\e[m${style[selection]}" "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
+						continue
+					}
 					# due to escape codes present in buffersyntax,
 					# the buffersyntax has to be multidimensional nonsense for perfomance reasons
 					local -n linearray="${buffersyntax[i]}"
-					printf "\e[%sG\e[K%${bufferdata[length]}s\e[m %s\n"\
-						   "${bufferdata[position_x]}"\
-						   "$i"\
-						   "${linearray[*]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
+					draw-line '\e[m' "${linearray[*]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
 				}
 		done
 	fi
+	((bufferdata[selection]==9999)) && {
+		printf '\e[%s;%sH'\
+			   $((bufferdata[selection_start_y] - bufferdata[base] + ${options[menuline]} + 2)) 0
+			   #$((bufferdata[basecolumn] + bufferdata[selection_start_x] + bufferdata[length] + 2))
+		#printf '\e[%s;%sH'\
+		#	   $((bufferdata[selection_end_y] - bufferdata[base] + ${options[menuline]} + 1))\
+		#	   $((bufferdata[basecolumn] + bufferdata[selection_end_x] + bufferdata[length] + 2))
+		for ((
+				i = bufferdata[selection_start_y] - bufferdata[base] + options[menuline] + 1;
+				i < bufferdata[selection_end_y] - bufferdata[base] + options[menuline] + 1;
+				i++
+			))
+		do
+			printf "${style[number]}"
+			((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
+			((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((bufferdata[length]/2))s~\e[m\n" "${bufferdata[position_x]}"\
+					|| {
+					printf "\e[%sG\e[K%${bufferdata[length]}s\e[m%b %s\n"\
+						   "${bufferdata[position_x]}"\
+						   "$i"\
+						   "${style[selection]}"\
+						   "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
+				}
+		done
+	}
 	IFS="$bckIFS"
 	redraw-statusline
 	redraw-commandline
