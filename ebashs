@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.4.2"
+version="0.4.4"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -15,7 +15,7 @@ declare -A menufile menuhelp menukey menudebug menufancy
 declare -A keys_def
 declare -a input_hex overlay listbuffers
 declare -n buffer buffersyntax bufferexpand bufferdata
-declare -i menulinep menulinepy buffer_lenght toplines bottomlines hidden ismenu comment current_count
+declare -i menulinep menulinepy toplines bottomlines hidden ismenu comment current_count
 declare -n menucon
 declare message reset readin
 
@@ -683,7 +683,7 @@ function insert-debug-hex {
 	)
 	#copy-array buffer buffersyntax
 	#copy-array buffer bufferexpand
-	buffer-lenght
+	buffer-length
 	next-line
 	make-render-line
 }
@@ -768,10 +768,10 @@ function filetype {
 	esac
 	IFS="${bckIFS}"
 }
-function buffer-lenght {
+function buffer-length {
 	+log
-	buffer_lenght="${#buffer[@]}"
-	buffer_lenght="${#buffer_lenght}"
+	local l="${#buffer[@]}"
+	bufferdata[length]="${#l}"
 }
 function find-file {
 	+log
@@ -822,7 +822,7 @@ function read-buffer {
 	)
 	size-full
 	mapfile -t -O 1 "${current_buffer}_buffer" <"${bufferdata[file]}" # Read file into an array
-	buffer-lenght
+	buffer-length
 	draw-raw
 	#make-render # TODO: make fast
 	if [[ "${buffer[*]}" ]]; then # Ensure that something was actually read into the file
@@ -871,7 +871,7 @@ function dired {
 	)
 	size-full
 	mapfile -t -O 1 buffer <<< "$(pickls)"
-	buffer-lenght # drowning in sea of murky logic
+	buffer-length # drowning in sea of murky logic
 	make-render
 	if [[ "${buffer[1]}" ]]; then # Ensure that something was actually read into the file
 		bufferdata+=(
@@ -1468,7 +1468,7 @@ function newline {
 	buffer[bufferdata[line]]="${buffer[${bufferdata[line]}+1]:0:${bufferdata[column]}}"
 	buffer[bufferdata[line]+1]="${buffer[${bufferdata[line]}+1]:${bufferdata[column]}:${#buffer[${bufferdata[line]}+1]}}"
 	bufferdata[column]=0
-	buffer-lenght
+	buffer-length
 	syntax-shift
 	next-line
 }
@@ -1479,7 +1479,6 @@ syntax-shift() {
 	local -a tmp2
 	local extmp1
 	local extmp2
-	message="$buffer_lenght"
 	for ((l=bufferdata[line];l<${#buffer[@]}+1;l++)); do
 		local -n linearray="${current_buffer}_syntax${l}"
 		copy-array linearray tmp1
@@ -1489,7 +1488,7 @@ syntax-shift() {
 		bufferexpand[l]="$extmp2"
 		extmp2="$extmp1"
 	done
-	buffersyntax[buffer_length]="${current_buffer}_syntax${buffer_lenght}"
+	buffersyntax[buffer_length]="${current_buffer}_syntax${bufferdata[length]}"
 	unset tmp1 tmp2
 	make-render-area $((bufferdata[line])) $((bufferdata[line]+2))
 }
@@ -1501,7 +1500,7 @@ function delete-line {
 	unset 'buffer[0]'
 	((bufferdata[line] > ${#buffer[@]})) && previous-line
 	bufferdata[modified]=true
-	buffer-lenght
+	buffer-length
 	make-render
 	redraw
 }
@@ -1808,12 +1807,12 @@ function tile-buffers {
 			horizontal)
 				target_y_offset=$((target_y_offset + target_y));;
 		esac
-		buffer-lenght
+		buffer-length
 		redraw
 		
 	done
 	set-buffer "$bck_current_buffer"
-	buffer-lenght
+	buffer-length
 }
 function tile-vertical {
 	+log
@@ -1852,8 +1851,8 @@ function delete-window {
 }
 function redraw {
 	+log
-	((bufferdata[column] +3 < bufferdata[size_x] - buffer_lenght - 1)) && bufferdata[basecolumn]=0
-	((bufferdata[column] +3 > bufferdata[size_x] - buffer_lenght - 1)) && bufferdata[basecolumn]=$((bufferdata[column] - (bufferdata[size_x] + bufferdata[position_x] - buffer_lenght - 1) +3 ))
+	((bufferdata[column] +3 < bufferdata[size_x] - bufferdata[length] - 1)) && bufferdata[basecolumn]=0
+	((bufferdata[column] +3 > bufferdata[size_x] - bufferdata[length] - 1)) && bufferdata[basecolumn]=$((bufferdata[column] - (bufferdata[size_x] + bufferdata[position_x] - bufferdata[length] - 1) +3 ))
 	bckIFS="$IFS"
 	printf '\e[?25l'
 	(("${options[menuline]}"==1)) && {
@@ -1872,19 +1871,19 @@ function redraw {
 		for ((i = bufferdata[base]; i - bufferdata[base] < max - options[menuline]; i++)); do
 			printf "${style[number]}"
 			((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
-			((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((buffer_lenght/2))s~\e[m\n" "${bufferdata[position_x]}"\
+			((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((bufferdata[length]/2))s~\e[m\n" "${bufferdata[position_x]}"\
 					|| {
-					printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n"\
+					printf "\e[%sG\e[K%${bufferdata[length]}s\e[m %s\n"\
 						   "${bufferdata[position_x]}"\
 						   "$i"\
-						   "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (buffer_lenght + 1)}"
+						   "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
 				}
 		done
 	else
 		for ((i = bufferdata[base]; i - bufferdata[base] < max - options[menuline]; i++)); do
 			printf "${style[number]}"
 			((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
-			((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((buffer_lenght/2))s~\e[m\n" "${bufferdata[position_x]}"\
+			((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((bufferdata[length]/2))s~\e[m\n" "${bufferdata[position_x]}"\
 					|| {
 					# to improve speed syntaxing has to be "lazy" -- having to be heavily cached as ram is far less expensive to waste
 					[ -z "${buffersyntax[bufferdata[base]+bufferdata[size_y]-(bottomlines+toplines)+2]}" ] && {
@@ -1897,10 +1896,10 @@ function redraw {
 					# due to escape codes present in buffersyntax,
 					# the buffersyntax has to be multidimensional nonsense for perfomance reasons
 					local -n linearray="${buffersyntax[i]}"
-					printf "\e[%sG\e[K%${buffer_lenght}s\e[m %s\n"\
+					printf "\e[%sG\e[K%${bufferdata[length]}s\e[m %s\n"\
 						   "${bufferdata[position_x]}"\
 						   "$i"\
-						   "${linearray[*]:bufferdata[basecolumn]:bufferdata[size_x] - (buffer_lenght + 1)}"
+						   "${linearray[*]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
 				}
 		done
 	fi
@@ -1917,7 +1916,7 @@ function redraw-cursor {
 	+log
 	printf '\e[?25h\e[%s;%sH'\
 		   $((bufferdata[line] + options[menuline] - bufferdata[base] + bufferdata[position_y]))\
-		   $((bufferdata[column] - bufferdata[basecolumn] + buffer_lenght + 1 + bufferdata[position_x]))
+		   $((bufferdata[column] - bufferdata[basecolumn] + bufferdata[length] + 1 + bufferdata[position_x]))
 }
 function redraw-statusline {
 	+log
@@ -2007,7 +2006,7 @@ function input-key {
 			#limitations of movenment
 			#TODO:
 			[ $y = "${bufferdata[position_y]}" ] && menuclick $x && return #handle menuline
-			((x < (buffer_lenght + bufferdata[position_x] + 2))) && {
+			((x < (bufferdata[length] + bufferdata[position_x] + 2))) && {
 				if [ "$mousemode" = '[<0' ]; then
 					bufferdata[line]=$(( bufferdata[base] + ( (y - bufferdata[position_y]) - toplines) ))
 					redraw
@@ -2020,7 +2019,7 @@ function input-key {
 				return
 			}
 			bufferdata[line]=$(( bufferdata[base] + ( y - bufferdata[position_y] - 1) ))
-			bufferdata[column]=$(( x - (bufferdata[position_x] + buffer_lenght + 2) ))
+			bufferdata[column]=$(( x - (bufferdata[position_x] + bufferdata[length] + 2) ))
 			((bufferdata[line] > ${#bufferexpand[@]})) && bufferdata[line]=${#bufferexpand[@]}
 			((bufferdata[column] > ${#bufferexpand[bufferdata[line]]})) && bufferdata[column]=${#bufferexpand[bufferdata[line]]}
 			redraw
@@ -2069,7 +2068,7 @@ function view-log {
 	size-full
 	copy-array overlay bckover
 	overlay=()
-	file-lenght
+	buffer-length
 	copy-array buffer bufferexpand
 	clear-screen
 	redraw
