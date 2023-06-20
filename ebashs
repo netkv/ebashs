@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.5.0-WIP-2"
+version="0.5.0-WIP-4"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -20,7 +20,6 @@ declare -n menucon
 declare message reset readin
 
 function +config {
-	+log
 	### Config options
 	## General options
 	options=(
@@ -36,7 +35,7 @@ function +config {
 		[dired_message]='Pick a file'
 		[render_chunk]=8
 		[tile_mode]='vertical'
-		[log]=1
+		[log]=0
 		[log_functions]=0
 	)
 	## Key bindings configuration
@@ -169,7 +168,7 @@ function +config {
 		[numberempty]='\e[0;90m'
 		[numberselected]='\e[0;91m'
 		[tab]='\e[0;90m'
-		[selection]='\e[100m'
+		[selection]='\e[48;5;239m'
 		#syntax
 		[quotevar]='\e[0;36;48m'
 		[comment]='\e[3;37;48m'
@@ -511,43 +510,44 @@ function make-render-iline {
 	done  <<< "${buffer[line]}"
 }
 
-function make-syntax-whole {
-	+log
-	local -i syntaxline=1
-	local -n linearray="${current_buffer}_syntax${syntaxline}"
-	linearray=()
-	buffersyntax=()
-	comment=0
-	local word=''
-	bckIFS="${IFS}"
-	IFS=''
-	get-syntax
-	while read -rsn1 char
-	do
-		case "$char" in
-			' ')
-				syntax-word
-				word=''
-				style none ' '
-				continue;;
-			'	')
-				syntax-word
-				word=''
-				style tab "${options[tabchar]}"
-				continue;;
-			'')
-				syntax-word
-				word='' comment=0
-				buffersyntax[syntaxline]+="${current_buffer}_syntax${syntaxline}"
-				((syntaxline++))
-				local -n linearray="${current_buffer}_syntax${syntaxline}"
-				linearray=()
-				continue;;
-		esac
-		word="${word}${char}"
-	done
-	IFS="${bckIFS}"
-}
+# unused function, "keeping just in case"
+#function make-syntax-whole {
+#	+log
+#	local -i syntaxline=1
+#	local -n linearray="${current_buffer}_syntax${syntaxline}"
+#	linearray=()
+#	buffersyntax=()
+#	comment=0
+#	local word=''
+#	bckIFS="${IFS}"
+#	IFS=''
+#	get-syntax
+#	while read -rsn1 char
+#	do
+#		case "$char" in
+#			' ')
+#				syntax-word
+#				word=''
+#				style none ' '
+#				continue;;
+#			'	')
+#				syntax-word
+#				word=''
+#				style tab "${options[tabchar]}"
+#				continue;;
+#			'')
+#				syntax-word
+#				word='' comment=0
+#				buffersyntax[syntaxline]+="${current_buffer}_syntax${syntaxline}"
+#				((syntaxline++))
+#				local -n linearray="${current_buffer}_syntax${syntaxline}"
+#				linearray=()
+#				continue;;
+#		esac
+#		word="${word}${char}"
+#	done
+#	IFS="${bckIFS}"
+#}
 function syntax-word {
 	+log
 	(("${options[todonote]}"==1)) && {
@@ -1863,96 +1863,150 @@ function delete-window {
 	current_buffer="${listbuffers[index-1]}"
 	tile-buffers
 }
-function draw-line {
-	printf "\e[%sG\e[K%${bufferdata[length]}s %b%s\n"\
+function redraw-buffer-raw {
+	+log
+	for ((i = bufferdata[base]; i - bufferdata[base] < max - options[menuline]; i++)); do
+		printf "${style[number]}"
+		((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
+		((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((bufferdata[length]/2))s~\e[m\n" "${bufferdata[position_x]}"\
+				|| {
+				printf "\e[%sG\e[K%${bufferdata[length]}s \e[m%s\n"\
+					   "${bufferdata[position_x]}"\
+					   "$i"\
+					   "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
+			}
+	done
+}
+function redraw-buffer {
+	for ((i = bufferdata[base]; i - bufferdata[base] < max - options[menuline]; i++)); do
+		printf '%b' "${style[number]}"
+		((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
+		((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((bufferdata[length]/2))s~\e[m\n" "${bufferdata[position_x]}"\
+				|| {
+				# to improve speed syntaxing has to be "lazy" -- having to be heavily cached as ram is far less expensive to waste
+				[ -z "${buffersyntax[bufferdata[base]+bufferdata[size_y]-(bottomlines+toplines)+2]}" ] && {
+					bottomest=$((bufferdata[base]+bufferdata[size_y]-(bottomlines+toplines)+2))
+					make-render-area $bottomest $((bottomest+options[render_chunk]))
+				}
+				[ -z "${buffersyntax[i]}" ] && {
+					make-render-area $((base + i)) $((base + i + 1)) # idk why make-render-line doesnt work here
+				}
+				local -n linearray="${buffersyntax[i]}"
+				((i == bufferdata[selection_start_y])) &&
+					((bufferdata[selection_start_y] == bufferdata[selection_end_y])) && {
+						((bufferdata[selection_start_x] < bufferdata[selection_end_x])) && {
+							selection-draw-line selection_start selection_end
+							continue
+						}
+						((bufferdata[selection_start_x] > bufferdata[selection_end_x])) && {
+							selection-draw-line selection_end selection_start
+							continue
+						}
+					}
+				((i >= bufferdata[selection_start_y])) && ((i <= bufferdata[selection_end_y])) && {
+					selection-draw selection_start selection_end
+					continue
+				}
+				((i <= bufferdata[selection_start_y])) && ((i >= bufferdata[selection_end_y])) && {
+					selection-draw selection_end selection_start
+					continue
+				}
+
+				# due to escape codes present in buffersyntax,
+				# the buffersyntax has to be multidimensional nonsense for perfomance reasons
+				printf "\e[%sG\e[K%${bufferdata[length]}s \e[m%s\n"\
+					   "${bufferdata[position_x]}"\
+					   "$i"\
+					   "${linearray[*]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
+			}
+	done
+}
+function selection-draw-line {
+	+log
+	printf "\e[%sG\e[K%${bufferdata[length]}s %b%s%b%s%b%s\n"\
 		   "${bufferdata[position_x]}"\
 		   "$i"\
-		   "$1"\
-		   "$2"
+		   "\e[m"\
+		   "${linearray[*]:bufferdata[basecolumn]:bufferdata[${1}_x]}"\
+		   "\e[m${style[selection]}"\
+		   "${buffer[i]:bufferdata[${1}_x]:bufferdata[${2}_x]-bufferdata[${1}_x]}"\
+		   "\e[m"\
+		   "${linearray[*]:bufferdata[${2}_x]:bufferdata[size_x]}"
+}
+function selection-draw {
+	+log
+	if ((i == bufferdata["${1}_y"])); then
+		printf "\e[%sG\e[K%${bufferdata[length]}s %b%s%b%s\n"\
+			   "${bufferdata[position_x]}"\
+			   "$i"\
+			   "\e[m"\
+			   "${linearray[*]:bufferdata[basecolumn]:bufferdata[${1}_x]}"\
+			   "\e[m${style[selection]}"\
+			   "${buffer[i]:bufferdata[${1}_x]:bufferdata[size_x] - (bufferdata[length] + 1)}"
+	elif ((i == bufferdata["${2}_y"])); then
+		printf "\e[%sG\e[K%${bufferdata[length]}s %b%s%b%s\n"\
+			   "${bufferdata[position_x]}"\
+			   "$i"\
+			   "\e[m${style[selection]}"\
+			   "${buffer[i]:bufferdata[basecolumn]:bufferdata[${2}_x]}"\
+			   "\e[m"\
+			   "${linearray[*]:bufferdata[${2}_x]:bufferdata[size_x]}"
+	else
+		printf "\e[%sG\e[K%${bufferdata[length]}s %b%s\n"\
+			   "${bufferdata[position_x]}"\
+			   "$i"\
+			   "\e[m${style[selection]}" "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
+	fi
 }
 function redraw {
 	+log
+	bckIFS="$IFS"
+	printf '\e[?25l'
+	# update selection ends to current cursor
 	((bufferdata[selection]==1)) && {
 		bufferdata[selection_end_y]="${bufferdata[line]}"
 		bufferdata[selection_end_x]="${bufferdata[column]}"
 	}
-	((bufferdata[column] +3 < bufferdata[size_x] - bufferdata[length] - 1)) && bufferdata[basecolumn]=0
-	((bufferdata[column] +3 > bufferdata[size_x] - bufferdata[length] - 1)) && bufferdata[basecolumn]=$((bufferdata[column] - (bufferdata[size_x] + bufferdata[position_x] - bufferdata[length] - 1) +3 ))
-	bckIFS="$IFS"
-	printf '\e[?25l'
+	# move the buffer horizontally if needed
+	((
+		bufferdata[column] +3 < bufferdata[size_x] - bufferdata[length] - 1
+	)) &&\
+		bufferdata[basecolumn]=0
+	((
+		bufferdata[column] +3 > bufferdata[size_x] - bufferdata[length] - 1
+	)) &&\
+		bufferdata[basecolumn]=$((bufferdata[column] - (bufferdata[size_x] + bufferdata[position_x] - bufferdata[length] - 1) +3))
+	#
 	(("${options[menuline]}"==1)) && {
-		local -n menuline="${bufferdata[menuline]}"
-		printf "\e[0m\e[%s;%sH${style[menuline]}\e[?25l%*s\r%s"\
-			   "${bufferdata[position_y]}"\
-			   "${bufferdata[position_x]}"\
-			   "${bufferdata[size_x]}"\
-			   "${bufferdata[help_message]}"
-		printf '\e[%sG%s\e[0m\n' "${bufferdata[position_x]}" "${!menuline[*]}"
+		redraw-menuline
 	} || printf "\e[%s;%sH" "${bufferdata[position_y]}" "${bufferdata[position_x]}"
-	# Iterate over shown lines
 	IFS=''
+	# Iterate over shown lines
 	local -i max=$((bufferdata[size_y] - (toplines + bottomlines) + 1))
 	if ((bufferdata[raw])); then
-		for ((i = bufferdata[base]; i - bufferdata[base] < max - options[menuline]; i++)); do
-			printf "${style[number]}"
-			((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
-			((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((bufferdata[length]/2))s~\e[m\n" "${bufferdata[position_x]}"\
-					|| {
-					draw-line '\e[m' "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
-				}
-		done
+		# The raw rendering is just dirty hack to get better perfomance in buffer which don't need fancy effects
+		# Will be removed once normal rendering is fast enough (or rather if it'll ever be
+		redraw-buffer-raw
 	else
-		for ((i = bufferdata[base]; i - bufferdata[base] < max - options[menuline]; i++)); do
-			printf '%b' "${style[number]}"
-			((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
-			((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((bufferdata[length]/2))s~\e[m\n" "${bufferdata[position_x]}"\
-					|| {
-					# to improve speed syntaxing has to be "lazy" -- having to be heavily cached as ram is far less expensive to waste
-					[ -z "${buffersyntax[bufferdata[base]+bufferdata[size_y]-(bottomlines+toplines)+2]}" ] && {
-						bottomest=$((bufferdata[base]+bufferdata[size_y]-(bottomlines+toplines)+2))
-						make-render-area $bottomest $((bottomest+options[render_chunk]))
-					}
-					[ -z "${buffersyntax[i]}" ] && {
-						make-render-area $((base + i)) $((base + i + 1)) # idk why make-render-line doesnt work here
-					}
-					local -n linearray="${buffersyntax[i]}"
-					((i >= bufferdata[selection_start_y]))\
-						&& ((i <= bufferdata[selection_end_y])) && {
-						if ((i == bufferdata[selection_start_y])); then
-							printf "\e[%sG\e[K%${bufferdata[length]}s %b%s%b%s\n"\
-								   "${bufferdata[position_x]}"\
-								   "$i"\
-								   "\e[m"\
-								   "${linearray[*]:bufferdata[basecolumn]:bufferdata[selection_start_x]}"\
-								   "\e[m${style[selection]}"\
-								   "${buffer[i]:bufferdata[selection_start_x]:bufferdata[size_x] - (bufferdata[length] + 1)}"
-						elif ((i == bufferdata[selection_end_y])); then
-							printf "\e[%sG\e[K%${bufferdata[length]}s %b%s%b%s\n"\
-								   "${bufferdata[position_x]}"\
-								   "$i"\
-								   "\e[m${style[selection]}"\
-								   "${buffer[i]:bufferdata[basecolumn]:bufferdata[selection_end_x]}"\
-								   "\e[m"\
-								   "${linearray[*]:bufferdata[selection_end_x]:bufferdata[size_x]}"
-						else
-							draw-line "\e[m${style[selection]}" "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
-						fi
-						continue
-					}
-					# due to escape codes present in buffersyntax,
-					# the buffersyntax has to be multidimensional nonsense for perfomance reasons
-					draw-line '\e[m' "${linearray[*]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
-				}
-		done
+		redraw-buffer
 	fi
-	IFS="$bckIFS"
 	redraw-statusline
 	redraw-commandline
 	redraw-cursor
+	IFS="$bckIFS"
 	# Render all overlays
-	for o in "${overlay[@]}"; {
+	for o in "${overlay[@]}"; do
 		"${o}"
-	}
+	done
+}
+function redraw-menuline {
+	local -n menuline="${bufferdata[menuline]}"
+	printf "\e[0m\e[%s;%sH${style[menuline]}\e[?25l%*s\r%s"\
+		   "${bufferdata[position_y]}"\
+		   "${bufferdata[position_x]}"\
+		   "${bufferdata[size_x]}"\
+		   "${bufferdata[help_message]}"
+	printf '\e[%sG%s\e[0m\n' "${bufferdata[position_x]}" "${!menuline[*]}"
 }
 function redraw-cursor {
 	+log
@@ -2170,7 +2224,6 @@ function +debug {
 	trap 'log DEBUG "${BASH_COMMAND}"' DEBUG
 }
 function init {
-	+log
 	+config
 	((options[log])) && init-log # set up log buffer (M-x log)
 	printf '\e[?1049h'
