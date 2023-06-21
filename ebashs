@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.5.0-WIP-5"
+version="0.5.0-WIP-6"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -85,6 +85,7 @@ function +config {
 		[4 0]='delete-line'
 		[13 0]='shell'
 		[7f 0]='backspace'
+		[1b 5b 33 7e 0]='delete'
 		[1b 67 0]='menukey'
 		[1b 78 0]='execute-extended-command'
 		[1 0]='move-beginning-of-line'
@@ -966,6 +967,33 @@ Repo                     https://github.com/aeknt/spis
 
 Based on                 https://github.com/comfies/bed
 
+                                                                                
+                                                                                
+                               ..............                                   
+                            @***%@@@@@@@@@@@@...                                
+                     ** .*@@@@@@@@@@@@@@@@@@@@@..                               
+                     .       @@&....,,#@@@@@@@@                                 
+                      ....,@@@@@@@@@@@@@@@@@@                                   
+                  /@@@@@@@@@@@@@@@@@@@@@@.                                      
+                @@@@@@@,,...@@@&..                                              
+              .@@@@@@@@@@@,,@@@&.                                               
+              ..@@@@@@@@@@@@@@@&..                                              
+                .../@@@@@@@@@@@@@@.....                                         
+                   ....@@@@@@@@@@@@@@@&....                                     
+                   ..(#@@@@@@@@@@@@@@@@@@@                                      
+              ./@@@@@@@@@@@@@@@@%......                                         
+          .@@@@@@@@@@@@@@@@.@@@&.                                               
+        @@@@@@@@@@@@@@..   .@@@&.                                               
+       .@@@@@@@@@@@@.      .@@@&.                                               
+      ..@@@@@@@@@@@@/.......@@@&.                                               
+       ...,@@@@@@@@@@@@@@@@@@@@&.................                               
+           ...@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@..                           
+               ....../@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#                            
+                        ..,,,,*##@@@@@@@@@@@@@@@.      .###################.    
+                      @@@@@@@@@@@@@@@@@@@@..        @@@@@@@@@@@@@@@@@@@@@@      
+                   /@@@@@@@/........              @@@@@@@@@@@@@@@@@@@@.         
+                                                                                
+                                                                                
 
   ─[bsd0]─────────────────────────────────────────────────────────────────────────────────────
   Permission to use, copy, modify, and/or distribute this software for any purpose
@@ -1500,7 +1528,7 @@ function delete-line {
 	bufferdata[modified]=1
 	buffer=("" "${buffer[@]:1:${bufferdata[line]}-1}" "${buffer[@]:${bufferdata[line]}+1}")
 	unset 'buffer[0]'
-	((bufferdata[line] > ${#buffer[@]})) && previous-line
+	((bufferdata[line] == 1)) || previous-line
 	bufferdata[modified]=true
 	buffer-length
 	make-render
@@ -1509,12 +1537,12 @@ function delete-line {
 
 function backspace {
 	+log
-	if [ "${#buffer[${bufferdata[line]}]}" = 0 ]; then
+	((${#buffer[${bufferdata[line]}]} == 0 )) && {
 		delete-line
 		bufferdata[column]="${#buffer[${bufferdata[line]}]}"
 		redraw
 		return 0
-	fi
+	}	 
 	local -i rlr
 	unset ta
 	local ta
@@ -1522,15 +1550,43 @@ function backspace {
 	ta=${ta//[^t]}
 	ta=${#ta}
 	rlr=$((bufferdata[column] + ta / 4 - ta))
-	if [ $rlr = 0 ]; then
-		buffer[${bufferdata[line]}-1]="${buffer[${bufferdata[line]}-1]}${buffer[${bufferdata[line]}]}"
+	((rlr==0)) && {
+		buffer[bufferdata[line]-1]="${buffer[bufferdata[line]-1]}${buffer[bufferdata[line]]}"
 		delete-line
 		bufferdata[column]=${#bufferexpand[${bufferdata[line]}]}
 		redraw
 		return 0
-	fi
+	}
 	buffer[${bufferdata[line]}]="${buffer[${bufferdata[line]}]:0:$(( rlr - 1 ))}${buffer[${bufferdata[line]}]:${rlr}}"
 	backward-char #go back with cursor
+	make-render-line # copy the buffer into buffersyntax and bufferexpand
+	redraw #draw it
+	bufferdata[modified]=1
+}
+function delete {
+	+log
+	((${#buffer[${bufferdata[line]}]} == 0 )) && {
+		delete-line
+		bufferdata[column]="${#buffer[${bufferdata[line]}]}"
+		redraw
+		return 0
+	}	 
+	local -i rlr
+	unset ta
+	local ta
+	ta=${bufferexpand[${bufferdata[line]}]:0:${bufferdata[column]}}
+	ta=${ta//[^t]}
+	ta=${#ta}
+	rlr=$((bufferdata[column] + ta / 4 - ta))
+	((rlr==${#buffer[bufferdata[line]]})) && {
+		buffer[bufferdata[line]]="${buffer[bufferdata[line]]}${buffer[bufferdata[line]+1]}"
+		move-next-line
+		delete-line
+		bufferdata[column]=${#bufferexpand[${bufferdata[line]}]}
+		redraw
+		return 0
+	}
+	buffer[bufferdata[line]]="${buffer[bufferdata[line]]:0:rlr}${buffer[bufferdata[line]]:rlr+1:${#buffer[bufferdata[line]]}}"
 	make-render-line # copy the buffer into buffersyntax and bufferexpand
 	redraw #draw it
 	bufferdata[modified]=1
@@ -1567,6 +1623,11 @@ function quit {
 
 function previous-line {
 	+log
+	move-previous-line "$@"
+	redraw
+}
+function move-previous-line {
+	+log
 	for ((i = 0; i < ${1:-1}; i++)); do
 		((bufferdata[line] > 1)) && ((bufferdata[line]--)) # As long as we can keep going up, go up
 		((bufferdata[line] < bufferdata[base] + 1)) && ((bufferdata[base]--)) && # Push back the top if we need to
@@ -1575,24 +1636,27 @@ function previous-line {
 		(( ${#bufferexpand[bufferdata[line]]} < bufferdata[column] )) && bufferdata[column]=${#bufferexpand[bufferdata[line]]}
 		(( ${#bufferexpand[bufferdata[line]]} > bckrl )) && bufferdata[column]=${bckrl}
 	done
-	redraw
 }
 
 function scroll-down {
 	+log
-    previous-line $((bufferdata[size_y] - 3))
+    move-previous-line $((bufferdata[size_y] - 3))
 }
 
 function next-line {
 	+log
+	move-next-line "$@"
+	redraw
+}
+function move-next-line {
+	+log
 	for ((i = 0; i < ${1:-1}; i++)); do
 		((bufferdata[line] < ${#buffer[@]}+1)) && ((bufferdata[line]++)) # If we can go down, go down
 		((bufferdata[line] > bufferdata[base] + bufferdata[size_y] - 3 - bottomlines)) && ((bufferdata[base]++)) # Move window down if needed
-			[ -z "$bckrl" ] && bckrl="${bufferdata[column]}"
+		[ -z "$bckrl" ] && bckrl="${bufferdata[column]}"
 		(( ${#bufferexpand[bufferdata[line]]} < bufferdata[column] )) && bufferdata[column]=${#bufferexpand[bufferdata[line]]}
 		(( ${#bufferexpand[bufferdata[line]]} > bckrl )) && bufferdata[column]=${bckrl}
 	done
-	redraw
 }
 
 function scroll-up {
@@ -2160,6 +2224,10 @@ function init-log {
 	lasttime="$(current-time '%s')"
 }
 function view-log {
+	((log)) || {
+		message='Error: log is not initialised'
+		return
+	}
 	+log
 	save openfile
 	set-buffer log
@@ -2214,7 +2282,6 @@ function log {
 }
 ## debug
 # +log -- reports errors (and optinally function names) into log
-#     make sure it's included with every function
 # +debug -- basically like set -x but reports stuff into log
 function +log {
 	((log)) || return
