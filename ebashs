@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.5.0-WIP-4"
+version="0.5.0-WIP-5"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -1637,8 +1637,8 @@ function backward-char {
 			bufferdata[column]=0
 		}
 		((bufferdata[column] < 0)) && {
+			bufferdata[column]="${#bufferexpand[${bufferdata[line]}-1]}"
 			previous-line
-			bufferdata[column]="${#bufferexpand[${bufferdata[line]}]}"
 		}
 		bckrl=
 	done
@@ -1892,6 +1892,8 @@ function redraw-buffer {
 					make-render-area $((base + i)) $((base + i + 1)) # idk why make-render-line doesnt work here
 				}
 				local -n linearray="${buffersyntax[i]}"
+				
+				# draw the selection area
 				((i == bufferdata[selection_start_y])) &&
 					((bufferdata[selection_start_y] == bufferdata[selection_end_y])) && {
 						((bufferdata[selection_start_x] < bufferdata[selection_end_x])) && {
