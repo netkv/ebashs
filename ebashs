@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.5.0-WIP-7"
+version="0.5.0-WIP-8"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -1418,7 +1418,7 @@ function delete {
 	redraw #draw it
 	bufferdata[modified]=1
 }
-function @ {
+function _ {
 	# this function is here to simplify stuff as writing overlong variables indexed by overlong variable index...
 	# ...is quite tiring <3
 	[ -z "$1" ] && {
@@ -1433,39 +1433,42 @@ function @ {
 	refalias+=("$1")
 }
 function delete-selection {
-	# '@' is helper function creating references so the code doesn't become too overloong
-	@ sy bufferdata[selection_start_y]
-	@ ey bufferdata[selection_end_y]
-	@ sx bufferdata[selection_start_x]
-	@ ex bufferdata[selection_end_x]
+	# '_' is helper function creating references so the code doesn't become too overloong
+	_ sy bufferdata[selection_start_y]
+	_ ey bufferdata[selection_end_y]
+	_ sx bufferdata[selection_start_x]
+	_ ex bufferdata[selection_end_x]
 	
 	((sy == ey)) && {
 		((sx <= ex)) && {
 			buffer[sy]="${buffer[sy]:0:sx}${buffer[sy]:ex}"
+			bufferdata[column]=$sx
 		} || {
 			buffer[sy]="${buffer[sy]:0:ex}${buffer[sy]:sx}"
+			bufferdata[column]=$ex
 		}
 		make-render-area $sy $((sy+1))
-		bufferdata[selection]=0
-		redraw
 	} || {
 		((sy < ey)) && {
 			buffer[sy]="${buffer[sy]:0:sx}"
 			buffer[ey]="${buffer[ey]:ex}"
 			buffer=("" "${buffer[@]:1:sy}" "${buffer[@]:ey}")
 			buffersyntax=("" "${buffersyntax[@]:1:sy-1}")
-			bufferdata[selection]=0
-			redraw
+			bufferdata[line]=$sy
+			bufferdata[column]=$sx
 		} || {
 			buffer[sy]="${buffer[sy]:sx}"
 			buffer[ey]="${buffer[ey]:0:ex}"
 			buffer=("" "${buffer[@]:1:ey}" "${buffer[@]:sy}")
 			buffersyntax=("" "${buffersyntax[@]:1:ey-1}")
-			bufferdata[selection]=0
-			redraw
+			bufferdata[line]=$ey
+			bufferdata[column]=$ex
 		}
 	}
-	@ # unset reference aliases
+	bufferdata[selection]=0
+	redraw
+	
+	_ # unset reference aliases
 }
 declare -A keys_quit
 keys_quit=(
