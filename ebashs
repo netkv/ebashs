@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.5.0-WIP-8"
+version="0.5.0-WIP-9"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -284,6 +284,71 @@ function +config {
 ## source extensions here
 # source extensions/evil
 ## rest of this garbageware
+
+# fragments act basically like macros but with cooler name
+# see redraw-buffer function for example usage
+function fragment {
+	declare -ag "$1"
+	mapfile "$1"
+}
+function @add {
+	local -a _add_fn
+	local -a _add_nfn
+	local -i _add_f
+	local -i _add_hf
+	local _add_nfnline
+	mapfile _add_fn < <(declare -f "$1")
+	for _add_l in "${!_add_fn[@]}"; do
+		bckIFS="$IFS"
+		IFS=' '
+		_add_f=0
+		_add_hf=0
+		_add_nfnline=
+		for _add_w in ${_add_fn[_add_l]}; do
+			if [ "$_add_w" = '@' ]; then
+				_add_f=1
+			elif ((_add_f)); then
+				_add_f=0
+				_add_hf=1
+				local -n _add_fragment="${_add_w//[^[:alnum:]]/}"
+				for _add_l1 in "${!_add_fragment[@]}"; do
+					_add_nfnline+=" ${_add_fragment[_add_l1]}"
+				done
+			else
+				_add_nfnline+=" $_add_w"
+			fi
+		done
+		((_add_hf)) || _add_nfn+="${_add_fn[_add_l]}"
+		((_add_hf)) && _add_nfn+="$_add_nfnline"
+	done
+	eval "${_add_nfn[*]}"
+	IFS="$bckIFS"
+}
+
+# unbashing bash one step at time °o°
+
+function _ {
+	# this function is here to simplify stuff as writing overlong variables indexed by overloong variable index...
+	# ...is quite tiring <3
+	[ -z "$1" ] && {
+		for n in "${refalias[@]}"; do
+			unset "$n"
+		done
+		unset refalias
+		return
+	}
+	declare -gn "$1"="$2"
+	refalias+=("$1")
+}
+function __ {
+	# swap two references
+	local -n _swap_1="$1"
+	local _swap_copy_1="${!_swap_1}"
+	local -n _swap_2="$2"
+	local _swap_copy_2="${!_swap_2}"
+	declare -gn "$1"="${_swap_copy_2}"
+	declare -gn "$2"="${_swap_copy_1}"
+}
 
 function clear-screen {
 	printf "\033c" # clear
@@ -1360,7 +1425,17 @@ function buffer-delete-line {
 	buffersyntax=("" "${buffersyntax[@]:1:${bufferdata[line]}-1}")
 }
 
-function backspace {
+fragment getrlr <<'+'
+	local -i rlr
+	unset ta
+	local ta
+	ta=${bufferexpand[${bufferdata[line]}]:0:${bufferdata[column]}}
+	ta=${ta//[^t]}
+	ta=${#ta}
+	rlr=$((bufferdata[column] + ta / 4 - ta))
++
+
+fragment predelete <<'+'
 	((bufferdata[selection])) && {
 		delete-selection
 		return
@@ -1370,14 +1445,12 @@ function backspace {
 		bufferdata[column]="${#buffer[${bufferdata[line]}]}"
 		redraw
 		return 0
-	}	 
-	local -i rlr
-	unset ta
-	local ta
-	ta=${bufferexpand[${bufferdata[line]}]:0:${bufferdata[column]}}
-	ta=${ta//[^t]}
-	ta=${#ta}
-	rlr=$((bufferdata[column] + ta / 4 - ta))
+	}
++
+
+function backspace {
+	@ predelete
+	@ getrlr
 	((rlr==0)) && {
 		buffer[bufferdata[line]-1]="${buffer[bufferdata[line]-1]}${buffer[bufferdata[line]]}"
 		delete-line
@@ -1390,21 +1463,10 @@ function backspace {
 	make-render-line # copy the buffer into buffersyntax and bufferexpand
 	redraw #draw it
 	bufferdata[modified]=1
-}
+} && @add backspace
 function delete {
-	((${#buffer[${bufferdata[line]}]} == 0 )) && {
-		delete-line
-		bufferdata[column]="${#buffer[${bufferdata[line]}]}"
-		redraw
-		return 0
-	}	 
-	local -i rlr
-	unset ta
-	local ta
-	ta=${bufferexpand[${bufferdata[line]}]:0:${bufferdata[column]}}
-	ta=${ta//[^t]}
-	ta=${#ta}
-	rlr=$((bufferdata[column] + ta / 4 - ta))
+	@ predelete
+	@ getrlr
 	((rlr==${#buffer[bufferdata[line]]})) && {
 		buffer[bufferdata[line]]="${buffer[bufferdata[line]]}${buffer[bufferdata[line]+1]}"
 		move-next-line
@@ -1417,59 +1479,36 @@ function delete {
 	make-render-line # copy the buffer into buffersyntax and bufferexpand
 	redraw #draw it
 	bufferdata[modified]=1
-}
-function _ {
-	# this function is here to simplify stuff as writing overlong variables indexed by overlong variable index...
-	# ...is quite tiring <3
-	[ -z "$1" ] && {
-		for n in "${refalias[@]}"; do
-			unset "$n"
-		done
-		refalias=()
-		return
-	}
-	t=0
-	declare -gn "$1"="$2"
-	refalias+=("$1")
-}
+} && @add delete
+
 function delete-selection {
-	# '_' is helper function creating references so the code doesn't become too overloong
 	_ sy bufferdata[selection_start_y]
 	_ ey bufferdata[selection_end_y]
 	_ sx bufferdata[selection_start_x]
 	_ ex bufferdata[selection_end_x]
-	
 	((sy == ey)) && {
-		((sx <= ex)) && {
-			buffer[sy]="${buffer[sy]:0:sx}${buffer[sy]:ex}"
-			bufferdata[column]=$sx
-		} || {
-			buffer[sy]="${buffer[sy]:0:ex}${buffer[sy]:sx}"
-			bufferdata[column]=$ex
-		}
+		((sx > ex)) && __ sx ex
+		buffer[sy]="${buffer[sy]:0:sx}${buffer[sy]:ex}"
+		bufferdata[column]=$sx
 		make-render-area $sy $((sy+1))
 	} || {
-		((sy < ey)) && {
-			buffer[sy]="${buffer[sy]:0:sx}"
-			buffer[ey]="${buffer[ey]:ex}"
-			buffer=("" "${buffer[@]:1:sy}" "${buffer[@]:ey}")
-			buffersyntax=("" "${buffersyntax[@]:1:sy-1}")
-			bufferdata[line]=$sy
-			bufferdata[column]=$sx
-		} || {
-			buffer[sy]="${buffer[sy]:sx}"
-			buffer[ey]="${buffer[ey]:0:ex}"
-			buffer=("" "${buffer[@]:1:ey}" "${buffer[@]:sy}")
-			buffersyntax=("" "${buffersyntax[@]:1:ey-1}")
-			bufferdata[line]=$ey
-			bufferdata[column]=$ex
+		((sy > ey)) && {
+			__ sy ey
+			__ sx ex
 		}
+		buffer[sy]="${buffer[sy]:0:sx}"
+		buffer[ey]="${buffer[ey]:ex}"
+		buffer=("" "${buffer[@]:1:sy}" "${buffer[@]:ey}")
+		buffersyntax=("" "${buffersyntax[@]:1:sy-1}")
+		bufferdata[line]=$sy
+		bufferdata[column]=$sx
 	}
 	bufferdata[selection]=0
 	redraw
 	
 	_ # unset reference aliases
 }
+
 declare -A keys_quit
 keys_quit=(
 	[79 0]='save-quit'
@@ -1509,16 +1548,27 @@ function previous-line {
 	move-previous-line "$@"
 	redraw
 }
-function move-previous-line {
+
+fragment move <<'+'
 	for ((i = 0; i < ${1:-1}; i++)); do
++
+fragment end <<'+'
+	done
++
+fragment keepcolumn <<'+'
+	[ -z "$bckrl" ] && bckrl="${bufferdata[column]}"	
+	(( ${#bufferexpand[bufferdata[line]]} < bufferdata[column] )) && bufferdata[column]=${#bufferexpand[bufferdata[line]]}
+	(( ${#bufferexpand[bufferdata[line]]} > bckrl )) && bufferdata[column]=${bckrl}
++
+
+function move-previous-line {
+	@ move
 		((bufferdata[line] > 1)) && ((bufferdata[line]--)) # As long as we can keep going up, go up
 		((bufferdata[line] < bufferdata[base] + 1)) && ((bufferdata[base]--)) && # Push back the top if we need to
 			((bufferdata[base] <= 0)) && bufferdata[base]=1 # Don't push back if our base is at 1
-		[ -z "$bckrl" ] && bckrl="${bufferdata[column]}"
-		(( ${#bufferexpand[bufferdata[line]]} < bufferdata[column] )) && bufferdata[column]=${#bufferexpand[bufferdata[line]]}
-		(( ${#bufferexpand[bufferdata[line]]} > bckrl )) && bufferdata[column]=${bckrl}
-	done
-}
+		@ keepcolumn
+	@ end
+} && @add move-previous-line
 
 function scroll-down {
     move-previous-line $((bufferdata[size_y] - 3))
@@ -1530,45 +1580,32 @@ function next-line {
 	redraw
 }
 function move-next-line {
-	for ((i = 0; i < ${1:-1}; i++)); do
+	@ move
 		((bufferdata[line] < ${#buffer[@]}+1)) && ((bufferdata[line]++)) # If we can go down, go down
 		((bufferdata[line] > bufferdata[base] + bufferdata[size_y] - 3 - bottomlines)) && ((bufferdata[base]++)) # Move window down if needed
-		[ -z "$bckrl" ] && bckrl="${bufferdata[column]}"
-		(( ${#bufferexpand[bufferdata[line]]} < bufferdata[column] )) && bufferdata[column]=${#bufferexpand[bufferdata[line]]}
-		(( ${#bufferexpand[bufferdata[line]]} > bckrl )) && bufferdata[column]=${bckrl}
-	done
-}
+	   @ keepcolumn
+	@ end
+} && @add move-next-line
 
 function scroll-up {
     move-next-line $((bufferdata[size_y] - 3))
 	redraw
 }
 
-function execute {
-    ((bufferdata[line] == 0)) && return # If the line is not possible, do nothing
-    printf '\e[?25h\e[%sH' "$((bufferdata[line] + 2 - bufferdata[base]))" # Reset cursor position and enable cursor
-    read -re -p "$(printf '%4s ' "$")" # Present editable line
-    if [[ "$REPLY" != "${buffer[${bufferdata[line]}]}" ]]; then # If the line is changed, update and inform
-        buffer[${bufferdata[line]}]="$($REPLY)"
-        bufferdata[modified]=1
-    fi
-    make-render
-    redraw
-}
-
 function forward-char {
-	for ((i = 0; i < ${1:-1}; i++)); do
+	@ move
 		case "${bufferexpand[${bufferdata[line]}]:${bufferdata[column]}+1:1}" in
 			't') bufferdata[column]=$(( bufferdata[column] + ${#options[tabchar]}));;
 			*) ((bufferdata[column]++));;
 		esac
 		((bufferdata[column] > ${#bufferexpand[${bufferdata[line]}]})) && { bufferdata[column]=0; next-line; }
 		bckrl=
-	done
+	@ end
 	redraw
-}
+} && @add forward-char
+
 function backward-char {
-	for ((i = 0; i < ${1:-1}; i++)); do
+	@ move
 		case "${bufferexpand[${bufferdata[line]}]:${bufferdata[column]}-1:1}" in
 			't') bufferdata[column]=$(( bufferdata[column] - ${#options[tabchar]}));;
 			*) ((bufferdata[column]--));;
@@ -1582,9 +1619,10 @@ function backward-char {
 			previous-line
 		}
 		bckrl=
-	done
+	@ end
 	redraw
-}
+} && @add backward-char
+
 function move-beginning-of-line {
 	bufferdata[column]=0
 	redraw-statusline
@@ -1596,6 +1634,12 @@ function move-end-of-line {
 	redraw
 }
 
+fragment charbreak <<'+'
+	case "${bufferexpand[bufferdata[line]]:${bufferdata[column]}:1}" in
+		't'|'s') break;;
+	esac
++
+
 function forward-word {
 	((bufferdata[column] == ${#bufferexpand[bufferdata[line]]})) && {
 		next-line
@@ -1603,12 +1647,10 @@ function forward-word {
 	}
 	while :; do
 		((bufferdata[column] < ${#bufferexpand[bufferdata[line]]})) && ((bufferdata[column]++)) || break
-		case "${bufferexpand[bufferdata[line]]:${bufferdata[column]}:1}" in
-			't'|'s') break;;
-		esac
+		@ charbreak
 	done
 	redraw
-}
+} && @add forward-word
 function backward-word {
 	((bufferdata[column] == 0)) && {
 		previous-line
@@ -1616,12 +1658,10 @@ function backward-word {
 	}
 	while :; do
 		((bufferdata[column] > 0)) && ((bufferdata[column]--)) || break
-		case "${bufferexpand[bufferdata[line]]:${bufferdata[column]}:1}" in
-			't'|'s') break;;
-		esac
+		@ charbreak
 	done
 	redraw
-}
+} && @add backward-word
 function set-mark-command {
 	if ((bufferdata[selection])); then
 		log info 'selection disable'
@@ -1640,17 +1680,30 @@ function shell {
 	redraw
 }
 
+function execute {
+    ((bufferdata[line] == 0)) && return # If the line is not possible, do nothing
+    printf '\e[?25h\e[%sH' "$((bufferdata[line] + 2 - bufferdata[base]))" # Reset cursor position and enable cursor
+    read -re -p "$(printf '%4s ' "$")" # Present editable line
+    if [[ "$REPLY" != "${buffer[${bufferdata[line]}]}" ]]; then # If the line is changed, update and inform
+        buffer[${bufferdata[line]}]="$($REPLY)"
+        bufferdata[modified]=1
+    fi
+    make-render
+    redraw
+}
+
+
 function toggle-mouse {
 	(("${options[mouse]}"==1)) && {
-		echo -ne "\e[?1000;1006;1015l"
+		printf '\e[?1000;1006;1015l'
 		options[mouse]=0
-		message="Disabled options[mouse]"
+		message='Disabled options[mouse]'
 		return
 		}
 	(("${options[mouse]}"==0)) && {
-		echo -ne "\e[?1000;1006;1015h"
+		printf '\e[?1000;1006;1015h'
 		options[mouse]=1
-		message="Enabled options[mouse]"
+		message='Enabled options[mouse]'
 		return
 	}
 }
@@ -1707,25 +1760,28 @@ function menu {
 	overlay+=('menudraw')
 	redraw
 }
+
+fragment targetoff <<'+'
+	target_x_offset=1
+ 	target_y_offset=1
++
+
 function tile-buffers {
 	log info "tile redraw-set ${options[tile_mode]}"
 	bck_current_buffer="$current_buffer"
 	case "${options[tile_mode]}" in
 		vertical)
 			target_x=$(( COLUMNS / ${#listbuffers[@]} ))
-			target_x_offset=1
-			target_y=$((LINES - 1))
-			target_y_offset=1;;
+			@ targetoff
+			target_y=$((LINES - 1));;
 		horizontal)
 			target_y=$(( LINES / ${#listbuffers[@]} - 1 ))
-			target_y_offset=1
-			target_x=$COLUMNS
-			target_x_offset=1;;
+			@ targetoff
+			target_x=$COLUMNS;;
 		single)
 			target_y=$LINES
-			target_y_offset=1
-			target_x=$COLUMNS
-			target_x_offset=1;;
+			@ targetoff
+			target_x=$COLUMNS;;
 	esac
 	for b in "${listbuffers[@]}"; do
 		set-buffer "$b"
@@ -1743,7 +1799,7 @@ function tile-buffers {
 		
 	done
 	set-buffer "$bck_current_buffer"
-}
+} && @add tile-buffers
 function tile-vertical {
 	options[tile_mode]='vertical'
 	tile-buffers
@@ -1775,19 +1831,26 @@ function delete-window {
 	current_buffer="${listbuffers[index-1]}"
 	tile-buffers
 }
+
+fragment printarg <<'+'
+	"${bufferdata[position_x]}"\
+	"$i"\
+	"\e[m"\
++
+
 function redraw-buffer-raw {
 	for ((i = bufferdata[base]; i - bufferdata[base] < max; i++)); do
 		printf "${style[number]}"
 		((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
 		((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((bufferdata[length]/2))s~\e[m\n" "${bufferdata[position_x]}"\
 				|| {
-				printf "\e[%sG\e[K%${bufferdata[length]}s \e[m%s\n"\
-					   "${bufferdata[position_x]}"\
-					   "$i"\
+				printf "\e[%sG\e[K%${bufferdata[length]}s %b%s\n"\
+					   @ printarg\
 					   "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
 			}
 	done
-}
+} && @add redraw-buffer-raw
+
 function redraw-buffer {
 	for ((i = bufferdata[base]; i - bufferdata[base] < max; i++)); do
 		printf '%b' "${style[number]}"
@@ -1808,14 +1871,21 @@ function redraw-buffer {
 				((bufferdata[selection])) && {
 					((i == bufferdata[selection_start_y])) &&
 						((bufferdata[selection_start_y] == bufferdata[selection_end_y])) && {
-							((bufferdata[selection_start_x] < bufferdata[selection_end_x])) && {
-								selection-draw-line selection_start selection_end
-								continue
+							((bufferdata[selection_start_x] <= bufferdata[selection_end_x])) && {
+									local -n sx=bufferdata[selection_start_x]
+									local -n ex=bufferdata[selection_end_x]
+							} || {
+								local -n sx=bufferdata[selection_end_x]
+								local -n ex=bufferdata[selection_start_x]
 							}
-							((bufferdata[selection_start_x] > bufferdata[selection_end_x])) && {
-								selection-draw-line selection_end selection_start
-								continue
-							}
+							printf "\e[%sG\e[K%${bufferdata[length]}s %b%s%b%s%b%s\n"\
+								   @ printarg\
+								   "${linearray[*]:bufferdata[basecolumn]:sx}"\
+								   "\e[m${style[selection]}"\
+								   "${buffer[i]:sx:ex-sx}"\
+								   "\e[m"\
+								   "${linearray[*]:ex:bufferdata[size_x]}" 
+							continue
 						}
 					((i >= bufferdata[selection_start_y])) && ((i <= bufferdata[selection_end_y])) && {
 						selection-draw selection_start selection_end
@@ -1829,48 +1899,34 @@ function redraw-buffer {
 
 				# due to escape codes present in buffersyntax,
 				# the buffersyntax has to be multidimensional nonsense for perfomance reasons
-				printf "\e[%sG\e[K%${bufferdata[length]}s \e[m%s\n"\
-					   "${bufferdata[position_x]}"\
-					   "$i"\
+				printf "\e[%sG\e[K%${bufferdata[length]}s %b%s\n"\
+					   @ printarg\
 					   "${linearray[*]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
 			}
 	done
-}
-function selection-draw-line {
-	printf "\e[%sG\e[K%${bufferdata[length]}s %b%s%b%s%b%s\n"\
-		   "${bufferdata[position_x]}"\
-		   "$i"\
-		   "\e[m"\
-		   "${linearray[*]:bufferdata[basecolumn]:bufferdata[${1}_x]}"\
-		   "\e[m${style[selection]}"\
-		   "${buffer[i]:bufferdata[${1}_x]:bufferdata[${2}_x]-bufferdata[${1}_x]}"\
-		   "\e[m"\
-		   "${linearray[*]:bufferdata[${2}_x]:bufferdata[size_x]}"
-}
+} && @add redraw-buffer
+
 function selection-draw {
 	if ((i == bufferdata["${1}_y"])); then
 		printf "\e[%sG\e[K%${bufferdata[length]}s %b%s%b%s\n"\
-			   "${bufferdata[position_x]}"\
-			   "$i"\
-			   "\e[m"\
+			   @ printarg\
 			   "${linearray[*]:bufferdata[basecolumn]:bufferdata[${1}_x]}"\
 			   "\e[m${style[selection]}"\
 			   "${buffer[i]:bufferdata[${1}_x]:bufferdata[size_x] - (bufferdata[length] + 1)}"
 	elif ((i == bufferdata["${2}_y"])); then
-		printf "\e[%sG\e[K%${bufferdata[length]}s %b%s%b%s\n"\
-			   "${bufferdata[position_x]}"\
-			   "$i"\
-			   "\e[m${style[selection]}"\
+		printf "\e[%sG\e[K%${bufferdata[length]}s %b%b%s%b%s\n"\
+			   @ printarg\
+			   "${style[selection]}"\
 			   "${buffer[i]:bufferdata[basecolumn]:bufferdata[${2}_x]}"\
 			   "\e[m"\
 			   "${linearray[*]:bufferdata[${2}_x]:bufferdata[size_x]}"
 	else
-		printf "\e[%sG\e[K%${bufferdata[length]}s %b%s\n"\
-			   "${bufferdata[position_x]}"\
-			   "$i"\
-			   "\e[m${style[selection]}" "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
+		printf "\e[%sG\e[K%${bufferdata[length]}s %b%b%s\n"\
+			   @ printarg
+			   "${style[selection]}" "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
 	fi
-}
+} && @add selection-draw
+
 function redraw {
 	bckIFS="$IFS"
 	printf '\e[?25l'
@@ -1961,20 +2017,14 @@ function input-make-hex {
 	}
 }
 function insert-word {
-	local -i rlr
-	unset ta
-	local ta
-	ta=${bufferexpand[${bufferdata[line]}]:0:${bufferdata[column]}}
-	ta=${ta//[^t]}
-	ta=${#ta}
-	rlr=$((bufferdata[column] + ta / 4 - ta))
+	@ getrlr
 	buffer[bufferdata[line]]="${buffer[${bufferdata[line]}]:0:${rlr}}$1${buffer[${bufferdata[line]}]:${rlr}}"\
 		  #add at cursor position - amount of tabs * tab size
 	make-render-line
 	forward-char "${#1}"
 	redraw
 	bufferdata[modified]=1
-}
+} && @add insert-word
 function input-key {
 	local -i x y mode_contains
 	input-make-hex "$1"
