@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.5.0"
+version="0.5.1"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -62,10 +62,10 @@ function +config {
 		[${keys_def[backward_char]}]='backward-char'
 		[${keys_def[scroll_down]}]='scroll-down'
 		[${keys_def[scroll_up]}]='scroll-up'
-		#[1b 5b 31 3b 32 41 0]='select-previous'
-		#[1b 5b 31 3b 32 42 0]='select-next'
-		#[1b 5b 31 3b 32 43 0]='select-forward'
-		#[1b 5b 31 3b 32 44 0]='select-backward'
+		[1b 5b 31 3b 32 41 0]='select-previous'
+		[1b 5b 31 3b 32 42 0]='select-next'
+		[1b 5b 31 3b 32 43 0]='select-forward'
+		[1b 5b 31 3b 32 44 0]='select-backward'
 		[1b 20 0]='set-mark-command' # in gnu emacs this is C-SPC but i cant get that to be detected in bash so M-SPC will suffice
 		# TODO: selection
 		[18 0]='prefix'
@@ -1635,6 +1635,18 @@ function move-end-of-line {
 	redraw
 }
 
+fragment select <<'+'
+    ((bufferdata[selection])) || {
+		bufferdata[selection_start_y]="${bufferdata[line]}"
+		bufferdata[selection_start_x]="${bufferdata[column]}"
+		bufferdata[selection]=1
+	}
++
+function select-forward { @ select; forward-char; } && @add select-forward
+function select-backward { @ select; backward-char; } && @add select-backward
+function select-next { @ select; next-line; } && @add select-next
+function select-previous { @ select; previous-line; } && @add select-previous
+
 fragment charbreak <<'+'
 	case "${bufferexpand[bufferdata[line]]:${bufferdata[column]}:1}" in
 		't'|'s') break;;
@@ -1663,6 +1675,7 @@ function backward-word {
 	done
 	redraw
 } && @add backward-word
+
 function set-mark-command {
 	if ((bufferdata[selection])); then
 		log info 'selection disable'
