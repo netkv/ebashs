@@ -1,0 +1,43 @@
+#!/bin/bash
+# Example gruvbox theme for Ebashs
+# Requires truecolor support in terminal emu.
+
+# To use it either copy it inside ebashs script, or add it into config
+# Config resides either at:
+#	~/.config/ebashrc
+#	~/.ebashrc
+#	.ebashrc - this is mostly for testing
+
+#the += is there to ensure that in case of Ebashs update there won't be any blank styles
+style+=(
+	# UI
+	[none]="\e[m$(foreground ebdbb2; background 282828)" # backgorund may be broken
+	[TODO]="$(foreground 1d2021; background d3869b)"
+	[NOTE]="$(foreground 1d2021; background fabd2f)"
+	[menuline]="$(foreground ebdbb2; background 3c3836)"
+	[menuitem]="$(foreground ebdbb2; background 3c3836)"
+	[selected]="$(foreground b8bb26; background 3c3836)"
+	[link]="$(foreground 8ec07c; background 282828)"
+	[menuitemselected]="$(foreground b8bb26; background 3c3836)"
+	[infoline]="$(foreground ebdbb2; background 3c3836)"
+	[number]="$(foreground a89984; background 282828)"
+	[numberempty]="$(foreground a89984; background 282828)"
+	[numberselected]="$(foreground fabd2f; background 282828)"
+	[tab]="$(foreground a89984; background 282828)"
+	[selection]="$(foreground a89984; background 3c3836)"
+	[commandline]="$(foreground ebdbb2; background 282828)"
+	# Syntax Hightlighting
+	[quotevar]="$(foreground 458588; background 282828)"
+	[comment]="$(foreground a89984; background 282828)"
+	[variable]="$(foreground 83a598; background 282828)"
+	[option]="$(foreground d79921; background 282828)"
+	[flow]="$(foreground ebdbb2; background 282828)"
+	[pipe]="$(foreground ebdbb2; background 282828)"
+	[bracket]="$(foreground ebdbb2; background 282828)"
+	[quote]="$(foreground b8bb26; background 282828)"
+	[dquote]="$(foreground 98971a; background 282828)"
+	[set]="$(foreground d3869b; background 282828)"
+	[fn]="$(foreground 8ec07c; background 282828)"
+	[keyword]="$(foreground fb4934; background 282828)"
+	[init]="$(foreground cc241d; background 282828)"
+)
