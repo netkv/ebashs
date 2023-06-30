@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.6.2-WIP-1"
+version="0.6.2"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -1771,6 +1771,10 @@ function save-state {
 
 function undo {
 	((bufferdata[current_state]--))
+	((bufferdata[current_state]<0)) && {
+		bufferdata[current_state]=0
+		bufferdata[modified]=0
+	}
 	diff-buffer-syntax buffer "${current_buffer}_buffer_state_${bufferdata[current_state]}"
 	diff-buffer-merge "${current_buffer}_buffer_state_${bufferdata[current_state]}" buffer
 	redraw
