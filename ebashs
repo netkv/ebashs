@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.6.0"
+version="0.6.1"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -1723,6 +1723,13 @@ function execute {
     redraw
 }
 
+function diff-buffer-syntax {
+	local -n old="$1"
+	local -n new="$2"
+	for l in "${!new[@]}"; do
+		[ "${old[l]}" = "${new[l]}" ] || buffersyntax[l]=
+	done
+}
 function save-state {
 	declare -ga "${current_buffer}_buffer_state_${bufferdata[current_state]}"
 	copy-array buffer "${current_buffer}_buffer_state_${bufferdata[current_state]}"
@@ -1730,8 +1737,8 @@ function save-state {
 }
 function undo {
 	((bufferdata[current_state]--))
+	diff-buffer-syntax buffer "${current_buffer}_buffer_state_${bufferdata[current_state]}"
 	copy-array "${current_buffer}_buffer_state_${bufferdata[current_state]}" buffer
-	make-render
 	redraw
 }
 
