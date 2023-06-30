@@ -4,14 +4,14 @@
 
 # To use it either copy it inside ebashs script, or add it into config
 # Config resides either at:
-#	~/.config/ebashrc
-#	~/.ebashrc
-#	.ebashrc - this is mostly for testing
+#	~/.config/ebashsrc
+#	~/.ebashsrc
+#	.ebashsrc - this is mostly for testing
 
 #the += is there to ensure that in case of Ebashs update there won't be any blank styles
 style+=(
 	# UI
-	[none]="\e[m$(foreground ebdbb2; background 282828)" # backgorund may be broken
+	[none]="\e[m$(foreground ebdbb2; background 282828)" # backgroud may be broken
 	[TODO]="$(foreground 1d2021; background d3869b)"
 	[NOTE]="$(foreground 1d2021; background fabd2f)"
 	[menuline]="$(foreground ebdbb2; background 3c3836)"
