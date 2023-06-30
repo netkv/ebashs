@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.5.1.1"
+version="0.6.0"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -19,7 +19,7 @@ declare -i menulinep menulinepy toplines bottomlines hidden ismenu comment curre
 declare -n menucon
 declare message reset readin
 
-function +config {
+function load-config {
 	### Config options
 	## General options
 	options=(
@@ -134,6 +134,7 @@ function +config {
 		[2 0]='list-buffers'
 		[62 0]='switch-to-buffer'
 		[30 0]='delete-window'
+		[75 0]='undo'
 	)
 	key_options_prefix=(
 		[always]='quit-prefix'
@@ -780,6 +781,7 @@ function read-buffer {
 		[filetype]="$(filetype "$1")"
 		[file]="$1"
 		[menuline]='menulineedit'
+		[current_state]=0
 	)
 	size-full
 	mapfile -t -O 1 "${current_buffer}_buffer" <"${bufferdata[file]}" # Read file into an array
@@ -1418,6 +1420,7 @@ function write-buffer {
 
 function newline {
 	bufferdata[modified]=1
+	save-state
 	buffer=("" "${buffer[@]:1:${bufferdata[line]}-1}" "" "${buffer[@]:${bufferdata[line]}}")
 	unset 'buffer[0]'
 	buffer[bufferdata[line]]="${buffer[${bufferdata[line]}+1]:0:${bufferdata[column]}}"
@@ -1454,6 +1457,7 @@ function delete-line {
 }
 function buffer-delete-line {
 	local -i l=$1
+	save-state
 	buffer=("" "${buffer[@]:1:l-1}" "${buffer[@]:l+1}")
 	buffersyntax=("" "${buffersyntax[@]:1:${bufferdata[line]}-1}")
 }
@@ -1482,6 +1486,7 @@ fragment predelete <<'+'
 +
 
 function backspace {
+	save-state
 	@ predelete
 	@ getrlr
 	((rlr==0)) && {
@@ -1498,6 +1503,7 @@ function backspace {
 	bufferdata[modified]=1
 } && @add backspace
 function delete {
+	save-state
 	@ predelete
 	@ getrlr
 	((rlr==${#buffer[bufferdata[line]]})) && {
@@ -1717,6 +1723,17 @@ function execute {
     redraw
 }
 
+function save-state {
+	declare -ga "${current_buffer}_buffer_state_${bufferdata[current_state]}"
+	copy-array buffer "${current_buffer}_buffer_state_${bufferdata[current_state]}"
+	((bufferdata[current_state]++))
+}
+function undo {
+	((bufferdata[current_state]--))
+	copy-array "${current_buffer}_buffer_state_${bufferdata[current_state]}" buffer
+	make-render
+	redraw
+}
 
 function toggle-mouse {
 	(("${options[mouse]}"==1)) && {
@@ -2046,6 +2063,7 @@ function input-make-hex {
 	}
 }
 function insert-word {
+	save-state
 	@ getrlr
 	buffer[bufferdata[line]]="${buffer[${bufferdata[line]}]:0:${rlr}}$1${buffer[${bufferdata[line]}]:${rlr}}"\
 		  #add at cursor position - amount of tabs * tab size
@@ -2216,7 +2234,7 @@ function +debug {
 	trap 'log DEBUG "${BASH_COMMAND}"' DEBUG
 }
 function init {
-	+config
+	load-config
 	((options[log])) && init-log # set up log buffer (M-x log)
 	menulinepy=0; menulinep=0 # menu positions
 	case "${options[menuline]}" in
