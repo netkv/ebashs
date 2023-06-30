@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.6.2"
+version="0.6.3"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -19,7 +19,7 @@ declare -i menulinep menulinepy toplines bottomlines hidden ismenu comment curre
 declare -n menucon
 declare message reset readin
 
-function load-config {
+function load-default-config {
 	### Config options
 	## General options
 	options=(
@@ -1721,62 +1721,22 @@ function execute {
     redraw
 }
 
-
-function dump-array {
-	# dump-buffer <array> <file>
-	:> "$2"
-	local -n source="$1"
-	for idx in "${source[@]}"; do
-	    echo "${idx}" >> "$2"
-	done
-}
 function diff-buffer-syntax {
-	# remove outdated lines from buffersyntax to set them for resyntaxing
-	local -n source="$1"
-	local -n target="$2"
-	for idx in "${!target[@]}"; do
-		[ "${source[idx]}" = "${target[idx]}" ] || buffersyntax[idx]=
+	local -n old="$1"
+	local -n new="$2"
+	for l in "${!new[@]}"; do
+		[ "${old[l]}" = "${new[l]}" ] || buffersyntax[l]=
 	done
 }
-function diff-buffer-copy {
-	local -n source="$1"
-	local -n check="$2"
-	local -n target="$3"
-	[ -z "${source[*]}" ] && return 1 # | indicate that there's no previous buffer state to check against 
-	[ -z "${check[*]}"  ] && return 1 # | should indicate save-state() to just copy the whole buffer
-	target=()
-	for idx in "${!source[@]}"; do
-		[ "${source[idx]}" = "${check[idx]}" ] || target[idx]="${source[idx]}"
-		[ "${source[idx]}" = "${check[idx]}" ] && target[idx]=''
-	done
-}
-function diff-buffer-merge {
-	local -n source="$1"
-	local -n target="$2"
-	for idx in "${!source[@]}"; do
-		[ -n "${source[idx]}" ] && target[idx]="${source[idx]}"
-	done
-}
-
 function save-state {
-	((bufferdata[current_state]++))
 	declare -ga "${current_buffer}_buffer_state_${bufferdata[current_state]}"
-	diff-buffer-copy\
-		buffer\
-		"${current_buffer}_buffer_state_$((bufferdata[current_state]-1))"\
-		"${current_buffer}_buffer_state_${bufferdata[current_state]}" || {
-			copy-array buffer "${current_buffer}_buffer_state_${bufferdata[current_state]}"
-		}
+	copy-array buffer "${current_buffer}_buffer_state_${bufferdata[current_state]}"
+	((bufferdata[current_state]++))
 }
-
 function undo {
 	((bufferdata[current_state]--))
-	((bufferdata[current_state]<0)) && {
-		bufferdata[current_state]=0
-		bufferdata[modified]=0
-	}
 	diff-buffer-syntax buffer "${current_buffer}_buffer_state_${bufferdata[current_state]}"
-	diff-buffer-merge "${current_buffer}_buffer_state_${bufferdata[current_state]}" buffer
+	copy-array "${current_buffer}_buffer_state_${bufferdata[current_state]}" buffer
 	redraw
 }
 
@@ -2278,7 +2238,17 @@ function +debug {
 	((log)) || return
 	trap 'log DEBUG "${BASH_COMMAND}"' DEBUG
 }
+function load-config {
+	local config_file
+	local f
+	f=~/.config/ebashsrc ;[ -f "$f" ] && config_file="$f"
+	f=~/.ebashsrc ;[ -f "$f" ] && config_file="$f"
+	f=.ebashsrc ;[ -f "$f" ] && config_file="$f"
+	[ -z "$config_file" ] && return
+	source "$config_file"
+}
 function init {
+	load-default-config #loads default config
 	load-config
 	((options[log])) && init-log # set up log buffer (M-x log)
 	menulinepy=0; menulinep=0 # menu positions
