@@ -288,8 +288,8 @@ function +config {
 # fragments act basically like macros but with cooler name
 # see redraw-buffer function for example usage
 function fragment {
-	declare -ag "$1"
-	mapfile "$1"
+	declare -ag "_fragment_$1"
+	mapfile "_fragment_$1"
 }
 function @add {
 	local -a _add_fn
@@ -310,7 +310,7 @@ function @add {
 			elif ((_add_f)); then
 				_add_f=0
 				_add_hf=1
-				local -n _add_fragment="${_add_w//[^[:alnum:]]/}"
+				local -n _add_fragment="_fragment_${_add_w//[^[:alnum:]]/}"
 				for _add_l1 in "${!_add_fragment[@]}"; do
 					_add_nfnline+=" ${_add_fragment[_add_l1]}"
 				done
@@ -324,6 +324,39 @@ function @add {
 	eval "${_add_nfn[*]}"
 	IFS="$bckIFS"
 }
+
+# templates allow creating functions with code changes with minimal code
+# @def creates function from teplate
+# @def <template_name> <@var 1> <@var 2>...
+# @: creates function from last defined template
+# @: <@var 1> <@var 2>...
+function template {
+	_last_template="$1"
+	declare -g "_template_$1"
+	local -n tpl="_template_$1"
+	tpl=$(</dev/stdin)
+}
+function @def {
+	local -n _tpl="_template_$1"
+	local _fn
+	local -i _n=0
+	shift
+	for _w in $_tpl; do
+		case "$_w" in
+			'@var')
+				_n=1;;
+			*)
+				((_n)) && {
+					_n=0
+					_fn+="${!_w} "
+					continue
+				}
+				_fn+="$_w "
+			esac
+	done
+	eval "$_fn"
+}
+function @: { @def "$_last_template" "$@"; }
 
 # unbashing bash one step at time °o°
 
@@ -1534,6 +1567,7 @@ function quit {
 	fi
 }
 function die {
+	((nocleanup)) && exit "${errno:-0}"
     echo -e "\e[?1000;1006;1015l" #disable mouse tracking
 	clear-screen # TODO fix the buffer switching
 	printf '\e[?25h\e[?7h\e[?1049l' # Reset terminal to sane mode
@@ -1570,10 +1604,12 @@ function move-next-line {
 	@ end
 } && @add move-next-line
 
-function previous-line { move-previous-line "$@"; redraw; }
-function next-line { move-next-line "$@"; redraw; }
-function scroll-down { move-previous-line $((bufferdata[size_y] - 3)); redraw; }
-function scroll-up { move-next-line $((bufferdata[size_y] - 3)); redraw; }
+
+template move <<<'function @var 1 { @var 2 @var 3 ; redraw; }'
+	@: previous-line move-previous-line '$@'
+	@: next-line move-next-line '$@'
+	@: scroll-down move-previous-line '$((bufferdata[size_y] - 3))'
+	@: scroll-up move-next-line '$((bufferdata[size_y] - 3))'
 
 function move-beginning-of-line { bufferdata[column]=0; redraw; }
 function move-end-of-line { bufferdata[column]="${#bufferexpand[${bufferdata[line]}]}"; redraw; }
@@ -1585,40 +1621,42 @@ fragment select <<'+'
 		bufferdata[selection]=1
 	}
 +
-function select-forward { @ select; forward-char; } && @add select-forward
-function select-backward { @ select; backward-char; } && @add select-backward
-function select-next { @ select; next-line; } && @add select-next
-function select-previous { @ select; previous-line; } && @add select-previous
+template select <<<'function @var 1 { @ select; @var 2 ; } && @add @var 1'
+	@: select-forward forward-char
+	@: select-backward backward-char
+	@: select-next next-line
+	@: select-previous previous-line
 
-function forward-char {
-	@ move
-		case "${bufferexpand[${bufferdata[line]}]:${bufferdata[column]}+1:1}" in
-			't') bufferdata[column]=$(( bufferdata[column] + ${#options[tabchar]}));;
-			*) ((bufferdata[column]++));;
-		esac
-		((bufferdata[column] > ${#bufferexpand[${bufferdata[line]}]})) && { bufferdata[column]=0; next-line; }
-		bckrl=
-	@ end
-	redraw
-} && @add forward-char
-function backward-char {
-	@ move
-		case "${bufferexpand[${bufferdata[line]}]:${bufferdata[column]}-1:1}" in
-			't') bufferdata[column]=$(( bufferdata[column] - ${#options[tabchar]}));;
-			*) ((bufferdata[column]--));;
-		esac
-		((bufferdata[column] < 0)) && ((bufferdata[line]==1)) && {
-			bufferdata[line]=1
-			bufferdata[column]=0
-		}
-		((bufferdata[column] < 0)) && {
-			bufferdata[column]="${#bufferexpand[${bufferdata[line]}-1]}"
-			previous-line
-		}
-		bckrl=
-	@ end
-	redraw
-} && @add backward-char
+fragment forwardcheck <<'+'
+	((bufferdata[column] > ${#bufferexpand[${bufferdata[line]}]})) && {
+		bufferdata[column]=0
+		 next-line
+	 }
++
+fragment backwardcheck <<'+'
+	((bufferdata[column] < 0)) && ((bufferdata[line]==1)) && {
+		bufferdata[line]=1
+		bufferdata[column]=0
+	}
+	((bufferdata[column] < 0)) && {
+		bufferdata[column]="${#bufferexpand[${bufferdata[line]}-1]}"
+		previous-line
+	}
++
+
+template char <<'+'
+	function @var 1 {
+		@ move
+			case "${bufferexpand[${bufferdata[line]}]:${bufferdata[column]} @var 2 1:1}" in
+				't') bufferdata[column]=$(( bufferdata[column] @var 2 ${#options[tabchar]}));;
+				*) ((bufferdata[column] @var 3 ));;
+			esac; @var 4 ; bckrl=
+		@ end
+		redraw-cursor
+	} && @add @var 1
++
+	@: forward-char + ++ '@ forwardcheck'
+	@: backward-char - -- '@ backwardcheck'
 
 fragment charbreak <<'+'
 	case "${bufferexpand[bufferdata[line]]:${bufferdata[column]}:1}" in
@@ -1718,14 +1756,15 @@ function menudraw {
 		((mi++))
 	done
 }
-function menuup {
-	((menuselection > 0)) && ((menuselection--))
-	menudraw
-}
-function menudown {
-	((menuselection < ${#menucon[@]} -1)) && ((menuselection++))
-	menudraw
-}
+template menumove <<'+'
+	function @var 1 {
+		((menuselection @var 2 @var 3 )) && ((menuselection @var 4 ))
+		menudraw
+	}
++
+@: menuup '>' 0 '--'
+@: menudown '<' '${#menucon[@]} -1' '++'
+
 function menuselect {
 	local mi=0
 	for action in "${!menucon[@]}"; do
@@ -2229,4 +2268,6 @@ function main {
 		fi
 	done
 }
+# check if all the syntaxtic sugar had been loaded properly
+[ "$1" = "--debug-fn" ] && nocleanup=1 exit 0
 init "$@"
