@@ -1,13 +1,14 @@
 #!/bin/bash
-version="0.6.4"
+version="0.6.5"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
 shopt -s checkwinsize; (:;:) # Enable and then trigger a terminal size refresh
 trap redraw WINCH ALRM # Attach WINCH and ALRM to redraw the screen
 trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
-trap quit INT
+trap C-c INT
 trap quit SIGTERM
+function C-c { input_hex=('3' '0'); handle-hex; }
 
 declare -A syntax faces options charmap commands
 declare -A menulineedit diredmenu menulinedebug
@@ -68,30 +69,30 @@ function load-default-config {
 		[1b 5b 31 3b 32 44 0]='select-backward'
 		[1b 20 0]='set-mark-command' # in gnu emacs this is C-SPC but i cant get that to be detected in bash so M-SPC will suffice
 		# TODO: selection
-		[18 0]='prefix'
-		[8 0]='prefix-help'
+		[$(kbd C-x)]='prefix'
+		[$(kbd C-h)]='prefix-help'
 		[1b 5b 32 31 7e 0]='menulinemenu'
-		[10 0]='previous-line'
-		[e 0]='next-line'
-		[6 0]='forward-char'
-		[1b 66 0]='forward-word'
-		[2 0]='backward-char'
-		[1b 62 0]='backward-word'
+		[$(kbd C-p)]='previous-line'
+		[$(kbd C-n)]='next-line'
+		[$(kbd C-f)]='forward-char'
+		[$(kbd M-f)]='forward-word'
+		[$(kbd C-b)]='backward-char'
+		[$(kbd M-b)]='backward-word'
 		[10 0]='scroll-down'
 		[16 0]='scroll-up'
 		[0]='newline'
-		[c 0]='newline'
-		[14 0]='execute'
-		[4 0]='delete-line'
-		[13 0]='shell'
+		[$(kbd C-l)]='newline'
+		[$(kbd C-t)]='execute'
+		[$(kbd C-d)]='delete-line'
 		[7f 0]='backspace'
 		[1b 5b 33 7e 0]='delete'
-		[1b 67 0]='menukey'
-		[1b 78 0]='execute-extended-command'
-		[1 0]='move-beginning-of-line'
+		[$(kbd M-g)]='menukey'
+		[$(kbd M-x)]='execute-extended-command'
+		[$(kbd C-a)]='move-beginning-of-line'
 		[1b 5b 48 0]='move-beginning-of-line'
-		[5 0]='move-end-of-line'
+		[$(kbd C-e)]='move-end-of-line'
 		[1b 5b 46 0]='move-end-of-line'
+		[$(kbd 'C-p')]='die'
 	)
 	+keys dired
 	keys_dired=(
@@ -127,7 +128,7 @@ function load-default-config {
 	)
 	+keys prefix
 	keys_prefix=(
-		[18 0]='quit'
+		[3 0]='quit'
 		[7 0]='quit-prefix'
 		[13 0]='write_buffer'
 		[6 0]='find-file'
@@ -435,31 +436,37 @@ template setface <<'+'
 		[ -n "$1" ] && "$@";
 }
 +
-	@: :foreground 38
-	@: :background 48
-function :foregrounde {
-	[ -z "$1" ] && return
-	case "${1:0:1}" in
-		'#')
-			r="${1:1:2}"
-			g="${1:3:2}"
-			b="${1:5:2}"
-			printf '\\e[38;2;%s;%s;%sm' "$((16#$r))" "$((16#$g))" "$((16#$b))";;
+@: :foreground 38
+@: :background 48
+
+function kbd {
+	local -i i=0
+	local out
+	local in
+	local -i ch=1
+	case "$1" in
+		C-a) printf '1 0' ;; C-b) printf '2 0' ;; C-c) printf '3 0' ;; C-d) printf '4 0' ;;
+		C-e) printf '5 0' ;; C-f) printf '6 0' ;; C-g) printf '7 0' ;; C-h) printf '8 0' ;;
+		C-i) printf '9 0' ;; C-j) printf 'a 0' ;; C-k) printf 'b 0' ;; C-l) printf 'c 0' ;;
+		C-m) printf 'd 0' ;; C-n) printf 'e 0' ;; C-o) printf 'f 0' ;; C-p) printf '10 0';;
+		C-q) printf '11 0';; C-r) printf '12 0';; C-s) printf '13 0';; C-t) printf '14 0';;
+		C-u) printf '15 0';; C-v) printf '16 0';; C-w) printf '17 0';; C-x) printf '18 0';;
+		C-y) printf '19 0';; C-z) printf '1a 0';;
+		*)  ch=0
+			case "${1:0:2}" in
+				M-) in="${1:2:1}";;
+				*) in="$1"
+			esac
 	esac
-	shift
-	[ -n "$1" ] && "$@"
-}
-function :backgrounde {
-	[ -z "$1" ] && return
-	case "${1:0:1}" in
-		'#')
-			r="${1:1:2}"
-			g="${1:3:2}"
-			b="${1:5:2}"
-			printf '\\e[48;2;%s;%s;%sm' "$((16#$r))" "$((16#$g))" "$((16#$b))";;
-	esac
-	shift
-	[ -n "$1" ] && "$@"
+	((ch)) && return
+	echo "$in" | {
+		while read -rsn1; do
+			out+="$(printf "%x\n" "'${in:$i}") "
+			((i++))
+		done
+	}
+	out=${out::-1}
+	printf '%s' "${out}"
 }
 
 function clear-screen {
@@ -1668,6 +1675,8 @@ function die {
     echo -e "\e[?1000;1006;1015l" #disable mouse tracking
 	clear-screen # TODO fix the buffer switching
 	printf '\e[?25h\e[?7h\e[?1049l' # Reset terminal to sane mode
+	printf '\e[?25h\e[?7h\e[?1049l' # Reset terminal to sane mode
+	
     exit "${errno:-0}" # Assume that we are exiting without an error
 }
 
@@ -2190,16 +2199,6 @@ function redraw-commandline {
 		   $((LINES-1)) 1 $((COLUMNS)) ' ' "$message"
 }
 
-function input-make-hex {
-	input_hex=()
-	local -i i=0
-	echo "$1" | {
-		while read -rsn1; do
-			input_hex[i]="$(printf "%x\n" "'${1:$i}")"
-			((i++))
-		done
-	}
-}
 function insert-word {
 	save-state
 	@ getrlr
@@ -2211,9 +2210,23 @@ function insert-word {
 	redraw
 	bufferdata[modified]=1
 } && @add insert-word
+
+function input-make-hex {
+	input_hex=()
+	local -i i=0
+	echo "$1" | {
+		while read -rsn1; do
+			input_hex[i]="$(printf "%x\n" "'${1:$i}")"
+			((i++))
+		done
+	}
+}
 function input-key {
-	local -i x y mode_contains
 	input-make-hex "$1"
+	handle-hex "$1"
+}
+function handle-hex {
+	local -i x y mode_contains=0
 	local -n modekeys="keys_${bufferdata[mode]}" key_options="key_options_${bufferdata[mode]}"
 	((${#key_options[@]})) && {
 		[ -n "${key_options[always]}" ] && "${key_options[always]}"
@@ -2434,6 +2447,7 @@ function main {
 		fi
 	done
 }
+
 # check if all the syntaxtic sugar had been loaded properly
 [ "$1" = "--debug-fn" ] && nocleanup=1 exit 0
 init "$@"
