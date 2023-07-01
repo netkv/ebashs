@@ -62,12 +62,17 @@ EOF2
 
     $(title 'KEYBINDING ARRAYS')
 
-$(text '    ' <<EOF2
+$(text '    ' <<'EOF2'
 Keybinding arrays match with modes. The array has to be associative and nammed $(code 'keys_<mode>'). $(code 'keys_def') is reserved and used as reference for other arrays, it's also reversed compared to other keybinding arrays.
 EOF2
 )
 
-$(text '    ' <<EOF2
+$(text '     ' <<'EOF2'
+Keybindings are defined via hexadecimal syntax suffixed with ' 0'. Function @kbd field is equivalent to ${keys_def[field]} but nicer. Function kbd provides Emacsy keybinding syntax.
+EOF2
+)
+
+$(text '    ' <<'EOF2'
 There is also a optionable option array possible for all keybinding arrays. Currently only defined option is [else] which defines what should happen if no key is matched from the keybinding. These arrays have to be named $(code 'key_options_<mode>').
 EOF2
 )
@@ -237,9 +242,9 @@ $(code-block bash <<EOF2
             *"'"*) set-face font-lock-constant-face;;
             *'"'*) set-face font-lock-string-face;;
             *'='*) set-face font-lock-assign-face;;
-            'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|\
-                'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|\
-                'let'|'shopt'|'trap'|'set'|'eval'\
+            'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|
+                'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|
+                'let'|'shopt'|'trap'|'set'|'eval'
                 ) set-face font-lock-keyword-face;;
             *) set-face default;;
         esac
