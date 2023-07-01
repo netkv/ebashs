@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.6.5"
+version="0.6.6"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -47,22 +47,22 @@ function load-default-config {
 	#      A options for the keybings of given mode are defined by ass. array named key_options_${x}
 	#          [else] option defines what should happen if the input wasn't any of keys defined in keybings
 	keys_def=(
-		[previous_line]='1b 5b 41 0'
-		[next_line]='1b 5b 42 0'
-		[forward_char]='1b 5b 43 0'
-		[backward_char]='1b 5b 44 0'
-		[scroll_down]='1b 5b 35 7e 0'
-		[scroll_up]='1b 5b 36 7e 0'
+		[previous-line]='1b 5b 41 0'
+		[next-line]='1b 5b 42 0'
+		[forward-char]='1b 5b 43 0'
+		[backward-char]='1b 5b 44 0'
+		[scroll-down]='1b 5b 35 7e 0'
+		[scroll-up]='1b 5b 36 7e 0'
 		[select]='0'
 	)
 	+keys edit
 	keys_edit=(
-		[${keys_def[previous_line]}]='previous-line'
-		[${keys_def[next_line]}]='next-line'
-		[${keys_def[forward_char]}]='forward-char'
-		[${keys_def[backward_char]}]='backward-char'
-		[${keys_def[scroll_down]}]='scroll-down'
-		[${keys_def[scroll_up]}]='scroll-up'
+		[$(@kbd previous-line)]='previous-line'
+		[$(@kbd next-line)]='next-line'
+		[$(@kbd forward-char)]='forward-char'
+		[$(@kbd backward-char)]='backward-char'
+		[$(@kbd scroll-down)]='scroll-down'
+		[$(@kbd scroll-up)]='scroll-up'
 		[1b 5b 31 3b 32 41 0]='select-previous'
 		[1b 5b 31 3b 32 42 0]='select-next'
 		[1b 5b 31 3b 32 43 0]='select-forward'
@@ -96,46 +96,46 @@ function load-default-config {
 	)
 	+keys dired
 	keys_dired=(
-		[${keys_def[previous_line]}]='previous-line'
-		[${keys_def[next_line]}]='next-line'
-		[${keys_def[forward_char]}]='forward-char'
-		[${keys_def[backward_char]}]='backward-char'
-		[${keys_def[scroll_down]}]='scroll-down'
-		[${keys_def[scroll_up]}]='scroll-up'
-		[${keys_def[select]}]='dired-select'
-		[68 0]='toggle_hidden'
+		[$(@kbd previous-line)]='previous-line'
+		[$(@kbd next-line)]='next-line'
+		[$(@kbd forward-char)]='forward-char'
+		[$(@kbd backward-char)]='backward-char'
+		[$(@kbd scroll-down)]='scroll-down'
+		[$(@kbd scroll-up)]='scroll-up'
+		[$(@kbd select)]='dired-select'
+		[$(kbd h)]='toggle_hidden'
 	)
 	+keys view
 	keys_view=(
-		[${keys_def[previous_line]}]='previous-line'
-		[${keys_def[next_line]}]='next-line'
-		[${keys_def[forward_char]}]='forward-char'
-		[${keys_def[backward_char]}]='backward-char'
-		[${keys_def[scroll_down]}]='scroll-down'
-		[${keys_def[scroll_up]}]='scroll-up'
-		[${keys_def[select]}]='quit-view'
+		[$(@kbd previous-line)]='previous-line'
+		[$(@kbd next-line)]='next-line'
+		[$(@kbd forward-char)]='forward-char'
+		[$(@kbd backward-char)]='backward-char'
+		[$(@kbd scroll-down)]='scroll-down'
+		[$(@kbd scroll-up)]='scroll-up'
+		[$(@kbd select)]='quit-view'
 	)
 	+keys list_buffers
 	keys_list_buffers=(
-		[${keys_def[previous_line]}]='previous-line'
-		[${keys_def[next_line]}]='next-line'
-		[${keys_def[scroll_down]}]='scroll-down'
-		[${keys_def[scroll_up]}]='scroll-up'
-		[${keys_def[select]}]='buffer-select'
+		[$(@kbd previous-line)]='previous-line'
+		[$(@kbd next-line)]='next-line'
+		[$(@kbd scroll-down)]='scroll-down'
+		[$(@kbd scroll-up)]='scroll-up'
+		[$(@kbd select)]='quit-view'
 	)
 	key_options_list_buffers=(
 		[else]='quit-view'
 	)
 	+keys prefix
 	keys_prefix=(
-		[3 0]='quit'
-		[7 0]='quit-prefix'
-		[13 0]='write_buffer'
-		[6 0]='find-file'
-		[2 0]='list-buffers'
+		[$(kbd C-c)]='quit'
+		[$(kbd C-g)]='quit-prefix'
+		[$(kbd C-s)]='write_buffer'
+		[$(kbd C-f)]='find-file'
+		[$(kbd C-b)]='list-buffers'
 		[62 0]='switch-to-buffer'
 		[30 0]='delete-window'
-		[75 0]='undo'
+		[$(kbd u)]='undo'
 	)
 	key_options_prefix=(
 		[always]='quit-prefix'
@@ -148,9 +148,9 @@ function load-default-config {
 	)
 	+keys menu
 	keys_menu=(
-		[${keys_def[previous_line]}]='menuup'
-		[${keys_def[next_line]}]='menudown'
-		[${keys_def[select]}]='menuselect'
+		[$(@kbd previous-line)]='menuup'
+		[$(@kbd next-line)]='menudown'
+		[$(@kbd select)]='menuselect'
 	)
 	key_options_menu=(
 		[else]='menuleave'
@@ -444,13 +444,20 @@ function kbd {
 	local out
 	local in
 	local -i ch=1
+	# Surely there is better solution...
 	case "$1" in
-		C-a) printf '1 0' ;; C-b) printf '2 0' ;; C-c) printf '3 0' ;; C-d) printf '4 0' ;;
-		C-e) printf '5 0' ;; C-f) printf '6 0' ;; C-g) printf '7 0' ;; C-h) printf '8 0' ;;
-		C-i) printf '9 0' ;; C-j) printf 'a 0' ;; C-k) printf 'b 0' ;; C-l) printf 'c 0' ;;
-		C-m) printf 'd 0' ;; C-n) printf 'e 0' ;; C-o) printf 'f 0' ;; C-p) printf '10 0';;
-		C-q) printf '11 0';; C-r) printf '12 0';; C-s) printf '13 0';; C-t) printf '14 0';;
-		C-u) printf '15 0';; C-v) printf '16 0';; C-w) printf '17 0';; C-x) printf '18 0';;
+		C-a) printf '1 0' ;; C-b) printf '2 0' ;;
+		C-c) printf '3 0' ;; C-d) printf '4 0' ;;
+		C-e) printf '5 0' ;; C-f) printf '6 0' ;;
+		C-g) printf '7 0' ;; C-h) printf '8 0' ;;
+		C-i) printf '9 0' ;; C-j) printf 'a 0' ;;
+		C-k) printf 'b 0' ;; C-l) printf 'c 0' ;;
+		C-m) printf 'd 0' ;; C-n) printf 'e 0' ;;
+		C-o) printf 'f 0' ;; C-p) printf '10 0';;
+		C-q) printf '11 0';; C-r) printf '12 0';;
+		C-s) printf '13 0';; C-t) printf '14 0';;
+		C-u) printf '15 0';; C-v) printf '16 0';;
+		C-w) printf '17 0';; C-x) printf '18 0';;
 		C-y) printf '19 0';; C-z) printf '1a 0';;
 		*)  ch=0
 			case "${1:0:2}" in
@@ -467,6 +474,9 @@ function kbd {
 	}
 	out=${out::-1}
 	printf '%s' "${out}"
+}
+function @kbd {
+	printf '%s' "${keys_def[$1]}"
 }
 
 function clear-screen {
