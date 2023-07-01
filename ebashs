@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.6.6.1"
+version="0.6.7"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -56,108 +56,116 @@ function load-default-config {
 		[backward-char]='1b 5b 44 0'
 		[scroll-down]='1b 5b 35 7e 0'
 		[scroll-up]='1b 5b 36 7e 0'
+		[keyboard-quit]="$(kbd C-g)"
 		[select]='0'
 	)
-	+keys edit
-	keys_edit=(
-		[$(@kbd previous-line)]='previous-line'
-		[$(@kbd next-line)]='next-line'
-		[$(@kbd forward-char)]='forward-char'
-		[$(@kbd backward-char)]='backward-char'
-		[$(@kbd scroll-down)]='scroll-down'
-		[$(@kbd scroll-up)]='scroll-up'
-		[1b 5b 31 3b 32 41 0]='select-previous'
-		[1b 5b 31 3b 32 42 0]='select-next'
-		[1b 5b 31 3b 32 43 0]='select-forward'
-		[1b 5b 31 3b 32 44 0]='select-backward'
-		[1b 20 0]='set-mark-command' # in gnu emacs this is C-SPC but i cant get that to be detected in bash so M-SPC will suffice
+	add-mode edit
+	{
+		local-set-key "$(@kbd previous-line)" 'previous-line'
+		local-set-key "$(@kbd next-line)" 'next-line'
+		local-set-key "$(@kbd forward-char)" 'forward-char'
+		local-set-key "$(@kbd backward-char)" 'backward-char'
+		local-set-key "$(@kbd scroll-down)" 'scroll-down'
+		local-set-key "$(@kbd scroll-up)" 'scroll-up'
+		local-set-key '1b 5b 31 3b 32 41 0' 'select-previous'
+		local-set-key '1b 5b 31 3b 32 42 0' 'select-next'
+		local-set-key '1b 5b 31 3b 32 43 0' 'select-forward'
+		local-set-key '1b 5b 31 3b 32 44 0' 'select-backward'
+		local-set-key '1b 20 0]' 'set-mark-command' # in gnu emacs this is C-SPC but i cant get that to be detected in bash so M-SPC will suffice
 		# TODO: selection
-		[$(kbd C-x)]='prefix'
-		[$(kbd C-h)]='prefix-help'
-		[1b 5b 32 31 7e 0]='menulinemenu'
-		[$(kbd C-p)]='previous-line'
-		[$(kbd C-n)]='next-line'
-		[$(kbd C-f)]='forward-char'
-		[$(kbd M-f)]='forward-word'
-		[$(kbd C-b)]='backward-char'
-		[$(kbd M-b)]='backward-word'
-		[10 0]='scroll-down'
-		[16 0]='scroll-up'
-		[0]='newline'
-		[$(kbd C-l)]='newline'
-		[$(kbd C-t)]='execute'
-		[$(kbd C-d)]='delete-line'
-		[7f 0]='backspace'
-		[1b 5b 33 7e 0]='delete'
-		[$(kbd M-g)]='menukey'
-		[$(kbd M-x)]='execute-extended-command'
-		[$(kbd C-a)]='move-beginning-of-line'
-		[1b 5b 48 0]='move-beginning-of-line'
-		[$(kbd C-e)]='move-end-of-line'
-		[1b 5b 46 0]='move-end-of-line'
-		[$(kbd 'C-p')]='die'
-	)
-	+keys dired
-	keys_dired=(
-		[$(@kbd previous-line)]='previous-line'
-		[$(@kbd next-line)]='next-line'
-		[$(@kbd forward-char)]='forward-char'
-		[$(@kbd backward-char)]='backward-char'
-		[$(@kbd scroll-down)]='scroll-down'
-		[$(@kbd scroll-up)]='scroll-up'
-		[$(@kbd select)]='dired-select'
-		[$(kbd h)]='toggle_hidden'
-	)
-	+keys view
-	keys_view=(
-		[$(@kbd previous-line)]='previous-line'
-		[$(@kbd next-line)]='next-line'
-		[$(@kbd forward-char)]='forward-char'
-		[$(@kbd backward-char)]='backward-char'
-		[$(@kbd scroll-down)]='scroll-down'
-		[$(@kbd scroll-up)]='scroll-up'
-		[$(@kbd select)]='quit-view'
-	)
-	+keys list_buffers
-	keys_list_buffers=(
-		[$(@kbd previous-line)]='previous-line'
-		[$(@kbd next-line)]='next-line'
-		[$(@kbd scroll-down)]='scroll-down'
-		[$(@kbd scroll-up)]='scroll-up'
-		[$(@kbd select)]='quit-view'
-	)
+		local-set-key "$(kbd C-x)" 'prefix'
+		local-set-key "$(kbd C-h)" 'prefix-help'
+		local-set-key '1b 5b 32 31 7e 0' 'menulinemenu'
+		local-set-key "$(kbd C-p)" 'previous-line'
+		local-set-key "$(kbd C-n)" 'next-line'
+		local-set-key "$(kbd C-f)" 'forward-char'
+		local-set-key "$(kbd M-f)" 'forward-word'
+		local-set-key "$(kbd C-b)" 'backward-char'
+		local-set-key "$(kbd M-b)" 'backward-word'
+		local-set-key '10 0' 'scroll-down'
+		local-set-key '16 0' 'scroll-up'
+		local-set-key '0' 'newline'
+		local-set-key "$(kbd C-l)" 'newline'
+		local-set-key "$(kbd C-t)" 'execute'
+		local-set-key "$(kbd C-d)" 'delete-line'
+		local-set-key '7f 0' 'backspace'
+		local-set-key '1b 5b 33 7e 0' 'delete'
+		local-set-key "$(kbd M-g)" 'menukey'
+		local-set-key "$(kbd M-x)" 'execute-extended-command'
+		local-set-key "$(kbd C-a)" 'move-beginning-of-line'
+		local-set-key '1b 5b 48 0' 'move-beginning-of-line'
+		local-set-key "$(kbd C-e)" 'move-end-of-line'
+		local-set-key '1b 5b 46 0' 'move-end-of-line'
+		local-set-key "$(kbd 'C-p')" 'die'
+	}
+	
+	add-mode dired
+	{
+		local-set-key "$(@kbd previous-line)" 'previous-line'
+		local-set-key "$(@kbd next-line)" 'next-line'
+		local-set-key "$(@kbd forward-char)" 'forward-char'
+		local-set-key "$(@kbd backward-char)" 'backward-char'
+		local-set-key "$(@kbd scroll-down)" 'scroll-down'
+		local-set-key "$(@kbd scroll-up)" 'scroll-up'
+		local-set-key "$(@kbd select)" 'dired-select'
+		local-set-key "$(kbd h)" 'toggle_hidden'
+	}
+	
+	add-mode view
+	{
+		local-set-key "$(@kbd previous-line)" 'previous-line'
+		local-set-key "$(@kbd next-line)" 'next-line'
+		local-set-key "$(@kbd forward-char)" 'forward-char'
+		local-set-key "$(@kbd backward-char)" 'backward-char'
+		local-set-key "$(@kbd scroll-down)" 'scroll-down'
+		local-set-key "$(@kbd scroll-up)" 'scroll-up'
+		local-set-key "$(@kbd select)" 'quit-view'
+	}
+	
+	add-mode list_buffers
+	{
+		local-set-key "$(@kbd previous-line)" 'previous-line'
+		local-set-key "$(@kbd next-line)" 'next-line'
+		local-set-key "$(@kbd scroll-down)" 'scroll-down'
+		local-set-key "$(@kbd scroll-up)" 'scroll-up'
+		local-set-key "$(@kbd select)" 'quit-view'
+	}
 	key_options_list_buffers=(
 		[else]='quit-view'
 	)
-	+keys prefix
-	keys_prefix=(
-		[$(kbd C-c)]='quit'
-		[$(kbd C-g)]='quit-prefix'
-		[$(kbd C-s)]='write_buffer'
-		[$(kbd C-f)]='find-file'
-		[$(kbd C-b)]='list-buffers'
-		[62 0]='switch-to-buffer'
-		[30 0]='delete-window'
-		[$(kbd u)]='undo'
-	)
+	
+	add-mode prefix
+	{
+		local-set-key "$(kbd C-c)" 'quit'
+		local-set-key "$(@kbd keyboard-quit)" 'quit-prefix'
+		local-set-key "$(kbd C-s)" 'write_buffer'
+		local-set-key "$(kbd C-f)" 'find-file'
+		local-set-key "$(kbd C-b)" 'list-buffers'
+		local-set-key '62 0' 'switch-to-buffer'
+		local-set-key '30 0' 'delete-window'
+		local-set-key "$(kbd u)" 'undo'
+	}
 	key_options_prefix=(
 		[always]='quit-prefix'
 	)
-	+keys prefix_help
-	keys_prefix_help=(
-		[7 0]='quit-prefix'
-		[1 0]='about'
-		[72 0]='manual'
-	)
-	+keys menu
-	keys_menu=(
-		[$(@kbd previous-line)]='menuup'
-		[$(@kbd next-line)]='menudown'
-		[$(@kbd select)]='menuselect'
-	)
+	
+	add-mode prefix_help
+	{
+		local-set-key "$(@kbd keyboard-quit)" 'quit-prefix'
+		local-set-key '1 0' 'about'
+		local-set-key '72 0' 'manual'
+	}
+	
+	add-mode menu
+	{
+		local-set-key "$(@kbd previous-line)" 'menuup'
+		local-set-key "$(@kbd next-line)" 'menudown'
+		local-set-key "$(@kbd select)" 'menuselect'
+	}
 	key_options_menu=(
 		[else]='menuleave'
 	)
+	
 	## Faces
 	#      Defined in escape codes
 	#      Helper functions, see extensions/gruvboxdark for example
@@ -255,7 +263,7 @@ function load-default-config {
 		[Keys]=menu-key	    [Redraw]=refresh
 		[Debug]=menu-debug
 	)
-	+menu file
+	add-menu file
 	menu_file=(
 		[        MENU        ]=menulinemenu
 		[Quit        C-x C-c ]="quit"
@@ -264,13 +272,13 @@ function load-default-config {
 		[Save        C-x C-s ]="write-buffer"
 		[File picker         ]="dired"
 	)
-	+menu help
+	add-menu help
 	menu_help=(
 		[        MENU        ]=menulinemenu
 		[Keybinding          ]=menukey
 		[About               ]=about
 	)
-	+menu key
+	add-menu key
 	menu_key=(
 		[        MENU        ]=menulinemenu
 		[Exit        C-x C-c ]="quit"
@@ -287,7 +295,7 @@ function load-default-config {
 		[Shell           C-s ]="shell"
 		[Force exist     M-q ]="die"
 	)
-    +menu debug
+    add-menu debug
 	menu_debug=(
 		[   MENU   ]=menulinemenu
 		[clear     ]=clear-screen
@@ -482,16 +490,24 @@ function @kbd {
 	printf '%s' "${keys_def[$1]}"
 }
 
+function define-key {
+	local -n keys="keys_$1"
+	keys["$2"]="$3"
+}
+function local-set-key {
+	define-key "$_last_keys" "$@"
+}
 function clear-screen {
 	printf "\033c" # clear
 }
 
-function +keys {
+function add-mode {
 	# log TODO fix
+	_last_keys="$1"
 	declare -Ag "keys_$1"
 	declare -Ag "key_options_$1"
 }
-function +menu {
+function add-menu {
 	# create new menu function & array
 	eval "function menu-${1} { declare -ng menucon=menu_${1}; menu; }"
 	declare -Ag "menu_${1}"
@@ -697,7 +713,7 @@ function syntax-config {
 }
 
 
-+keys debuginput
+add-mode debuginput
 keys_debuginput=(
 	[18 0]='quit-debuginput'
 )
