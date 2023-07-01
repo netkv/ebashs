@@ -42,11 +42,11 @@ Ebashs is configured via variables defined at start, you can separate it into fi
 
 ## KEYBINDING ARRAYS
 
-Keybinding arrays match with modes. The array has to be associative and nammed $(code 'keys_<mode>'). $(code 'keys_def') is reserved and used as reference for other arrays, it's also reversed compared to other keybinding arrays.
+Keybinding arrays match with modes. The array has to be associative and nammed `keys_<mode>`. `keys_def` is reserved and used as reference for other arrays, it's also reversed compared to other keybinding arrays.
 
-Keybindings are defined via hexadecimal syntax suffixed with ' 0'. Function @kbd field is equivalent to ${keys_def[field]} but nicer. Function kbd provides Emacsy keybinding syntax.
+Keybindings are defined via hexadecimal syntax suffixed with ' 0'. Function `@kbd field` is equivalent to `${keys_def[field]}` but nicer. Function kbd provides Emacsy keybinding syntax.
 
-There is also a optionable option array possible for all keybinding arrays. Currently only defined option is [else] which defines what should happen if no key is matched from the keybinding. These arrays have to be named $(code 'key_options_<mode>').
+There is also a optionable option array possible for all keybinding arrays. Currently only defined option is [else] which defines what should happen if no key is matched from the keybinding. These arrays have to be named `key_options_<mode>`.
 
 ## MODES
 
