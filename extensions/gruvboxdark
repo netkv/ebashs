@@ -7,37 +7,40 @@
 #	~/.config/ebashsrc
 #	~/.ebashsrc
 #	.ebashsrc - this is mostly for testing
-
 #the += is there to ensure that in case of Ebashs update there won't be any blank styles
-style+=(
+#
+## Functions
+#     :foreground <color> ...<next-function>
+#     :background <color> ...<next-function>
+faces+=(
 	# UI
-	[none]="\e[m$(foreground ebdbb2; background 282828)" # backgroud may be broken
-	[TODO]="$(foreground 1d2021; background d3869b)"
-	[NOTE]="$(foreground 1d2021; background fabd2f)"
-	[menuline]="$(foreground ebdbb2; background 3c3836)"
-	[menuitem]="$(foreground ebdbb2; background 3c3836)"
-	[selected]="$(foreground b8bb26; background 3c3836)"
-	[link]="$(foreground 8ec07c; background 282828)"
-	[menuitemselected]="$(foreground b8bb26; background 3c3836)"
-	[infoline]="$(foreground ebdbb2; background 3c3836)"
-	[number]="$(foreground a89984; background 282828)"
-	[numberempty]="$(foreground a89984; background 282828)"
-	[numberselected]="$(foreground fabd2f; background 282828)"
-	[tab]="$(foreground a89984; background 282828)"
-	[selection]="$(foreground a89984; background 3c3836)"
-	[commandline]="$(foreground ebdbb2; background 282828)"
+	[default]="\e[m$(:foreground "#ebdbb2" :background "#282828")" # none
+	[TODO]="$(:foreground "#1d2021" :background "#d3869b")" # TODO
+	[NOTE]="$(:foreground "#1d2021" :background "#fabd2f")" # NOTE
+	[menu]="$(:foreground "#ebdbb2" :background "#3c3836")" # menuline
+	[menu-enabled-face]="$(:foreground "#ebdbb2" :background "#3c3836")" # menuitem
+	[selected]="$(:foreground "#b8bb26" :background "#3c3836")" # selected
+	[link]="$(:foreground "#8ec07c" :background "#282828")" # link
+	[menu-selected-face]="$(:foreground "#b8bb26" :background "#3c3836")" # menuitemselected
+	[mode-line]="$(:foreground "#ebdbb2" :background "#3c3836")" # infoline
+	[line-number]="$(:foreground "#a89984" :background "#282828")" # number
+	[line-number-empty]="$(:foreground "#a89984" :background "#282828")" # numberempty
+	[line-number-current-line]="$(:foreground "#fabd2f" :background "#282828")" # numberselected
+	[tab-face]="$(:foreground "#a89984" :background "#282828")" # tab
+	[region]="$(:foreground "#a89984" :background "#3c3836")" # selection
+	[minibuffer-prompt]="$(:foreground "#ebdbb2" :background "#282828")" # commandline
 	# Syntax Hightlighting
-	[quotevar]="$(foreground 458588; background 282828)"
-	[comment]="$(foreground a89984; background 282828)"
-	[variable]="$(foreground 83a598; background 282828)"
-	[option]="$(foreground d79921; background 282828)"
-	[flow]="$(foreground ebdbb2; background 282828)"
-	[pipe]="$(foreground ebdbb2; background 282828)"
-	[bracket]="$(foreground ebdbb2; background 282828)"
-	[quote]="$(foreground b8bb26; background 282828)"
-	[dquote]="$(foreground 98971a; background 282828)"
-	[set]="$(foreground d3869b; background 282828)"
-	[fn]="$(foreground 8ec07c; background 282828)"
-	[keyword]="$(foreground fb4934; background 282828)"
-	[init]="$(foreground cc241d; background 282828)"
+	[font-lock-variable-string-face]="$(:foreground "#458588" :background "#282828")" # quotevar
+	[font-lock-comment-face]="$(:foreground "#a89984" :background "#282828")" # comment
+	[font-lock-variable-name-face]="$(:foreground "#83a598" :background "#282828")" # variable
+	[font-lock-argument-face]="$(:foreground "#d79921" :background "#282828")" # option
+	[font-lock-flow-face]="$(:foreground "#ebdbb2" :background "#282828")" # flow
+	[font-lock-pipe-face]="$(:foreground "#ebdbb2" :background "#282828")" # pipe
+	[font-lock-bracket-face]="$(:foreground "#ebdbb2" :background "#282828")" # bracket
+	[font-lock-constant-face]="$(:foreground "#b8bb26" :background "#282828")" # quote
+	[font-lock-string-face]="$(:foreground "#98971a" :background "#282828")" # dquote
+	[font-lock-assign-face]="$(:foreground "#d3869b" :background "#282828")" # set
+	[font-lock-function-name-face]="$(:foreground "#8ec07c" :background "#282828")" # fn
+	[font-lock-keyword-face]="$(:foreground "#fb4934" :background "#282828")" # keyword
+	[font-lock-declare-face]="$(:foreground "#cc241d" :background "#282828")" # init
 )

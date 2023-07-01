@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.6.3.2"
+version="0.6.4"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -9,9 +9,9 @@ trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
 trap quit INT
 trap quit SIGTERM
 
-declare -A syntax style options charmap commands
+declare -A syntax faces options charmap commands
 declare -A menulineedit diredmenu menulinedebug
-declare -A menufile menuhelp menukey menudebug menufancy
+declare -A menufancy
 declare -A keys_def
 declare -a input_hex overlay listbuffers
 declare -n buffer buffersyntax bufferexpand bufferdata
@@ -154,37 +154,60 @@ function load-default-config {
 	key_options_menu=(
 		[else]='menuleave'
 	)
-	## Style
-	#      Defined in escape codes.
-	style=(
-		[none]='\e[m'
+	## Faces
+	#      Defined in escape codes
+	#      Helper functions, see extensions/gruvboxdark for example
+	faces=(
+		[default]='\e[m'
 		[TODO]='\e[0;97;45m'
 		[NOTE]='\e[0;97;100m'
-		[menuline]='\e[100m'
-		[menuitem]='\e[0;37;40m'
+		[menu]='\e[100m'
+		[menu-enabled-face]='\e[0;37;40m'
 		[selected]='\e[30;45m'
 		[link]='\e[94m'
-		[menuitemselected]='\e[30;45m'
-		[infoline]='\e[100m'
-		[number]='\e[0;90m'
-		[numberempty]='\e[0;90m'
-		[numberselected]='\e[0;91m'
-		[tab]='\e[0;90m'
-		[selection]='\e[1;100m'
-		#syntax
-		[quotevar]='\e[0;36;48m'
-		[comment]='\e[3;37;48m'
-		[variable]='\e[0;96m'
-		[option]='\e[0;93m'
-		[flow]='\e[0;93m'
-		[pipe]='\e[1;94m'
-		[bracket]='\e[1;95m'
-		[quote]='\e[0;92m'
-		[dquote]='\e[0;32m'
-		[set]='\e[0;94;108m'
-		[fn]='\e[0;30;44m'
-		[keyword]='\e[0;91m'
-		[init]='\e[0;31m'
+		[menu-selected-face]='\e[30;45m'
+		[mode-line]='\e[100m'
+		[line-number]='\e[0;90m'
+		[line-number-empty]='\e[0;90m'
+		[line-number-current-line]='\e[0;91m'
+		[tab-face]='\e[0;90m'
+		[region]='\e[1;100m'
+		[minibuffer-prompt]='\e[m'
+		# ansi colors
+		[ansi-color-black]='\e[40m'
+		[ansi-color-blue]='\e[44m'
+		[ansi-color-bold]='\e[1m'
+		[ansi-color-bright-black]='\e[100m'
+		[ansi-color-bright-blue]='\e[104m'
+		[ansi-color-bright-blue]='\e[106m'
+		[ansi-color-bright-blue]='\e[102m'
+		[ansi-color-bright-blue]='\e[105m'
+		[ansi-color-bright-blue]='\e[101m'
+		[ansi-color-bright-blue]='\e[107m'
+		[ansi-color-bright-blue]='\e[103m'
+		[ansi-color-cyan]='\e[46m'
+		[ansi-color-green]='\e[42m'
+		[ansi-color-inverse]='\e[7m'
+		[ansi-color-italic]='\e[3m'
+		[ansi-color-magenta]='\e[45m'
+		[ansi-color-red]='\e[41m'
+		[ansi-color-underline]='\e[4m'
+		[ansi-color-white]='\e[47m'
+		[ansi-color-white]='\e[43m'
+		# syntax highlighting
+		[font-lock-variable-string-face]='\e[0;36;48m'
+		[font-lock-comment-face]='\e[3;37;48m'
+		[font-lock-variable-name-face]='\e[0;96m'
+		[font-lock-argument-face]='\e[0;93m'
+		[font-lock-flow-face]='\e[0;93m'
+		[font-lock-pipe-face]='\e[1;94m'
+		[font-lock-bracket-face]='\e[1;95m'
+		[font-lock-constant-face]='\e[0;92m'
+		[font-lock-string-face]='\e[0;32m'
+		[font-lock-assign-face]='\e[0;94;108m'
+		[font-lock-function-name-face]='\e[0;30;44m'
+		[font-lock-keyword-face]='\e[0;91m'
+		[font-lock-declare-face]='\e[0;31m'
 	)
 
 	## Commands
@@ -215,6 +238,7 @@ function load-default-config {
 		[horizontal]='tile-horizontal'
 		[single]='tile-single'
 		[log]='view-log'
+		[list-faces-display]='list-faces-display'
 	)
 
 	function menulinemenu {
@@ -223,11 +247,12 @@ function load-default-config {
 		menu
 	}
 	menulineedit=(
-		[File]=menufile	[Help]=menuhelp
-		[Keys]=menukey	    [Redraw]=refresh
-		[Debug]=menudebug
+		[File]=menu-file	[Help]=menu-help
+		[Keys]=menu-key	    [Redraw]=refresh
+		[Debug]=menu-debug
 	)
-	menufile=(
+	+menu file
+	menu_file=(
 		[        MENU        ]=menulinemenu
 		[Quit        C-x C-c ]="quit"
 		[Visit file  C-x C-f ]="find-file"
@@ -235,14 +260,14 @@ function load-default-config {
 		[Save        C-x C-s ]="write-buffer"
 		[File picker         ]="dired"
 	)
-
-	menuhelp=(
+	+menu help
+	menu_help=(
 		[        MENU        ]=menulinemenu
 		[Keybinding          ]=menukey
 		[About               ]=about
 	)
-
-	menukey=(
+	+menu key
+	menu_key=(
 		[        MENU        ]=menulinemenu
 		[Exit        C-x C-c ]="quit"
 		[New Line    C-l | ⏎ ]="newline"
@@ -258,8 +283,8 @@ function load-default-config {
 		[Shell           C-s ]="shell"
 		[Force exist     M-q ]="die"
 	)
-
-	menudebug=(
+    +menu debug
+	menu_debug=(
 		[   MENU   ]=menulinemenu
 		[clear     ]=clear-screen
 		[refresh   ]=refresh
@@ -267,6 +292,7 @@ function load-default-config {
 		[right     ]=forward-char
 		[left      ]=backward-char
 		[inputcodes]=inputcodes
+		[faces     ]=list-faces-display
 	)
 
 	syntax=(
@@ -395,17 +421,45 @@ function copy-array {
 }
 
 # convert hex notation to escape code
-function foreground {
-	r="${1:0:2}"
-	g="${1:2:2}"
-	b="${1:4:2}"
-	printf '\\e[38;2;%s;%s;%sm' "$((16#$r))" "$((16#$g))" "$((16#$b))"
+template setface <<'+'
+	function @var 1 {
+		[ -z "$1" ] && return;
+		case "${1::1}" in
+			'#')
+				r="${1:1:2}";
+				g="${1:3:2}";
+				b="${1:5:2}";
+				printf '\\e[%s;2;%s;%s;%sm' @var 2 "$((16#$r))" "$((16#$g))" "$((16#$b))";;
+		esac;
+		shift;
+		[ -n "$1" ] && "$@";
 }
-function background {
-	r="${1:0:2}"
-	g="${1:2:2}"
-	b="${1:4:2}"
-	printf '\\e[48;2;%s;%s;%sm' "$((16#$r))" "$((16#$g))" "$((16#$b))"
++
+	@: :foreground 38
+	@: :background 48
+function :foregrounde {
+	[ -z "$1" ] && return
+	case "${1:0:1}" in
+		'#')
+			r="${1:1:2}"
+			g="${1:3:2}"
+			b="${1:5:2}"
+			printf '\\e[38;2;%s;%s;%sm' "$((16#$r))" "$((16#$g))" "$((16#$b))";;
+	esac
+	shift
+	[ -n "$1" ] && "$@"
+}
+function :backgrounde {
+	[ -z "$1" ] && return
+	case "${1:0:1}" in
+		'#')
+			r="${1:1:2}"
+			g="${1:3:2}"
+			b="${1:5:2}"
+			printf '\\e[48;2;%s;%s;%sm' "$((16#$r))" "$((16#$g))" "$((16#$b))";;
+	esac
+	shift
+	[ -n "$1" ] && "$@"
 }
 
 function clear-screen {
@@ -413,9 +467,14 @@ function clear-screen {
 }
 
 function +keys {
-	#log TODO fix
+	# log TODO fix
 	declare -Ag "keys_$1"
 	declare -Ag "key_options_$1"
+}
+function +menu {
+	# create new menu function & array
+	eval "function menu-${1} { declare -ng menucon=menu_${1}; menu; }"
+	declare -Ag "menu_${1}"
 }
 
 function refresh {
@@ -543,17 +602,17 @@ function make-render-line-loop {
 			' ')
 				syntax-word
 				word=''
-				style none ' '
+				face default ' '
 				continue;;
 			'	')
 				syntax-word
 				word=''
-				style tab "${options[tabchar]}"
+				face tab-face "${options[tabchar]}"
 				continue;;
 			'')
 				syntax-word
 				word=''
-				style none ' '
+				face default ' '
 				return;;
 		esac
 		word="${word}${char}"
@@ -563,57 +622,57 @@ function make-render-line-loop {
 function syntax-word {
 	(("${options[todonote]}"==1)) && {
 		case "$word" in
-			'NOTE:') style NOTE "${word}"; return ;;
-			'TODO:') style TODO "${word}"; return ;;
+			'NOTE:') face NOTE "${word}"; return ;;
+			'TODO:') face TODO "${word}"; return ;;
 		esac
 	}
 	"$syntax_function"
-	style "$syntax_style" "$word"
+	face "$syntax_face" "$word"
 }	
-function style {
+function face {
 	IFS=' '
 	[[ "$2" =~ ${2//?/(.)} ]]
-	linearray+=("$(printf '%b' "\e[0;0m${style[${1}]}")${BASH_REMATCH[@]:1}")
+	linearray+=("$(printf '%b' "\e[0;0m${faces[${1}]}")${BASH_REMATCH[@]:1}")
 	IFS=''
 }
-function set-style {
-	syntax_style="$1"
+function set-face {
+	syntax_face="$1"
 }
 function syntax-bash {
-	((comment)) && set-style comment && return
+	((comment)) && set-face font-lock-comment-face && return
 	case "${word}" in
-		*'=()'|'declare'|'local'|'typeset') set-style init;;
-		'"$'*) set-style quotevar;;
-		'#'*) set-style comment && comment=1;;
-		'$'*) set-style variable;;
-		'-'*) set-style option;;
-		*'()') set-style fn;;
-		'||'|'&&'|';'|'&') set-style flow;;
-		'>'|'<'|'|'|'>>'|'<<'|'<<<') set-style pipe;;
-		'('|')'|'{'|'}'|'[['|']]'|'['|']') set-style bracket;;
-		'function') set-style fn;;
-		*"'"*) set-style quote;;
-		*'"'*) set-style dquote;;
-		*'='*) set-style set;;
+		*'=()'|'declare'|'local'|'typeset') set-face font-lock-declare-face;;
+		'"$'*) set-face font-lock-variable-string-face;;
+		'#'*) set-face font-lock-comment-face && comment=1;;
+		'$'*) set-face font-lock-variable-name-face;;
+		'-'*) set-face font-lock-argument-face;;
+		*'()') set-face font-lock-function-name-face;;
+		'||'|'&&'|';'|'&') set-face font-lock-flow-face;;
+		'>'|'<'|'|'|'>>'|'<<'|'<<<') set-face font-lock-pipe-face;;
+		'('|')'|'{'|'}'|'[['|']]'|'['|']') set-face font-lock-bracket-face;;
+		'function') set-face font-lock-function-name;;
+		*"'"*) set-face font-lock-constant-face;;
+		*'"'*) set-face font-lock-string-face;;
+		*'='*) set-face font-lock-assign-face;;
 		'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|\
 			'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|\
 			'let'|'shopt'|'trap'|'set'|'eval'\
-			) set-style keyword;;
-		*) set-style none;;
+			) set-face font-lock-keyword-face;;
+		*) set-face default;;
 	esac
 }
 function syntax-unknown {
-	set-style none
+	set-face default
 }
 function dired-render {
-	[ -d "$word" ] && set-style link
-	[ -f "$word" ] && set-style none
+	[ -d "$word" ] && set-face link
+	[ -f "$word" ] && set-face default
 }
 function syntax-config {
-	((comment)) && set-style comment && return
+	((comment)) && set-face comment && return
 	case "${word}" in
-		'#'*) set-style comment && comment=1;;
-		   *) set-style none;;
+		'#'*) set-face comment && comment=1;;
+		   *) set-face default;;
 	esac
 }
 
@@ -967,6 +1026,18 @@ Based on                 https://github.com/comfies/bed
 EOF
 	buffer-dialog-draw
 }
+function list-faces-display {
+	buffer-dialog faces 'faces' 'faces' '*list-faces-display*'
+	buffer=('')
+	for face in "${!faces[@]}"; do
+		buffer+=(
+			"$(
+				printf '%*s%b%s%b' -40 "${face}" "${faces[$face]}" "abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ" "${faces[default]}"
+			)"
+		)
+	done
+	buffer-dialog-draw
+}
 function table-init {
 	table_columns="$1"
 	shift
@@ -1192,40 +1263,47 @@ EOF2
     $(title STYLE)
 
 $(text '    ' <<EOF2
-Style of stuff is defined as escape code.
+Style of stuff is defined as escape code. See extensions/gruvboxdark for example of custom theme.
 EOF2
 )
 
-$(table-init 3 19 19 39; table-char
+$(table-init 3 32 19 39; table-char
 print-stdin <<EOF2
     $(table-top)
     $(table-title NAME DEFAULT DESCRIPTION)
     $(table-title-line)
-    $(table-item none ' \e[m' 'Style reset')
+    $(table-item default ' \e[m' 'Default face')
     $(table-item TODO ' \e[0;97;45m' "Highlighting of 'TODO: '")
     $(table-item NOTE ' \e[0;97;100m' "Highlighting of 'NOTE: '")
-    $(table-item menuline ' \e[0;37;40' 'Menuline')
-    $(table-item menuitem ' \e[0;37;40' 'Items of menuline')
+    $(table-item menu ' \e[0;37;40' 'Menuline')
+    $(table-item menu-enabled-face ' \e[0;37;40' 'Items of menuline')
+    $(table-item selected ' \e[30;45m' 'Selected item')
     $(table-item link ' \e[94m' 'Redirects')
-    $(table-item menuitemselected ' \e[30;45m' 'Selected item of menu')
-    $(table-item infoline ' \e[40;97m' 'Bottom statusline')
-    $(table-item number ' \e[0;90m' 'Line count')
-    $(table-item numberempty ' \e[0;90m' 'Lines that do not exist')
-    $(table-item numberselected ' \e[0;91m' 'Currently selected line')
-    $(table-item tab ' \e[0;90m' 'Tabs')
+    $(table-item menu-selected-face ' \e[30;45m' 'Selected item of menu')
+    $(table-item mode-line ' \e[40;97m' 'Bottom statusline')
+    $(table-item line-number ' \e[0;90m' 'Line count')
+    $(table-item line-number-empty ' \e[0;90m' 'Lines that do not exist')
+    $(table-item line-number-current-line ' \e[0;91m' 'Currently selected line')
+    $(table-item tab-face ' \e[0;90m' 'Tabs')
+    $(table-item minibuffer-prompt ' \e[m' 'Bottom commandline')
     $(table-divider)
-    $(table-item qutevar ' \e[0;36;48m' 'Quoted variables')
-    $(table-item comment ' \e[3;37;48m' 'Comments')
-    $(table-item variable ' \e[0;96m' 'Variables')
-    $(table-item option ' \e[0;93m' 'Options')
-    $(table-item flow ' \e[0;93m' 'Control flow')
-    $(table-item bracket ' \e[1;95m' 'Brackets')
-    $(table-item quote ' \e[0;92m' 'String literals')
-    $(table-item dquote ' \e[0;32m' 'Strings')
-    $(table-item set ' \e[0;94;108m' 'Variable assignments')
-    $(table-item fn ' \e[0;30;44m' 'Function definitions')
-    $(table-item keyword ' \e[0;91m' 'Keywords')
+    $(table-item font-lock-variable-string-face ' \e[0;36;48m' 'Quoted variables')
+    $(table-item font-lock-comment-face ' \e[3;37;48m' 'Comments')
+    $(table-item font-lock-variable-name-face ' \e[0;96m' 'Variables')
+    $(table-item font-lock-argument-face ' \e[0;93m' 'Options')
+    $(table-item font-lock-flow-face ' \e[0;93m' 'Control flow')
+    $(table-item font-lock-pipe-face ' \e[1;94m' 'Pipes')
+    $(table-item font-lock-bracket-face ' \e[1;95m' 'Brackets')
+    $(table-item font-lock-constant-face ' \e[0;92m' 'Constants')
+    $(table-item font-lock-string-face ' \e[0;32m' 'Strings')
+    $(table-item font-lock-assign-face ' \e[0;94;108m' 'Variable assignments')
+    $(table-item font-lock-function-name-face ' \e[0;30;44m' 'Function definitions')
+    $(table-item font-lock-declare-face ' \e[0;91m' 'Keywords')
     $(table-bottom)
+EOF2
+)
+$(text '    ' <<EOF2
+Ebashs also includes the ansi-color-* faces, see M-x list-faces-display for full list.
 EOF2
 )
 
@@ -1306,26 +1384,27 @@ $(code-block bash <<EOF2
     syntax+=(
         [bash]=syntax-bash
     )
-    syntax-bash() {
-        ((comment)) && set-style comment && return
-        local word="$1"
+    function syntax-bash {
+        ((comment)) && set-face font-lock-comment-face && return
         case "${word}" in
-            '"$'*) set-style quotevar;;
-             '#'*) set-style comment && comment=1;;
-             '$'*) set-style variable;;
-             '-'*) set-style option;;
-            *'()') set-style fn;;
-            '||'|'&&'|';') set-style flow;;
-            '('|')'|'{'|'}'|'[['|']]'|'['|']') set-style bracket;;
-            'function') set-style fn;;
-            *"'"*) set-style quote;;
-            *'"'*) set-style dquote;;
-            *'='*) set-style set;;
-            'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|\\
-            'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|'declare'|\\
-            'typeset'|'local'|'let'|'shopt'|'trap'|'set'|'eval'\\
-             ) set-style keyword;;
-            *) set-style none;;
+             *'=()'|'declare'|'local'|'typeset') set-face font-lock-declare-face;;
+            '"$'*) set-face font-lock-variable-string-face;;
+            '#'*) set-face font-lock-comment-face && comment=1;;
+            '$'*) set-face font-lock-variable-name-face;;
+            '-'*) set-face font-lock-argument-face;;
+            *'()') set-face font-lock-function-name-face;;
+            '||'|'&&'|';'|'&') set-face font-lock-flow-face;;
+            '>'|'<'|'|'|'>>'|'<<'|'<<<') set-face font-lock-pipe-face;;
+            '('|')'|'{'|'}'|'[['|']]'|'['|']') set-face font-lock-bracket-face;;
+            'function') set-face font-lock-function-name;;
+            *"'"*) set-face font-lock-constant-face;;
+            *'"'*) set-face font-lock-string-face;;
+            *'='*) set-face font-lock-assign-face;;
+            'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|\
+                'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|\
+                'let'|'shopt'|'trap'|'set'|'eval'\
+                ) set-face font-lock-keyword-face;;
+            *) set-face default;;
         esac
     }
 EOF2
@@ -1825,9 +1904,9 @@ function menudraw {
 	local mi=0
 	for action in "${!menucon[@]}"; do
 		if ((mi == menuselection)); then
-			printf "\e[%sC${style[menuitemselected]}%s${reset}\n" $menulinep "$action"  
+			printf "\e[%sC${faces[menu-selected-face]}%s${reset}\n" $menulinep "$action"  
 		else
-			printf "\e[%sC${style[menuitem]}%s${reset}\n" $menulinep "$action"
+			printf "\e[%sC${faces[menu-enabled-face]}%s${reset}\n" $menulinep "$action"
 		fi
 		((mi++))
 	done
@@ -1937,14 +2016,14 @@ function delete-window {
 fragment printarg <<'+'
 	"${bufferdata[position_x]}"\
 	"$i"\
-	"\e[m"\
+	"${faces[default]}"\
 +
 
 function redraw-buffer-raw {
 	for ((i = bufferdata[base]; i - bufferdata[base] < max; i++)); do
-		printf "${style[number]}"
-		((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
-		((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((bufferdata[length]/2))s~\e[m\n" "${bufferdata[position_x]}"\
+		printf "${faces[line-number]}"
+		((i == bufferdata[line])) && printf "${faces[line-number-current-line]}" # Highlight line line-number if selected
+		((i > ${#buffer[@]})) && printf "\e[%sG${faces[line-number-empty]}\e[K%$((bufferdata[length]/2))s~\e[m\n" "${bufferdata[position_x]}"\
 				|| {
 				printf "\e[%sG\e[K%${bufferdata[length]}s %b%s\n"\
 					   @ printarg\
@@ -1955,9 +2034,9 @@ function redraw-buffer-raw {
 
 function redraw-buffer {
 	for ((i = bufferdata[base]; i - bufferdata[base] < max; i++)); do
-		printf '%b' "${style[number]}"
-		((i == bufferdata[line])) && printf "${style[numberselected]}" # Highlight line number if selected
-		((i > ${#buffer[@]})) && printf "\e[%sG${style[numberempty]}\e[K%$((bufferdata[length]/2))s~\e[m\n" "${bufferdata[position_x]}"\
+		printf '%b' "${faces[line-number]}"
+		((i == bufferdata[line])) && printf "${faces[line-number-current-line]}" # Highlight line line-number if selected
+		((i > ${#buffer[@]})) && printf "\e[%sG${faces[line-number-empty]}\e[K%$((bufferdata[length]/2))s~\e[m\n" "${bufferdata[position_x]}"\
 				|| {
 				# to improve speed syntaxing has to be "lazy" -- having to be heavily cached as ram is far less expensive to waste
 				[ -z "${buffersyntax[bufferdata[base]+bufferdata[size_y]-(bottomlines+toplines)+2]}" ] && {
@@ -1983,7 +2062,7 @@ function redraw-buffer {
 							printf "\e[%sG\e[K%${bufferdata[length]}s %b%s%b%s%b%s\n"\
 								   @ printarg\
 								   "${linearray[*]:bufferdata[basecolumn]:sx}"\
-								   "\e[m${style[selection]}"\
+								   "\e[m${faces[selection]}"\
 								   "${buffer[i]:sx:ex-sx}"\
 								   "\e[m"\
 								   "${linearray[*]:ex:bufferdata[size_x]}" 
@@ -2013,26 +2092,26 @@ function selection-draw {
 		printf "\e[%sG\e[K%${bufferdata[length]}s %b%s%b%s\n"\
 			   @ printarg\
 			   "${linearray[*]:bufferdata[basecolumn]:bufferdata[${1}_x]}"\
-			   "\e[m${style[selection]}"\
+			   "\e[m${faces[selection]}"\
 			   "${buffer[i]:bufferdata[${1}_x]:bufferdata[size_x] - (bufferdata[length] + 1)}"
 	elif ((i == bufferdata["${2}_y"])); then
 		printf "\e[%sG\e[K%${bufferdata[length]}s %b%b%s%b%s\n"\
 			   @ printarg\
-			   "${style[selection]}"\
+			   "${faces[selection]}"\
 			   "${buffer[i]:bufferdata[basecolumn]:bufferdata[${2}_x]}"\
 			   "\e[m"\
 			   "${linearray[*]:bufferdata[${2}_x]:bufferdata[size_x]}"
 	else
 		printf "\e[%sG\e[K%${bufferdata[length]}s %b%b%s\n"\
 			   @ printarg
-			   "${style[selection]}" "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
+			   "${faces[selection]}" "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
 	fi
 } && @add selection-draw
 
 fragment drawml <<'+'
 	(("${options[menuline]}"==1)) && {
 		local -n menuline="${bufferdata[menuline]}"
-		printf "\e[0m\e[%s;%sH${style[menuline]}\e[?25l%*s\r%s"\
+		printf "\e[0m\e[%s;%sH${faces[menu]}\e[?25l%*s\r%s"\
 			   "${bufferdata[position_y]}"\
 			   "${bufferdata[position_x]}"\
 			   "${bufferdata[size_x]}"\
@@ -2044,7 +2123,7 @@ fragment drawml <<'+'
 function redraw {
 	printf '\e[?25l'
 	
-	# get length of number of lines
+	# get length of line-number of lines
 	local ltmp="${#buffer[@]}"
 	bufferdata[length]="${#ltmp}"
 	unset ltmp
@@ -2093,7 +2172,7 @@ function redraw-cursor {
 		   $((bufferdata[column] - bufferdata[basecolumn] + bufferdata[length] + 1 + bufferdata[position_x]))
 }
 function redraw-statusline {
-	printf "\e[%s;%sH\n\e[%sG${style[infoline]}%*s\e[%sG%s %s (%s,%s) (screen: %s)\e[m" \
+	printf "\e[%s;%sH\n\e[%sG${faces[mode-line]}%*s\e[%sG%s %s (%s,%s) (screen: %s)\e[m" \
 	       $((bufferdata[size_y] - 2 + bufferdata[position_y]))\
 		   $((bufferdata[size_x] + bufferdata[position_x]))\
 		   "${bufferdata[position_x]}"\
@@ -2107,7 +2186,7 @@ function redraw-statusline {
 		   "$current_buffer"
 }
 function redraw-commandline {
-	printf "\e[%s;%sH\n${style[commandline]}%*s\r%s\e[m" \
+	printf "\e[%s;%sH\n${faces[minibuffer-prompt]}%*s\r%s\e[m" \
 		   $((LINES-1)) 1 $((COLUMNS)) ' ' "$message"
 }
 
@@ -2177,7 +2256,7 @@ function input-key {
 					redraw
 				elif [ "$mousemode" = '[<2' ]; then #VERY BAD SOLUTION, TODO: FIX
 					clear-screen
-					echo enter line number
+					echo 'Enter the index: '
 					read -re line
 					redraw
 				fi

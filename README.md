@@ -66,36 +66,40 @@ Modes determine used keybinding and other properties of buffer.
 
 ## STYLE
 
-Style of stuff is defined as escape code.
+Style of stuff is defined as escape code. See extensions/gruvboxdark for example of custom theme.
 
 
-|       NAME        |      DEFAULT      |              DESCRIPTION              |
-|-------------------|-------------------|---------------------------------------|
-|none               | \e[m              |Style reset                            |
-|TODO               | \e[0;97;45m       |Highlighting of 'TODO: '               |
-|NOTE               | \e[0;97;100m      |Highlighting of 'NOTE: '               |
-|menuline           | \e[0;37;40        |Menuline                               |
-|menuitem           | \e[0;37;40        |Items of menuline                      |
-|link               | \e[94m            |Redirects                              |
-|menuitemselected   | \e[30;45m         |Selected item of menu                  |
-|infoline           | \e[40;97m         |Bottom statusline                      |
-|number             | \e[0;90m          |Line count                             |
-|numberempty        | \e[0;90m          |Lines that do not exist                |
-|numberselected     | \e[0;91m          |Currently selected line                |
-|tab                | \e[0;90m          |Tabs                                   |
-|                   |                   |                                       |
-|qutevar            | \e[0;36;48m       |Quoted variables                       |
-|comment            | \e[3;37;48m       |Comments                               |
-|variable           | \e[0;96m          |Variables                              |
-|option             | \e[0;93m          |Options                                |
-|flow               | \e[0;93m          |Control flow                           |
-|bracket            | \e[1;95m          |Brackets                               |
-|quote              | \e[0;92m          |String literals                        |
-|dquote             | \e[0;32m          |Strings                                |
-|set                | \e[0;94;108m      |Variable assignments                   |
-|fn                 | \e[0;30;44m       |Function definitions                   |
-|keyword            | \e[0;91m          |Keywords                               |
+|              NAME              |      DEFAULT      |              DESCRIPTION              |
+|--------------------------------|-------------------|---------------------------------------|
+|default                         | \e[m              |Default face                           |
+|TODO                            | \e[0;97;45m       |Highlighting of 'TODO: '               |
+|NOTE                            | \e[0;97;100m      |Highlighting of 'NOTE: '               |
+|menu                            | \e[0;37;40        |Menuline                               |
+|menu-enabled-face               | \e[0;37;40        |Items of menuline                      |
+|selected                        | \e[30;45m         |Selected item                          |
+|link                            | \e[94m            |Redirects                              |
+|menu-selected-face              | \e[30;45m         |Selected item of menu                  |
+|mode-line                       | \e[40;97m         |Bottom statusline                      |
+|line-number                     | \e[0;90m          |Line count                             |
+|line-number-empty               | \e[0;90m          |Lines that do not exist                |
+|line-number-current-line        | \e[0;91m          |Currently selected line                |
+|tab-face                        | \e[0;90m          |Tabs                                   |
+|minibuffer-prompt               | \e[m              |Bottom commandline                     |
+|                                |                   |                                       |
+|font-lock-variable-string-face  | \e[0;36;48m       |Quoted variables                       |
+|font-lock-comment-face          | \e[3;37;48m       |Comments                               |
+|font-lock-variable-name-face    | \e[0;96m          |Variables                              |
+|font-lock-argument-face         | \e[0;93m          |Options                                |
+|font-lock-flow-face             | \e[0;93m          |Control flow                           |
+|font-lock-pipe-face             | \e[1;94m          |Pipes                                  |
+|font-lock-bracket-face          | \e[1;95m          |Brackets                               |
+|font-lock-constant-face         | \e[0;92m          |Constants                              |
+|font-lock-string-face           | \e[0;32m          |Strings                                |
+|font-lock-assign-face           | \e[0;94;108m      |Variable assignments                   |
+|font-lock-function-name-face    | \e[0;30;44m       |Function definitions                   |
+|font-lock-declare-face          | \e[0;91m          |Keywords                               |
 
+Ebashs also includes the ansi-color-* faces, see M-x list-faces-display for full list.
 
 ## SYNTAX
 
@@ -144,26 +148,24 @@ Here is sample bash syntax function included with Ebashs:
     syntax+=(
         [bash]=syntax-bash
     )
-    syntax-bash() {
-        ((comment)) && set-style comment && return
-        local word=""
+    function syntax-bash {
+        ((comment)) && set-face font-lock-comment-face && return
         case "" in
-            '"$'*) set-style quotevar;;
-             '#'*) set-style comment && comment=1;;
-             '$'*) set-style variable;;
-             '-'*) set-style option;;
-            *'()') set-style fn;;
-            '||'|'&&'|';') set-style flow;;
-            '('|')'|'{'|'}'|'[['|']]'|'['|']') set-style bracket;;
-            'function') set-style fn;;
-            *"'"*) set-style quote;;
-            *'"'*) set-style dquote;;
-            *'='*) set-style set;;
-            'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|\
-            'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|'declare'|\
-            'typeset'|'local'|'let'|'shopt'|'trap'|'set'|'eval'\
-             ) set-style keyword;;
-            *) set-style none;;
+             *'=()'|'declare'|'local'|'typeset') set-face font-lock-declare-face;;
+            '"$'*) set-face font-lock-variable-string-face;;
+            '#'*) set-face font-lock-comment-face && comment=1;;
+            '$'*) set-face font-lock-variable-name-face;;
+            '-'*) set-face font-lock-argument-face;;
+            *'()') set-face font-lock-function-name-face;;
+            '||'|'&&'|';'|'&') set-face font-lock-flow-face;;
+            '>'|'<'|'|'|'>>'|'<<'|'<<<') set-face font-lock-pipe-face;;
+            '('|')'|'{'|'}'|'[['|']]'|'['|']') set-face font-lock-bracket-face;;
+            'function') set-face font-lock-function-name;;
+            *"'"*) set-face font-lock-constant-face;;
+            *'"'*) set-face font-lock-string-face;;
+            *'='*) set-face font-lock-assign-face;;
+            'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|                'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|                'let'|'shopt'|'trap'|'set'|'eval'                ) set-face font-lock-keyword-face;;
+            *) set-face default;;
         esac
     }
 ```
