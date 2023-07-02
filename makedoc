@@ -157,11 +157,5 @@ function file {
 		printf '%s\n' "$line" >> "$file"
 	done
 }
-case "$1" in
-	'-r') readme;;
-	'-f') file;;
-	'-a')
-		readme
-		file
-		;;
-esac
+readme
+file

@@ -1524,7 +1524,7 @@ $(title ETC)
 $(text <<EOF2
 Logo and it's krita file is in etc/
 
-This readme is generated from doc/README.bml via makedoc script via either makedoc -r (README.md only) or makedoc -a (README.md & internal manual), the makedoc -f does internal manual only
+This readme is generated from doc/README.bml via makedoc script.
 EOF2
 )
 
@@ -1532,6 +1532,13 @@ $(title CREDITS)
 
 $(text '    ' <<EOF2
 Based on https://github.com/comfies/bed
+EOF2
+)
+
+$(text '    '<<EOF2
+Early versions of Ebashs/Bano can be found at
+https://github.com/aeknt/bashbox/blob/master/bin/nano
+https://github.com/aeknt/bashbox/blob/master/bin/bano
 EOF2
 )
 EOF

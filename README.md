@@ -230,8 +230,12 @@ Create a menu containing previous functions `jump-to-11` & `hello-world`:
 
 Logo and it's krita file is in etc/
 
-This readme is generated from doc/README.bml via makedoc script via either makedoc -r (README.md only) or makedoc -a (README.md & internal manual), the makedoc -f does internal manual only
+This readme is generated from doc/README.bml via makedoc script.
 
 ## CREDITS
 
 Based on https://github.com/comfies/bed
+
+Early versions of Ebashs/Bano can be found at
+https://github.com/aeknt/bashbox/blob/master/bin/nano
+https://github.com/aeknt/bashbox/blob/master/bin/bano
