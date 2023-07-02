@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.6.7.1"
+version="0.6.8"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -12,7 +12,7 @@ trap quit SIGTERM
 declare -A syntax faces options charmap commands
 declare -A menulineedit diredmenu menulinedebug
 declare -A menufancy
-declare -A keys_def
+declare -A keys_def keys_global
 declare -a input_hex overlay listbuffers
 declare -n buffer buffersyntax bufferexpand bufferdata
 declare -i menulinep menulinepy toplines bottomlines hidden ismenu comment current_count
@@ -55,9 +55,14 @@ function load-default-config {
 		[backward-char]='1b 5b 44 0'
 		[scroll-down]='1b 5b 35 7e 0'
 		[scroll-up]='1b 5b 36 7e 0'
-		[keyboard-quit]="$(kbd C-g)"
 		[select]='0'
 	)
+	
+	global-set-key "$(kbd C-x)" 'prefix'
+	global-set-key "$(kbd M-x)" 'execute-extended-command'
+	global-set-key '1b 5b 32 31 7e 0' 'menulinemenu'
+	global-set-key "$(kbd C-g)" 'quit-prefix'
+
 	add-mode edit
 	{
 		local-set-key "$(@kbd previous-line)" 'previous-line'
@@ -71,10 +76,7 @@ function load-default-config {
 		local-set-key '1b 5b 31 3b 32 43 0' 'select-forward'
 		local-set-key '1b 5b 31 3b 32 44 0' 'select-backward'
 		local-set-key '1b 20 0' 'set-mark-command' # in gnu emacs this is C-SPC but i cant get that to be detected in bash so M-SPC will suffice
-		# TODO: selection
-		local-set-key "$(kbd C-x)" 'prefix'
 		local-set-key "$(kbd C-h)" 'prefix-help'
-		local-set-key '1b 5b 32 31 7e 0' 'menulinemenu'
 		local-set-key "$(kbd C-p)" 'previous-line'
 		local-set-key "$(kbd C-n)" 'next-line'
 		local-set-key "$(kbd C-f)" 'forward-char'
@@ -90,12 +92,10 @@ function load-default-config {
 		local-set-key '7f 0' 'backspace'
 		local-set-key '1b 5b 33 7e 0' 'delete'
 		local-set-key "$(kbd M-g)" 'menukey'
-		local-set-key "$(kbd M-x)" 'execute-extended-command'
 		local-set-key "$(kbd C-a)" 'move-beginning-of-line'
 		local-set-key '1b 5b 48 0' 'move-beginning-of-line'
 		local-set-key "$(kbd C-e)" 'move-end-of-line'
 		local-set-key '1b 5b 46 0' 'move-end-of-line'
-		local-set-key "$(kbd 'C-p')" 'die'
 	}
 	
 	add-mode dired
@@ -136,7 +136,6 @@ function load-default-config {
 	add-mode prefix
 	{
 		local-set-key "$(kbd C-c)" 'quit'
-		local-set-key "$(@kbd keyboard-quit)" 'quit-prefix'
 		local-set-key "$(kbd C-s)" 'write_buffer'
 		local-set-key "$(kbd C-f)" 'find-file'
 		local-set-key "$(kbd C-b)" 'list-buffers'
@@ -150,7 +149,6 @@ function load-default-config {
 	
 	add-mode prefix_help
 	{
-		local-set-key "$(@kbd keyboard-quit)" 'quit-prefix'
 		local-set-key '1 0' 'about'
 		local-set-key '72 0' 'manual'
 	}
@@ -234,6 +232,7 @@ function load-default-config {
 		[execute]='execute'
 		[shell]='shell'
 		[force-quit]='die'
+		[die]='die'
 		[about]='about'
 		[backspace]='backspace'
 		[menu]='menu'
@@ -496,6 +495,10 @@ function define-key {
 function local-set-key {
 	define-key "$_last_keys" "$@"
 }
+function global-set-key {
+	define-key global "$@"
+}
+
 function clear-screen {
 	printf "\033c" # clear
 }
@@ -704,9 +707,9 @@ function dired-render {
 	[ -f "$word" ] && set-face default
 }
 function syntax-config {
-	((comment)) && set-face comment && return
+	((comment)) && set-face font-lock-comment-face && return
 	case "${word}" in
-		'#'*) set-face comment && comment=1;;
+		'#'*) set-face font-lock-comment-face && comment=1;;
 		   *) set-face default;;
 	esac
 }
@@ -2263,6 +2266,12 @@ function input-key {
 	handle-hex "$1"
 }
 function handle-hex {
+	for str in "${!keys_global[@]}"; do
+		[ "$str" = "${input_hex[*]}" ] && {
+			"${keys_global[$str]}"
+			return
+		}
+	done
 	local -i x y mode_contains=0
 	local -n modekeys="keys_${bufferdata[mode]}" key_options="key_options_${bufferdata[mode]}"
 	((${#key_options[@]})) && {
