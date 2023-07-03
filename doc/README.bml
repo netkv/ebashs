@@ -178,10 +178,14 @@ The contents of menu are defined by an associative  array.
 EOF2
 )
 
-    $(title COMMANDS)
+    $(title ALIAS)
 
 $(text '    ' <<EOF2
-Defines commands that can be used in $(code 'M-x').
+Defines aliases that can be used in $(code 'M-x').
+EOF2
+)
+$(text '    ' <<EOF2
+Use function $(code add-alias name command) to define.
 EOF2
 )
 
@@ -238,7 +242,7 @@ $(code-block bash <<EOF2
             '||'|'&&'|';'|'&') set-face font-lock-flow-face;;
             '>'|'<'|'|'|'>>'|'<<'|'<<<') set-face font-lock-pipe-face;;
             '('|')'|'{'|'}'|'[['|']]'|'['|']') set-face font-lock-bracket-face;;
-            'function') set-face font-lock-function-name;;
+            'function') set-face font-lock-function-name-face;;
             *"'"*) set-face font-lock-constant-face;;
             *'"'*) set-face font-lock-string-face;;
             *'='*) set-face font-lock-assign-face;;

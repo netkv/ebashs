@@ -9,7 +9,7 @@ trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
 trap 'input_hex=(3 0); handle-hex' INT
 trap quit SIGTERM
 
-declare -A syntax faces options charmap commands
+declare -A highlight faces options charmap alias
 declare -A menulineedit diredmenu menulinedebug
 declare -A menufancy
 declare -A keys_def keys_global
@@ -95,9 +95,10 @@ function load-default-config {
 		local-set-key "$(kbd C-a)" 'move-beginning-of-line'
 		local-set-key '1b 5b 48 0' 'move-beginning-of-line'
 		local-set-key "$(kbd C-e)" 'move-end-of-line'
+		local-set-key "$(kbd C-i)" 'indent-for-tab-command'
 		local-set-key '1b 5b 46 0' 'move-end-of-line'
 	}
-	
+
 	add-mode dired
 	{
 		local-set-key "$(@kbd previous-line)" 'previous-line'
@@ -139,8 +140,8 @@ function load-default-config {
 		local-set-key "$(kbd C-s)" 'write_buffer'
 		local-set-key "$(kbd C-f)" 'find-file'
 		local-set-key "$(kbd C-b)" 'list-buffers'
-		local-set-key '62 0' 'switch-to-buffer'
-		local-set-key '30 0' 'delete-window'
+		local-set-key "$(kbd b)" 'switch-to-buffer'
+		local-set-key "$(kbd 0)" 'delete-window'
 		local-set-key "$(kbd u)" 'undo'
 	}
 	key_options_prefix=(
@@ -149,8 +150,8 @@ function load-default-config {
 	
 	add-mode prefix_help
 	{
-		local-set-key '1 0' 'about'
-		local-set-key '72 0' 'manual'
+		local-set-key "$(kbd C-a)" 'about'
+		local-set-key "$(kbd r)" 'manual'
 	}
 	
 	add-mode menu
@@ -167,22 +168,22 @@ function load-default-config {
 	#      Defined in escape codes
 	#      Helper functions, see extensions/gruvboxdark for example
 	faces=(
-		[default]='\e[m'
-		[TODO]='\e[0;97;45m'
-		[NOTE]='\e[0;97;100m'
-		[menu]='\e[100m'
-		[menu-enabled-face]='\e[0;37;40m'
-		[selected]='\e[30;45m'
-		[link]='\e[94m'
-		[menu-selected-face]='\e[30;45m'
-		[mode-line]='\e[100m'
-		[line-number]='\e[0;90m'
-		[line-number-empty]='\e[0;90m'
-		[line-number-current-line]='\e[0;91m'
-		[tab-face]='\e[0;90m'
-		[region]='\e[1;100m'
-		[minibuffer-prompt]='\e[m'
-		# ansi colors
+		[default]="$(:weight normal)"
+		[TODO]="$(:background magenta)"
+		[NOTE]="$(:background gray)"
+		[menu]="$(:background gray)"
+		[menu-enabled-face]="$(:background black)"
+		[selected]="$(:foreground black :background magenta)"
+		[link]="$(:foreground light-blue)"
+		[menu-selected-face]="$(:foreground black :background magenta)"
+		[mode-line]="$(:background gray)"
+		[line-number]="$(:foreground gray)"
+		[line-number-empty]="$(:foreground gray)"
+		[line-number-current-line]="$(:foreground light-red)"
+		[tab-face]="$(:foreground gray)"
+		[region]="$(:weight bold :background gray)"
+		[minibuffer-prompt]="$(:weight normal)"
+		# ansi colors # currently just for reference
 		[ansi-color-black]='\e[40m'
 		[ansi-color-blue]='\e[44m'
 		[ansi-color-bold]='\e[1m'
@@ -204,53 +205,37 @@ function load-default-config {
 		[ansi-color-white]='\e[47m'
 		[ansi-color-white]='\e[43m'
 		# syntax highlighting
-		[font-lock-variable-string-face]='\e[0;36;48m'
-		[font-lock-comment-face]='\e[3;37;48m'
-		[font-lock-variable-name-face]='\e[0;96m'
-		[font-lock-argument-face]='\e[0;93m'
-		[font-lock-flow-face]='\e[0;93m'
-		[font-lock-pipe-face]='\e[1;94m'
-		[font-lock-bracket-face]='\e[1;95m'
-		[font-lock-constant-face]='\e[0;92m'
-		[font-lock-string-face]='\e[0;32m'
-		[font-lock-assign-face]='\e[0;94;108m'
-		[font-lock-function-name-face]='\e[0;30;44m'
-		[font-lock-keyword-face]='\e[0;91m'
-		[font-lock-declare-face]='\e[0;31m'
+		[font-lock-variable-string-face]="$(:foreground cyan)"
+		[font-lock-comment-face]="$(:slant italic :foreground light-gray)"
+		[font-lock-variable-name-face]="$(:foreground light-cyan)"
+		[font-lock-argument-face]="$(:foreground light-yellow)"
+		[font-lock-flow-face]="$(:foreground ligth-yellow)"
+		[font-lock-pipe-face]="$(:weight bold :foreground light-blue)"
+		[font-lock-bracket-face]="$(:weight bold :foreground light-magenta)"
+		[font-lock-constant-face]="$(:foreground light-green)"
+		[font-lock-string-face]="$(:foreground green)"
+		[font-lock-assign-face]="$(:foreground light-blue)"
+		[font-lock-function-name-face]="$(:foreground black :background blue)"
+		[font-lock-keyword-face]="$(:foreground light-red)"
+		[font-lock-declare-face]="$(:foreground red)"
 	)
 
-	## Commands
-	#		List of commands for M-x.
-	commands=(
-		[quit]='quit'
-		[newline]='newline'
-		[set-buffer-file]='find-file'
-		[read-file]='read-buffer'
-		[write-file]='write-buffer'
-		[delete-line]='delete-line'
-		[toggle-mouse]='toggle-mouse'
-		[execute]='execute'
-		[shell]='shell'
-		[force-quit]='die'
-		[die]='die'
-		[about]='about'
-		[backspace]='backspace'
-		[menu]='menu'
-		[menul]='menulinemenu'
-		[input]='inputcodes'
-		[scroll-up]='scroll-up'
-		[scroll-down]='scroll-down'
-		[dired]='dired'
-		[switch-to-buffer]='switch-to-buffer'
-		[list-buffers]='list-buffers'
-		[tile]='tile-buffers'
-		[vertical]='tile-vertical'
-		[horizontal]='tile-horizontal'
-		[single]='tile-single'
-		[log]='view-log'
-		[list-faces-display]='list-faces-display'
-	)
-
+	## Aliases
+	#		List of aliases for M-x.
+	{
+		add-alias set-buffer-file 'find-file'
+		add-alias read-file 'read-buffer'
+		add-alias write-file 'write-buffer'
+		add-alias force-quit 'die'
+		add-alias menul 'menulinemenu'
+		add-alias input 'inputcodes'
+		add-alias tile 'tile-buffers'
+		add-alias vertical 'tile-vertical'
+		add-alias horizontal 'tile-horizontal'
+		add-alias single 'tile-single'
+		add-alias log 'view-log'
+	}
+	
 	function menulinemenu {
 		declare -ng menucon=menufancy
 		#menulinepy=$(( bufferdata[size_y] - ${#menufancy[@]} ))
@@ -305,12 +290,12 @@ function load-default-config {
 		[faces     ]=list-faces-display
 	)
 
-	syntax=(
-		[bash]=syntax-bash	[sh]=syntax-bash
-		[ksh]=syntax-bash	[mksh]=syntax-bash
-		[dash]=syntax-bash	[zsh]=syntax-bash
-		[conf]=syntax-config	[unknown]=syntax-unknown
-		[i*dired]=dired-render
+	highlight=(
+		[bash]=shell    [sh]=shell
+		[ksh]=shell     [mksh]=shell
+		[dash]=shell    [zsh]=shell
+		[conf]=config   [unknown]=unknown
+		[i*dired]=dired
 	)
 
 	diredmenu=(
@@ -431,22 +416,57 @@ function copy-array {
 }
 
 # convert hex notation to escape code
-template setface <<'+'
-	function @var 1 {
-		[ -z "$1" ] && return;
-		case "${1::1}" in
-			'#')
-				r="${1:1:2}";
-				g="${1:3:2}";
-				b="${1:5:2}";
-				printf '\\e[%s;2;%s;%s;%sm' @var 2 "$((16#$r))" "$((16#$g))" "$((16#$b))";;
-		esac;
-		shift;
-		[ -n "$1" ] && "$@";
+function setface {
+	[ -z "$1" ] && return
+	case "$1" in
+		black)      [ "$mode" = '38' ] && printf '\\e[30m' || printf '\\e[40m';;
+		red)        [ "$mode" = '38' ] && printf '\\e[31m' || printf '\\e[41m';;
+		green)      [ "$mode" = '38' ] && printf '\\e[32m' || printf '\\e[42m';;
+		yellow)     [ "$mode" = '38' ] && printf '\\e[33m' || printf '\\e[43m';;
+		blue)       [ "$mode" = '38' ] && printf '\\e[34m' || printf '\\e[44m';;
+		magenta)    [ "$mode" = '38' ] && printf '\\e[35m' || printf '\\e[45m';;
+		cyan)       [ "$mode" = '38' ] && printf '\\e[36m' || printf '\\e[46m';;
+		light-gray) [ "$mode" = '38' ] && printf '\\e[37m' || printf '\\e[47m';;
+		
+		gray)          [ "$mode" = '38' ] && printf '\\e[90m' || printf '\\e[100m';;
+		light-red)     [ "$mode" = '38' ] && printf '\\e[91m' || printf '\\e[101m';;
+		light-green)   [ "$mode" = '38' ] && printf '\\e[92m' || printf '\\e[102m';;
+		light-yellow)  [ "$mode" = '38' ] && printf '\\e[93m' || printf '\\e[103m';;
+		light-blue)    [ "$mode" = '38' ] && printf '\\e[94m' || printf '\\e[104m';;
+		light-magenta) [ "$mode" = '38' ] && printf '\\e[95m' || printf '\\e[105m';;
+		light-cyan)    [ "$mode" = '38' ] && printf '\\e[96m' || printf '\\e[106m';;
+		white)         [ "$mode" = '38' ] && printf '\\e[97m' || printf '\\e[107m';;
+		*) case "${1::1}" in
+			   '#')
+				   local r="${1:1:2}"
+				   local g="${1:3:2}"
+				   local b="${1:5:2}"
+				   printf '\\e[%d;2;%d;%d;%dm' "${mode}" $((16#$r)) $((16#$g)) $((16#$b));;
+			   'c')
+				   printf '\\e[%d;5;%dm' "${mode}" "${1:1}"
+		   esac
+	esac
+	shift
+	[ -n "$1" ] && "$@";
 }
-+
-@: :foreground 38
-@: :background 48
+function :foreground { mode=38; setface "$@"; }
+function :background { mode=48; setface "$@"; }
+function :weight {
+	case "$1" in
+		bold) printf '\\e[1m';;
+		normal) printf '\\e[m'
+	esac
+	shift
+	[ -n "$1" ] && "$@";
+}
+function :slant {
+	case "$1" in
+		italic) printf '\\e[3m';;
+		normal) printf '\\e[m'
+	esac
+	shift
+	[ -n "$1" ] && "$@";
+}
 
 function kbd {
 	local -i i=0
@@ -499,6 +519,12 @@ function global-set-key {
 	define-key global "$@"
 }
 
+function add-alias {
+	local name="$1"
+	shift
+	alias["$name"]="$@"
+}
+
 function clear-screen {
 	printf "\033c" # clear
 }
@@ -545,10 +571,14 @@ function read-command {
 }
 function execute-extended-command {
 	read-command "${options[command_prompt]}" readin || return 1
-	for lcmd in "${!commands[@]}"; {
-		[ "$readin" = "$lcmd" ] && "${commands[$lcmd]}"
-		redraw
+	for lcmd in "${!alias[@]}"; {
+		[ "$readin" = "$lcmd" ] && {
+			${alias[$lcmd]}
+			return
+		}
 	}
+	$readin
+	redraw
 }
 ### TODO: make this make sense
 function save {
@@ -563,14 +593,13 @@ function restore {
 }
 ###
 
-function get-syntax {
-	for syntax_setting in "${!syntax[@]}"; do
+function set-syntax {
+	bufferdata[syntax]="syntax-${highlight[unknown]}"
+	for syntax_setting in "${!highlight[@]}"; do
 		[ "$syntax_setting" = "${bufferdata[filetype]}" ] && {
-			syntax_function="${syntax[$syntax_setting]}"
-			return 0
+			bufferdata[syntax]="syntax-${highlight[$syntax_setting]}"
 		}
 	done
-	syntax_function="${syntax[unknown]}"
 }
 
 function make-render {
@@ -586,7 +615,6 @@ fragment setrender <<'+'
 	linearray=()
 	bckeIFS="${IFS}"
 	IFS=''
-	get-syntax
 +
 
 function make-render-area {
@@ -664,7 +692,7 @@ function syntax-word {
 			'TODO:') face TODO "${word}"; return ;;
 		esac
 	}
-	"$syntax_function"
+	"${bufferdata[syntax]}"
 	face "$syntax_face" "$word"
 }	
 function face {
@@ -676,7 +704,7 @@ function face {
 function set-face {
 	syntax_face="$1"
 }
-function syntax-bash {
+function syntax-shell {
 	((comment)) && set-face font-lock-comment-face && return
 	case "${word}" in
 		*'=()'|'declare'|'local'|'typeset') set-face font-lock-declare-face;;
@@ -688,7 +716,7 @@ function syntax-bash {
 		'||'|'&&'|';'|'&') set-face font-lock-flow-face;;
 		'>'|'<'|'|'|'>>'|'<<'|'<<<') set-face font-lock-pipe-face;;
 		'('|')'|'{'|'}'|'[['|']]'|'['|']') set-face font-lock-bracket-face;;
-		'function') set-face font-lock-function-name;;
+		'function') set-face font-lock-function-name-face;;
 		*"'"*) set-face font-lock-constant-face;;
 		*'"'*) set-face font-lock-string-face;;
 		*'='*) set-face font-lock-assign-face;;
@@ -702,7 +730,7 @@ function syntax-bash {
 function syntax-unknown {
 	set-face default
 }
-function dired-render {
+function syntax-dired {
 	[ -d "$word" ] && set-face link
 	[ -f "$word" ] && set-face default
 }
@@ -731,6 +759,10 @@ function base-name {
 	done
 }
 function filetype {
+	[ ! -f "$1" ] && {
+		echo unknown
+		return
+	}
 	#very ugly, TODO: redo this
 	local filename shebang extension
 	local -a filenamesplit shebangsplit
@@ -894,7 +926,7 @@ function read-buffer {
 		[line]=0 # Currently selected line (0 means the buffer is empty)
 		[base]=1 # Top-most line shown
 		[column]=0 # Position of the cursor in $line
-		[info]="${version}: insanity" # Feedback text in the status bar
+		[info]="Ebashs version ${version}" # Feedback text in the status bar
 		[mode]="${options[default_mode]}"
 		[help_message]="${options[help_message]}"
 		[filetype]="$(filetype "$1")"
@@ -902,8 +934,9 @@ function read-buffer {
 		[menuline]='menulineedit'
 		[current_state]=0
 	)
+	set-syntax # set bufferdata[syntax]
 	size-full
-	mapfile -t -O 1 "${current_buffer}_buffer" <"${bufferdata[file]}" # Read file into an array
+	[ -f "${bufferdata[file]}" ] && mapfile -t -O 1 "${current_buffer}_buffer" <"${bufferdata[file]}" # Read file into an array
 	draw-raw
 	#make-render # TODO: make fast
 	if [[ "${buffer[*]}" ]]; then # Ensure that something was actually read into the file
@@ -942,6 +975,7 @@ function dired {
 		[modified]=0
 		[menuline]='diredmenu'
 	)
+	set-syntax
 	size-full
 	mapfile -t -O 1 buffer <<< "$(pickls)"
 	make-render
@@ -1064,6 +1098,7 @@ Based on                 https://github.com/comfies/bed
 EOF
 	buffer-dialog-draw
 }
+
 function list-faces-display {
 	buffer-dialog faces 'faces' 'faces' '*list-faces-display*'
 	buffer=('')
@@ -1076,6 +1111,35 @@ function list-faces-display {
 	done
 	buffer-dialog-draw
 }
+
+function list-data-display {
+	read-command "List data of buffer: " readin
+	local -n bdata="${readin}_bufferdata"
+	buffer-dialog faces 'data' 'data' '*list-data-display*'
+	buffer=('')
+	for datum in "${!bdata[@]}"; do
+		buffer+=(
+			"$(
+				printf '%*s%s' -20 "${datum}" "${bdata[${datum}]}"
+			)"
+		)
+	done
+	buffer-dialog-draw
+}
+
+function list-options-display {
+	buffer-dialog faces 'options' 'options' '*list-data-display*'
+	buffer=('')
+	for option in "${!options[@]}"; do
+		buffer+=(
+			"$(
+				printf '%*s%s' -20 "${option}" "${options[${option}]}"
+			)"
+		)
+	done
+	buffer-dialog-draw
+}
+
 function table-init {
 	table_columns="$1"
 	shift
@@ -1379,10 +1443,14 @@ The contents of menu are defined by an associative  array.
 EOF2
 )
 
-    $(title COMMANDS)
+    $(title ALIAS)
 
 $(text '    ' <<EOF2
-Defines commands that can be used in $(code 'M-x').
+Defines aliases that can be used in $(code 'M-x').
+EOF2
+)
+$(text '    ' <<EOF2
+Use function $(code add-alias name command) to define.
 EOF2
 )
 
@@ -1439,7 +1507,7 @@ $(code-block bash <<EOF2
             '||'|'&&'|';'|'&') set-face font-lock-flow-face;;
             '>'|'<'|'|'|'>>'|'<<'|'<<<') set-face font-lock-pipe-face;;
             '('|')'|'{'|'}'|'[['|']]'|'['|']') set-face font-lock-bracket-face;;
-            'function') set-face font-lock-function-name;;
+            'function') set-face font-lock-function-name-face;;
             *"'"*) set-face font-lock-constant-face;;
             *'"'*) set-face font-lock-string-face;;
             *'='*) set-face font-lock-assign-face;;
@@ -1585,7 +1653,7 @@ syntax-shift() {
 		bufferexpand[l]="$extmp2"
 		extmp2="$extmp1"
 	done
-	buffersyntax[buffer_length]="${current_buffer}_syntax${bufferdata[length]}"
+	buffersyntax[buffer_length]="${current_buffer}_syntax${bufferdata[number-lenght]}"
 	unset tmp1 tmp2
 	make-render-area $((bufferdata[line])) $((bufferdata[line]+2))
 }
@@ -2079,11 +2147,11 @@ function redraw-buffer-raw {
 	for ((i = bufferdata[base]; i - bufferdata[base] < max; i++)); do
 		printf "${faces[line-number]}"
 		((i == bufferdata[line])) && printf "${faces[line-number-current-line]}" # Highlight line line-number if selected
-		((i > ${#buffer[@]})) && printf "\e[%sG${faces[line-number-empty]}\e[K%$((bufferdata[length]/2))s~\e[m\n" "${bufferdata[position_x]}"\
+		((i > ${#buffer[@]})) && printf "\e[%sG${faces[line-number-empty]}\e[K%$((bufferdata[number-lenght]/2))s~\e[m\n" "${bufferdata[position_x]}"\
 				|| {
-				printf "\e[%sG\e[K%${bufferdata[length]}s %b%s\n"\
+				printf "\e[%sG\e[K%${bufferdata[number-lenght]}s %b%s\n"\
 					   @ printarg\
-					   "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
+					   "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[number-lenght] + 1)}"
 			}
 	done
 } && @add redraw-buffer-raw
@@ -2092,7 +2160,7 @@ function redraw-buffer {
 	for ((i = bufferdata[base]; i - bufferdata[base] < max; i++)); do
 		printf '%b' "${faces[line-number]}"
 		((i == bufferdata[line])) && printf "${faces[line-number-current-line]}" # Highlight line line-number if selected
-		((i > ${#buffer[@]})) && printf "\e[%sG${faces[line-number-empty]}\e[K%$((bufferdata[length]/2))s~\e[m\n" "${bufferdata[position_x]}"\
+		((i > ${#buffer[@]})) && printf "\e[%sG${faces[line-number-empty]}\e[K%$((bufferdata[number-lenght]/2))s~\e[m\n" "${bufferdata[position_x]}"\
 				|| {
 				# to improve speed syntaxing has to be "lazy" -- having to be heavily cached as ram is far less expensive to waste
 				[ -z "${buffersyntax[bufferdata[base]+bufferdata[size_y]-(bottomlines+toplines)+2]}" ] && {
@@ -2115,7 +2183,7 @@ function redraw-buffer {
 								local -n sx=bufferdata[selection_end_x]
 								local -n ex=bufferdata[selection_start_x]
 							}
-							printf "\e[%sG\e[K%${bufferdata[length]}s %b%s%b%s%b%s\n"\
+							printf "\e[%sG\e[K%${bufferdata[number-lenght]}s %b%s%b%s%b%s\n"\
 								   @ printarg\
 								   "${linearray[*]:bufferdata[basecolumn]:sx}"\
 								   "\e[m${faces[region]}"\
@@ -2136,35 +2204,54 @@ function redraw-buffer {
 
 				# due to escape codes present in buffersyntax,
 				# the buffersyntax has to be multidimensional nonsense for perfomance reasons
-				printf "\e[%sG\e[K%${bufferdata[length]}s %b%s\n"\
+				printf "\e[%sG\e[K%${bufferdata[number-lenght]}s %b%s\n"\
 					   @ printarg\
-					   "${linearray[*]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
+					   "${linearray[*]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[number-lenght] + 1)}"
 			}
 	done
 } && @add redraw-buffer
 
 function selection-draw {
 	if ((i == bufferdata["${1}_y"])); then
-		printf "\e[%sG\e[K%${bufferdata[length]}s %b%s%b%s\n"\
+		printf "\e[%sG\e[K%${bufferdata[number-lenght]}s %b%s%b%s\n"\
 			   @ printarg\
 			   "${linearray[*]:bufferdata[basecolumn]:bufferdata[${1}_x]}"\
 			   "\e[m${faces[region]}"\
-			   "${buffer[i]:bufferdata[${1}_x]:bufferdata[size_x] - (bufferdata[length] + 1)}"
+			   "${buffer[i]:bufferdata[${1}_x]:bufferdata[size_x] - (bufferdata[number-lenght] + 1)}"
 	elif ((i == bufferdata["${2}_y"])); then
-		printf "\e[%sG\e[K%${bufferdata[length]}s %b%b%s%b%s\n"\
+		printf "\e[%sG\e[K%${bufferdata[number-lenght]}s %b%b%s%b%s\n"\
 			   @ printarg\
 			   "${faces[region]}"\
 			   "${buffer[i]:bufferdata[basecolumn]:bufferdata[${2}_x]}"\
 			   "\e[m"\
 			   "${linearray[*]:bufferdata[${2}_x]:bufferdata[size_x]}"
 	else
-		printf "\e[%sG\e[K%${bufferdata[length]}s %b%b%s\n"\
+		printf "\e[%sG\e[K%${bufferdata[number-lenght]}s %b%b%s\n"\
 			   @ printarg
-			   "${faces[region]}" "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[length] + 1)}"
+			   "${faces[region]}" "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[number-lenght] + 1)}"
 	fi
 } && @add selection-draw
 
-fragment drawml <<'+'
+
+function redraw {
+	printf '\e[?25l'
+	
+	# get length of line-number of lines
+	bufferdata[length]="${#buffer[@]}"
+	((bufferdata[length]==0)) && ((bufferdata[length]++))
+	bufferdata[number-lenght]="${#bufferdata[length]}"
+	
+	# update selection ends to current cursor
+	((bufferdata[selection]==1)) && {
+		bufferdata[selection_end_y]="${bufferdata[line]}"
+		bufferdata[selection_end_x]="${bufferdata[column]}"
+	}
+	# move the buffer horizontally if needed
+	((bufferdata[column] +3 < bufferdata[size_x] - bufferdata[number-lenght] - 1)) &&
+		bufferdata[basecolumn]=0
+	((bufferdata[column] +3 > bufferdata[size_x] - bufferdata[number-lenght] - 1)) &&
+		bufferdata[basecolumn]=$((bufferdata[column] - (bufferdata[size_x] + bufferdata[position_x] - bufferdata[number-lenght] - 1) +3))
+
 	(("${options[menuline]}"==1)) && {
 		local -n menuline="${bufferdata[menuline]}"
 		printf "\e[0m\e[%s;%sH${faces[menu]}\e[?25l%*s\r%s"\
@@ -2174,28 +2261,6 @@ fragment drawml <<'+'
 			   "${bufferdata[help_message]}"
 		printf '\e[%sG%s\e[0m\n' "${bufferdata[position_x]}" "${!menuline[*]}"
 	} || printf "\e[%s;%sH" "${bufferdata[position_y]}" "${bufferdata[position_x]}"
-+
-
-function redraw {
-	printf '\e[?25l'
-	
-	# get length of line-number of lines
-	local ltmp="${#buffer[@]}"
-	bufferdata[length]="${#ltmp}"
-	unset ltmp
-	
-	# update selection ends to current cursor
-	((bufferdata[selection]==1)) && {
-		bufferdata[selection_end_y]="${bufferdata[line]}"
-		bufferdata[selection_end_x]="${bufferdata[column]}"
-	}
-	# move the buffer horizontally if needed
-	((bufferdata[column] +3 < bufferdata[size_x] - bufferdata[length] - 1)) &&
-		bufferdata[basecolumn]=0
-	((bufferdata[column] +3 > bufferdata[size_x] - bufferdata[length] - 1)) &&
-		bufferdata[basecolumn]=$((bufferdata[column] - (bufferdata[size_x] + bufferdata[position_x] - bufferdata[length] - 1) +3))
-
-	@ drawml
 
 	bckIFS="$IFS"
 	IFS=''
@@ -2220,25 +2285,28 @@ function redraw {
 	for o in "${overlay[@]}"; do
 		"${o}"
 	done
-} && @add redraw
+}
 
 function redraw-cursor {
 	printf '\e[?25h\e[%s;%sH'\
 		   $((bufferdata[line] + options[menuline] - bufferdata[base] + bufferdata[position_y]))\
-		   $((bufferdata[column] - bufferdata[basecolumn] + bufferdata[length] + 1 + bufferdata[position_x]))
+		   $((bufferdata[column] - bufferdata[basecolumn] + bufferdata[number-lenght] + 1 + bufferdata[position_x]))
 }
 function redraw-statusline {
-	printf "\e[%s;%sH\n\e[%sG${faces[mode-line]}%*s\e[%sG%s %s (%s,%s) (screen: %s)\e[m" \
-	       $((bufferdata[size_y] - 2 + bufferdata[position_y]))\
+	printf "\e[%s;%sH\e[%sG${faces[mode-line]}%*s\e[%sG%s %s %d%% (%d,%d) (%s[%s]) (screen: %s)\e[m" \
+	       $((bufferdata[size_y] - 1 + bufferdata[position_y]))\
 		   $((bufferdata[size_x] + bufferdata[position_x]))\
 		   "${bufferdata[position_x]}"\
 		   $((bufferdata[size_x]))\
 		   "${bufferdata[info]}"\
 		   "${bufferdata[position_x]}" \
 	       "${bufferdata[mode]}"\
-		   "$(base-name "${bufferdata[file]}")[${bufferdata[filetype]}]"\
+		   "$(base-name "${bufferdata[file]}")"\
+		   $((100 * bufferdata[line] / bufferdata[length]))\
 		   "${bufferdata[line]}"\
 		   "${bufferdata[column]}"\
+		   "${highlight[${bufferdata[filetype]}]}"\
+		   "${bufferdata[filetype]}"\
 		   "$current_buffer"
 }
 function redraw-commandline {
@@ -2246,6 +2314,9 @@ function redraw-commandline {
 		   $((LINES-1)) 1 $((COLUMNS)) ' ' "$message"
 }
 
+function indent-for-tab-command {
+	insert-word '	'
+}
 function insert-word {
 	save-state
 	@ getrlr
@@ -2316,7 +2387,7 @@ function handle-hex {
 			#limitations of movenment
 			#TODO:
 			[ $y = "${bufferdata[position_y]}" ] && menuclick $x && return #handle menuline
-			((x < (bufferdata[length] + bufferdata[position_x] + 2))) && {
+			((x < (bufferdata[number-lenght] + bufferdata[position_x] + 2))) && {
 				if [ "$mousemode" = '[<0' ]; then
 					bufferdata[line]=$(( bufferdata[base] + ( (y - bufferdata[position_y]) - toplines) ))
 					redraw
@@ -2329,7 +2400,7 @@ function handle-hex {
 				return
 			}
 			bufferdata[line]=$(( bufferdata[base] + ( y - bufferdata[position_y] - 1) ))
-			bufferdata[column]=$(( x - (bufferdata[position_x] + bufferdata[length] + 2) ))
+			bufferdata[column]=$(( x - (bufferdata[position_x] + bufferdata[number-lenght] + 2) ))
 			((bufferdata[line] > ${#bufferexpand[@]})) && bufferdata[line]=${#bufferexpand[@]}
 			((bufferdata[column] > ${#bufferexpand[bufferdata[line]]})) && bufferdata[column]=${#bufferexpand[bufferdata[line]]}
 			redraw

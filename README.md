@@ -119,9 +119,10 @@ Each menu has to have helper function to set it up on request:
 ```
 The contents of menu are defined by an associative  array.
 
-## COMMANDS
+## ALIAS
 
-Defines commands that can be used in `M-x`.
+Defines aliases that can be used in `M-x`.
+Use function `add-alias``name``command` to define.
 
 ## EXTENDING
 
@@ -162,7 +163,7 @@ Here is sample bash syntax function included with Ebashs:
             '||'|'&&'|';'|'&') set-face font-lock-flow-face;;
             '>'|'<'|'|'|'>>'|'<<'|'<<<') set-face font-lock-pipe-face;;
             '('|')'|'{'|'}'|'[['|']]'|'['|']') set-face font-lock-bracket-face;;
-            'function') set-face font-lock-function-name;;
+            'function') set-face font-lock-function-name-face;;
             *"'"*) set-face font-lock-constant-face;;
             *'"'*) set-face font-lock-string-face;;
             *'='*) set-face font-lock-assign-face;;
