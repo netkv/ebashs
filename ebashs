@@ -1,5 +1,6 @@
 #!/bin/bash
-version="0.6.9"
+version="0.6.10"
+printf '\033cdeclaring functions...\n'
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -319,7 +320,7 @@ function @add {
 	local -i _add_f
 	local -i _add_hf
 	local _add_nfnline
-	mapfile _add_fn < <(declare -f "$1")
+	mapfile _add_fn < <(declare -f -- "$1")
 	for _add_l in "${!_add_fn[@]}"; do
 		bckIFS="$IFS"
 		IFS=' '
@@ -346,6 +347,12 @@ function @add {
 	eval "${_add_nfn[*]}"
 	IFS="$bckIFS"
 }
+
+#apply fragments to all functions
+#function @all
+#	while read -r fn;  do
+#	   @add "${fn:11}"
+#	done <<< "$(declare -F)"
 
 # templates allow creating functions with code changes with minimal code
 # @def creates function from teplate
@@ -403,6 +410,14 @@ function __ {
 	local _swap_copy_2="${!_swap_2}"
 	declare -gn "$1"="${_swap_copy_2}"
 	declare -gn "$2"="${_swap_copy_1}"
+}
+
+# shorthand for one line functions
+function @fn {
+	[ -z "$*" ] && exit 1 # error if empty
+	local name="$1"
+	shift
+	eval "function $name { $@; }"
 }
 
 # A univeral function to copy both normal and associative arrays
@@ -525,9 +540,7 @@ function add-alias {
 	alias["$name"]="$@"
 }
 
-function clear-screen {
-	printf "\033c" # clear
-}
+@fn clear-screen "printf '\033c'"
 
 function add-mode {
 	# log TODO fix
@@ -593,14 +606,16 @@ function restore {
 }
 ###
 
-function set-syntax {
-	bufferdata[syntax]="syntax-${highlight[unknown]}"
-	for syntax_setting in "${!highlight[@]}"; do
-		[ "$syntax_setting" = "${bufferdata[filetype]}" ] && {
-			bufferdata[syntax]="syntax-${highlight[$syntax_setting]}"
-		}
-	done
-}
+function set-syntax
+	if [ -n "${highlight[*]}" ] && bufferdata[syntax]="syntax-${highlight[unknown]}"; then
+		for syntax_setting in "${!highlight[@]}"; do
+			[ "$syntax_setting" = "${bufferdata[filetype]}" ] && {
+				bufferdata[syntax]="syntax-${highlight[$syntax_setting]}"
+			}
+		done
+	else
+	    log warn 'no highlight array... using unknown'
+	fi
 
 function make-render {
 	((bufferdata[raw])) ||
@@ -692,7 +707,8 @@ function syntax-word {
 			'TODO:') face TODO "${word}"; return ;;
 		esac
 	}
-	"${bufferdata[syntax]}"
+	((comment)) && set-face font-lock-comment-face ||
+			"${bufferdata[syntax]}"
 	face "$syntax_face" "$word"
 }	
 function face {
@@ -704,8 +720,7 @@ function face {
 function set-face {
 	syntax_face="$1"
 }
-function syntax-shell {
-	((comment)) && set-face font-lock-comment-face && return
+function syntax-shell
 	case "${word}" in
 		*'=()'|'declare'|'local'|'typeset') set-face font-lock-declare-face;;
 		'"$'*) set-face font-lock-variable-string-face;;
@@ -726,22 +741,18 @@ function syntax-shell {
 			) set-face font-lock-keyword-face;;
 		*) set-face default;;
 	esac
-}
-function syntax-unknown {
-	set-face default
-}
+									 
+@fn syntax-unknown 'set-face default'
+									 
 function syntax-dired {
 	[ -d "$word" ] && set-face link
 	[ -f "$word" ] && set-face default
 }
-function syntax-config {
-	((comment)) && set-face font-lock-comment-face && return
+function syntax-config
 	case "${word}" in
 		'#'*) set-face font-lock-comment-face && comment=1;;
 		   *) set-face default;;
 	esac
-}
-
 
 add-mode debuginput
 keys_debuginput=(
@@ -752,12 +763,12 @@ key_options_debuginput=(
 )
 
 
-function base-name {
+function base-name
 	for file in "$@"; do
 	    file="${file%/}"
 	    printf '%s\n' "${file##*/}"
 	done
-}
+
 function filetype {
 	[ ! -f "$1" ] && {
 		echo unknown
@@ -813,7 +824,10 @@ function find-file {
 }
 
 # draw something for nice transition
-function draw-raw {( bufferdata[raw]=1; redraw )}
+function draw-raw (
+	bufferdata[raw]=1
+	redraw
+)
 
 function size-full {
 	bufferdata+=(
@@ -989,16 +1003,15 @@ function dired {
 	fi
 	redraw
 }
-function dired-select {
-	local line="${buffer[bufferdata[line]]}"
-	if [ -d "$line" ]; then
-		cd "$line"
+function dired-select
+	if [ -d "${buffer[bufferdata[line]]}" ]; then
+		cd "${buffer[bufferdata[line]]}"
 		dired
 	else
-		read-buffer "$line" || exit 1
+		read-buffer "${buffer[bufferdata[line]]}" || exit 1
 		redraw
 	fi
-}
+
 function pickls {
 	((hidden==0)) && printf '..\n' || printf '%s\n' .*
 	printf '%s\n' *
@@ -1150,13 +1163,12 @@ function table-init {
 		((i++))
 	done
 }
-function table-char {
+function table-char
 	if (( ${#@} == 11 )); then
 		table_char=("$@")
 	else
 		table_char=(─ │ ┌ ┬ ┐ ├ ┼ ┤ └ ┴ ┘)
 	fi
-}
 function table-top {
 	printf '%s' "${table_char[2]}"
 	for ((i=0; i<table_columns; i++)); do
@@ -1169,9 +1181,7 @@ function table-top {
 	done
 	printf '\n'
 }
-function table-divider {
-	table-title-line "$@"
-}
+@fn table-divider 'table-title-line "$@"'
 function table-title-line {
 	printf '%s' "${table_char[5]}"
 	for ((i=0; i<table_columns; i++)); do
@@ -1225,26 +1235,19 @@ function table-title {
 	printf '%s' "${table_char[1]}"
 	printf '\n'
 }
-function code-block {
+function code-block
 	while read -r; do echo "$REPLY"; done
-}
-function print-stdin {
+function print-stdin
 	while read -r; do echo "$REPLY"; done
-}
-function text {
+function text
 	while read -r; do
 		l=${#REPLY}
 		for ((i=0; i<l; i+=(bufferdata[size_x]/3)*2)); do
 			printf '%s%s\n' "$1" "${REPLY:i:(bufferdata[size_x]/3)*2}"
 		done
 	done
-}
-function title {
-	printf '[ %s ]' "$@"
-}
-function code {
-	printf '%s' "$@"
-}
+@fn title 'printf "[ %s ]" "$@"'
+@fn code 'printf "%s" "$@"'
 function header {
 	arg=$*
 	table-init 1 $(( ${#arg} * 2 ))
@@ -1255,6 +1258,7 @@ function header {
                                      $(table-bottom)
 EOF2
 }
+
 function manual {
 	buffer-dialog manual 'Ebashs manual' 'Manual' '*manual*'
 	get-manual
@@ -1495,8 +1499,7 @@ $(code-block bash <<EOF2
     syntax+=(
         [bash]=syntax-bash
     )
-    function syntax-bash {
-        ((comment)) && set-face font-lock-comment-face && return
+    function syntax-bash
         case "${word}" in
              *'=()'|'declare'|'local'|'typeset') set-face font-lock-declare-face;;
             '"$'*) set-face font-lock-variable-string-face;;
@@ -1517,7 +1520,6 @@ $(code-block bash <<EOF2
                 ) set-face font-lock-keyword-face;;
             *) set-face default;;
         esac
-    }
 EOF2
 )
 
@@ -1618,20 +1620,11 @@ function quit-view {
 	redraw
 }
 
-function write-buffer {
-    true >"${bufferdata[file]}" # Set the file to an empty text file
-    for ln in "${buffer[@]}"; do # Write in the buffer to the file
-        echo "$ln" >>"${bufferdata[file]}"
-    done
-    bufferdata[modified]=0
-    message="Wrote ${#buffer[@]} lines to '$file'"
-}
 
 function newline {
 	bufferdata[modified]=1
 	save-state
-	buffer=("" "${buffer[@]:1:${bufferdata[line]}-1}" "" "${buffer[@]:${bufferdata[line]}}")
-	unset 'buffer[0]'
+	buffer=('' "${buffer[@]:1:${bufferdata[line]}-1}" '' "${buffer[@]:${bufferdata[line]}}")
 	buffer[bufferdata[line]]="${buffer[${bufferdata[line]}+1]:0:${bufferdata[column]}}"
 	buffer[bufferdata[line]+1]="${buffer[${bufferdata[line]}+1]:${bufferdata[column]}:${#buffer[${bufferdata[line]}+1]}}"
 	bufferdata[column]=0
@@ -1758,36 +1751,53 @@ function delete-selection {
 	_ # unset reference aliases
 }
 
-declare -A keys_quit
-keys_quit=(
-	[79 0]='save-quit'
-	[6e 0]='die'
-	[63 0]='quit-quit'
-)
-function save-quit { write-buffer; die; }
+function write-buffer
+	if [ -w "${bufferdata[file]}" ]; then
+		true >"${bufferdata[file]}" # Set the file to an empty text file
+		for ln in "${buffer[@]}"; do # Write in the buffer to the file
+			echo "$ln" >>"${bufferdata[file]}"
+		done
+		bufferdata[modified]=0
+		message="Wrote ${#buffer[@]} lines to '$file'"
+	else
+		return 1
+	fi
+
+add-mode quit
+	local-set-key "$(kbd y)" 'save-quit'
+	local-set-key "$(kbd n)" 'die'
+	local-set-key "$(kbd c)" 'quit-quit'
+
+function save-quit
+	if write-buffer; then
+		die
+	else
+		message='File is not writable! [n/c]'
+		redraw-commandline
+	fi
+
 function quit-quit {
 	bufferdata[mode]="$bckmode"
 	message='Quit canceled'
 	redraw
 }
-function quit {
+function quit
 	if ((bufferdata[modified])); then
 		[ -z "$bckmode" ] && bckmode="${bufferdata[mode]}"
 		bufferdata[mode]='quit'
 		redraw-statusline
 		printf '\e[%s;0H' $((bufferdata[size_y] + bufferdata[position_y]))
-		printf '%s' 'Buffer modified, save before close? [Y/n/c]'
+		printf '%s' 'Buffer modified, save before close? [y/n/c]'
 	else
 		die
 	fi
-}
+
 function die {
 	((nocleanup)) && exit "${errno:-0}"
     echo -e "\e[?1000;1006;1015l" #disable mouse tracking
 	clear-screen # TODO fix the buffer switching
 	printf '\e[?25h\e[?7h\e[?1049l' # Reset terminal to sane mode
-	printf '\e[?25h\e[?7h\e[?1049l' # Reset terminal to sane mode
-	
+	printf '\e[?25h\e[?7h\e[?1049l' # Reset terminal to sane mode	
     exit "${errno:-0}" # Assume that we are exiting without an error
 }
 
@@ -1908,7 +1918,7 @@ function backward-word {
 	redraw
 } && @add backward-word
 
-function set-mark-command {
+function set-mark-command
 	if ((bufferdata[selection])); then
 		log info 'selection disable'
 		bufferdata[selection]=0
@@ -1918,7 +1928,6 @@ function set-mark-command {
 		bufferdata[selection_start_x]="${bufferdata[column]}"
 		log info 'selection enable'
 	fi
-}
 
 function shell {
 	clear-screen
@@ -1938,15 +1947,6 @@ function execute {
     redraw
 }
 
-
-function dump-array {
-	# dump-buffer <array> <file>
-	:> "$2"
-	local -n source="$1"
-	for idx in "${source[@]}"; do
-	    echo "${idx}" >> "$2"
-	done
-}
 function diff-buffer-syntax {
 	# remove outdated lines from buffersyntax to set them for resyntaxing
 	local -n source="$1"
@@ -1997,20 +1997,20 @@ function undo {
 	redraw
 }
 
-function toggle-mouse {
-	(("${options[mouse]}"==1)) && {
-		printf '\e[?1000;1006;1015l'
-		options[mouse]=0
-		message='Disabled options[mouse]'
-		return
-		}
-	(("${options[mouse]}"==0)) && {
-		printf '\e[?1000;1006;1015h'
-		options[mouse]=1
-		message='Enabled options[mouse]'
-		return
-	}
-}
+function toggle-mouse
+	case "${options[mouse]}" in
+		0)
+			printf '\e[?1000;1006;1015h'
+			options[mouse]=1
+			message='Enabled options[mouse]'
+			return;;
+		*)
+			printf '\e[?1000;1006;1015l'
+			options[mouse]=0
+			message='Disabled options[mouse]'
+			return
+	esac
+
 function menuclick {
 	local -n menuline="${bufferdata[menuline]}"
 	#determine which item should be triggered
@@ -2046,11 +2046,12 @@ template menumove <<'+'
 
 function menuselect {
 	local mi=0
-	for action in "${!menucon[@]}"; do
-		((mi == menuselection)) && "${menucon[$action]}"
+	for action in "${menucon[@]}"; do
+		((mi == menuselection)) && "$action"
 		((mi++))
 	done
 }
+
 function menuleave {
 	ismenu=0
 	bufferdata[mode]="${modebackup}"
@@ -2557,11 +2558,13 @@ function init {
 		log info "no arg => dired"
 		dired # enter the file selector
 	fi
-	main
-}
-function main {
 	log info 'entering main loop...'
 	redraw
+	main
+}
+
+
+function main
 	while :; do
 		local -a k=()
 		local -i i=1    
@@ -2570,8 +2573,8 @@ function main {
 			input-key "$(printf '%s' "${k[@]}")" # Handle keypress event
 		fi
 	done
-}
 
 # check if all the syntaxtic sugar had been loaded properly
-[ "$1" = "--debug-fn" ] && nocleanup=1 exit 0
+[ "$1" = "--debug-fn" ] && nocleanup=1 && exit 0
+printf 'launching init function...'
 init "$@"
