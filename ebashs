@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.6.11"
+version="0.6.12"
 printf '\033cdeclaring functions...\n'
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
@@ -61,6 +61,16 @@ function load-default-config {
 	global-set-key '[left]' 'backward-char'
 	global-set-key '[next]' 'scroll-down'
 	global-set-key '[prior]' 'scroll-up'
+	global-set-key "$(kbd C-a)" 'move-beginning-of-line'
+	global-set-key "$(kbd C-e)" 'move-end-of-line'
+	global-set-key "$(kbd C-p)" 'previous-line'
+	global-set-key "$(kbd C-n)" 'next-line'
+	global-set-key "$(kbd C-f)" 'forward-char'
+	global-set-key "$(kbd M-f)" 'forward-word'
+	global-set-key "$(kbd C-b)" 'backward-char'
+	global-set-key "$(kbd M-b)" 'backward-word'
+	global-set-key "$(kbd C-p)" 'scroll-down'
+	global-set-key "$(kbd C-v)" 'scroll-up'
 
 	add-mode edit
 	{
@@ -70,14 +80,6 @@ function load-default-config {
 		local-set-key '1b 5b 31 3b 32 44 0' 'select-backward'
 		local-set-key '1b 20 0' 'set-mark-command' # in gnu emacs this is C-SPC but i cant get that to be detected in bash so M-SPC will suffice
 		local-set-key "$(kbd C-h)" 'prefix-help'
-		local-set-key "$(kbd C-p)" 'previous-line'
-		local-set-key "$(kbd C-n)" 'next-line'
-		local-set-key "$(kbd C-f)" 'forward-char'
-		local-set-key "$(kbd M-f)" 'forward-word'
-		local-set-key "$(kbd C-b)" 'backward-char'
-		local-set-key "$(kbd M-b)" 'backward-word'
-		local-set-key "$(kbd C-p)" 'scroll-down'
-		local-set-key "$(kbd C-v)" 'scroll-up'
 		local-set-key 'RET' 'newline'
 		local-set-key "$(kbd C-l)" 'newline'
 		local-set-key "$(kbd C-t)" 'execute'
@@ -85,12 +87,13 @@ function load-default-config {
 		local-set-key 'DEL' 'backspace'
 		local-set-key '[deletechar]' 'delete'
 		local-set-key "$(kbd M-g)" 'menukey'
-		local-set-key "$(kbd C-a)" 'move-beginning-of-line'
 		local-set-key '1b 5b 48 0' 'move-beginning-of-line'
-		local-set-key "$(kbd C-e)" 'move-end-of-line'
 		local-set-key "$(kbd C-i)" 'indent-for-tab-command'
 		local-set-key '1b 5b 46 0' 'move-end-of-line'
 	}
+	key_options_edit=(
+		[else]='insert'
+	)
 
 	add-mode dired
 	{
@@ -274,7 +277,7 @@ function load-default-config {
 		[ksh]=shell     [mksh]=shell
 		[dash]=shell    [zsh]=shell
 		[conf]=config   [unknown]=unknown
-		[i*dired]=dired
+		[i*dired]=dired [i*bash]=shell
 	)
 
 	diredmenu=(
@@ -898,6 +901,63 @@ function list-buffers {
 function buffer-select {
 	set-buffer "${buffer[bufferdata[line]]}"
 	[ "${bufferdata[mode]}" = 'prefix' ] && bufferdata[mode]="$bckmode"
+	redraw
+}
+
+
+add-mode term
+	local-set-key "$(kbd C-x)" 'quit-view'
+	local-set-key 'RET' 'term-exec'
+	local-set-key 'DEL' 'backspace'
+	local-set-key '[deletechar]' 'delete'
+key_options_term=(
+	[else]='insert'
+)
+function term-exec {
+	local bckIFS="$IFS"
+	IFS=$'\n'
+	local -i li=$((bufferdata[line] + 1))
+	while read -r comli; do
+		buffer[li]="$comli"
+		((li++))
+	done <<< "$(${buffer[bufferdata[line]]})"
+	bufferdata[line]=$li
+	next-line
+	make-render-line
+	redraw
+	IFS="$bckIFS"
+}
+
+
+function term {
+	save openfile
+	((current_count++))
+	set-buffer "term_${current_count}"
+	add-to-list # add buffer to list of active buffers
+	declare -Ag "${current_buffer}_bufferdata"
+	bufferdata=(
+		[line]=1
+		[base]=1
+		[column]=0
+		[info]='Terminal'
+		[mode]='term'
+		[help_message]='Terminal'
+		[filetype]='i*bash'
+		[file]='*term*'
+		[modified]=0
+		[raw]=0
+		[menuline]='menulineabout'
+	)
+	set-syntax
+	make-render
+	size-full
+	buffer=('')
+	copy-array overlay bckover
+	overlay=()
+	menulinedebug=(
+		[quit]='quit-debuginput'
+	)
+	clear-screen
 	redraw
 }
 
@@ -2329,7 +2389,7 @@ function insert-word {
 	@ getrlr
 	buffer[bufferdata[line]]="${buffer[${bufferdata[line]}]:0:${rlr}}$1${buffer[${bufferdata[line]}]:${rlr}}"\
 		  #add at cursor position - amount of tabs * tab size
-	make-render-line
+	((bufferdata[raw])) || make-render-line
 	forward-char "${#1}"
 	bufferdata[selection]=0
 	redraw
@@ -2370,12 +2430,14 @@ function handle-hex {
 		}
 	done
 	((${#key_options[@]})) && {
-		((mode_contains == 0)) && [ -n "${key_options[else]}" ] && "${key_options[else]}"
+		((mode_contains == 0)) && [ -n "${key_options[else]}" ] && {
+			[ "${key_options[else]}" = 'insert' ] || "${key_options[else]}"
+		}
 	}
 	((mode_contains == 1)) && {
 		return
 	}
-	[ "${bufferdata[mode]}" = 'edit' ] || return
+	[ "${key_options[else]}" = 'insert' ] || return
 	(("${options[mouse]}"==1)) && {
 		#parse mouse stuff somewhatish weirdly
 		[ "${input_hex[*]:0:5}" = '1b 5b 3c 36 34' ] && previous-line && return
@@ -2417,7 +2479,7 @@ function handle-hex {
 	}
 	#[ "${input_hex[*]:0:3}" = '1b 5b 3c' ] && return
 	[ "${input_hex[*]:0:1}" = '1b' ] && return # TODO: prevent escape codes without hacky blocking
-	[ "${bufferdata[mode]}" = edit ] && {
+	[ "${key_options[else]}" = 'insert' ] || return && {
 		[[ $1 =~ [[:cntrl:]] ]] && return
 		insert-word "$1"
 		[ "$1" = '	' ] && printf '\e[%sC' $((${#options[tabchar]} - 1))
