@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.6.10"
+version="0.6.11"
 printf '\033cdeclaring functions...\n'
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
@@ -20,6 +20,7 @@ declare -i menulinep menulinepy toplines bottomlines hidden ismenu comment curre
 declare -n menucon
 declare message reset readin
 
+
 function load-default-config {
 	### Config options
 	## General options
@@ -32,7 +33,7 @@ function load-default-config {
 		[command_prompt]='M-x '
 		[cancelhex]='18 0'
 		[default_mode]='edit'
-		[help_message]='(F10 to open menu)'
+		[help_message]="Ebashs $version"
 		[dired_message]='Pick a file'
 		[render_chunk]=8
 		[tile_mode]='vertical'
@@ -49,29 +50,20 @@ function load-default-config {
 	#
 	#      A options for the keybings of given mode are defined by ass. array named key_options_${x}
 	#          [else] option defines what should happen if the input wasn't any of keys defined in keybings
-	keys_def=(
-		[previous-line]='1b 5b 41 0'
-		[next-line]='1b 5b 42 0'
-		[forward-char]='1b 5b 43 0'
-		[backward-char]='1b 5b 44 0'
-		[scroll-down]='1b 5b 35 7e 0'
-		[scroll-up]='1b 5b 36 7e 0'
-		[select]='0'
-	)
 	
 	global-set-key "$(kbd C-x)" 'prefix'
 	global-set-key "$(kbd M-x)" 'execute-extended-command'
-	global-set-key '1b 5b 32 31 7e 0' 'menulinemenu'
+	global-set-key '[f10]' 'menulinemenu'
 	global-set-key "$(kbd C-g)" 'quit-prefix'
+	global-set-key '[up]' 'previous-line'
+	global-set-key '[down]' 'next-line'
+	global-set-key '[right]' 'forward-char'
+	global-set-key '[left]' 'backward-char'
+	global-set-key '[next]' 'scroll-down'
+	global-set-key '[prior]' 'scroll-up'
 
 	add-mode edit
 	{
-		local-set-key "$(@kbd previous-line)" 'previous-line'
-		local-set-key "$(@kbd next-line)" 'next-line'
-		local-set-key "$(@kbd forward-char)" 'forward-char'
-		local-set-key "$(@kbd backward-char)" 'backward-char'
-		local-set-key "$(@kbd scroll-down)" 'scroll-down'
-		local-set-key "$(@kbd scroll-up)" 'scroll-up'
 		local-set-key '1b 5b 31 3b 32 41 0' 'select-previous'
 		local-set-key '1b 5b 31 3b 32 42 0' 'select-next'
 		local-set-key '1b 5b 31 3b 32 43 0' 'select-forward'
@@ -84,14 +76,14 @@ function load-default-config {
 		local-set-key "$(kbd M-f)" 'forward-word'
 		local-set-key "$(kbd C-b)" 'backward-char'
 		local-set-key "$(kbd M-b)" 'backward-word'
-		local-set-key '10 0' 'scroll-down'
-		local-set-key '16 0' 'scroll-up'
-		local-set-key '0' 'newline'
+		local-set-key "$(kbd C-p)" 'scroll-down'
+		local-set-key "$(kbd C-v)" 'scroll-up'
+		local-set-key 'RET' 'newline'
 		local-set-key "$(kbd C-l)" 'newline'
 		local-set-key "$(kbd C-t)" 'execute'
 		local-set-key "$(kbd C-d)" 'delete-line'
-		local-set-key '7f 0' 'backspace'
-		local-set-key '1b 5b 33 7e 0' 'delete'
+		local-set-key 'DEL' 'backspace'
+		local-set-key '[deletechar]' 'delete'
 		local-set-key "$(kbd M-g)" 'menukey'
 		local-set-key "$(kbd C-a)" 'move-beginning-of-line'
 		local-set-key '1b 5b 48 0' 'move-beginning-of-line'
@@ -102,34 +94,18 @@ function load-default-config {
 
 	add-mode dired
 	{
-		local-set-key "$(@kbd previous-line)" 'previous-line'
-		local-set-key "$(@kbd next-line)" 'next-line'
-		local-set-key "$(@kbd forward-char)" 'forward-char'
-		local-set-key "$(@kbd backward-char)" 'backward-char'
-		local-set-key "$(@kbd scroll-down)" 'scroll-down'
-		local-set-key "$(@kbd scroll-up)" 'scroll-up'
-		local-set-key "$(@kbd select)" 'dired-select'
+		local-set-key RET 'dired-select'
 		local-set-key "$(kbd h)" 'toggle_hidden'
 	}
 	
 	add-mode view
 	{
-		local-set-key "$(@kbd previous-line)" 'previous-line'
-		local-set-key "$(@kbd next-line)" 'next-line'
-		local-set-key "$(@kbd forward-char)" 'forward-char'
-		local-set-key "$(@kbd backward-char)" 'backward-char'
-		local-set-key "$(@kbd scroll-down)" 'scroll-down'
-		local-set-key "$(@kbd scroll-up)" 'scroll-up'
-		local-set-key "$(@kbd select)" 'quit-view'
+		local-set-key RET 'quit-view'
 	}
 	
 	add-mode list_buffers
 	{
-		local-set-key "$(@kbd previous-line)" 'previous-line'
-		local-set-key "$(@kbd next-line)" 'next-line'
-		local-set-key "$(@kbd scroll-down)" 'scroll-down'
-		local-set-key "$(@kbd scroll-up)" 'scroll-up'
-		local-set-key "$(@kbd select)" 'quit-view'
+		local-set-key RET 'quit-view'
 	}
 	key_options_list_buffers=(
 		[else]='quit-view'
@@ -147,6 +123,7 @@ function load-default-config {
 	}
 	key_options_prefix=(
 		[always]='quit-prefix'
+		[disable-global]=1
 	)
 	
 	add-mode prefix_help
@@ -157,12 +134,13 @@ function load-default-config {
 	
 	add-mode menu
 	{
-		local-set-key "$(@kbd previous-line)" 'menuup'
-		local-set-key "$(@kbd next-line)" 'menudown'
-		local-set-key "$(@kbd select)" 'menuselect'
+		local-set-key '[up]' 'menuup'
+		local-set-key '[down]' 'menudown'
+		local-set-key 'RET' 'menuselect'
 	}
 	key_options_menu=(
 		[else]='menuleave'
+		[disable-global]=1
 	)
 	
 	## Faces
@@ -519,14 +497,41 @@ function kbd {
 	out=${out::-1}
 	printf '%s' "${out}"
 }
-function @kbd {
-	printf '%s' "${keys_def[$1]}"
-}
 
 function define-key {
 	local -n keys="keys_$1"
-	keys["$2"]="$3"
+	case "$2" in
+		#function keys
+		'[f1]') keys[1b 4f 50 0]="$3";;
+		'[f2]') keys[1b 4f 51 0]="$3";;
+		'[f3]') keys[1b 4f 52 0]="$3";;
+		'[f4]') keys[1b 4f 53 0]="$3";;
+		'[f5]')  keys[1b 5b 31 35 7e 0]="$3";;
+		'[f6]')  keys[1b 5b 31 37 7e 0]="$3";;
+		'[f7]')  keys[1b 5b 31 38 7e 0]="$3";;
+		'[f8]')  keys[1b 5b 32 39 7e 0]="$3";;
+		'[f9]')  keys[1b 5b 32 30 7e 0]="$3";;
+		'[f10]') keys[1b 5b 32 31 7e 0]="$3";;
+		'[f11]') keys[1b 5b 32 33 7e 0]="$3";;
+		'[f12]') keys[1b 5b 32 34 7e 0]="$3";;
+		#arrow keys
+		'[left]')  keys[1b 5b 44 0]="$3";;
+		'[up]')    keys[1b 5b 41 0]="$3";;
+		'[right]') keys[1b 5b 43 0]="$3";;
+		'[down]')  keys[1b 5b 42 0]="$3";;
+		#pg up & down
+		'[prior]') keys[1b 5b 36 7e 0]="$3";;
+		'[next]')  keys[1b 5b 35 7e 0]="$3";;
+		#return
+		'RET') keys[0]="$3";;
+		#backspace & delete
+		'DEL') keys[7f 0]="$3";;
+		'[deletechar]') keys[1b 5b 33 7e 0]="$3";;
+		*) keys["$2"]="$3"
+	esac
 }
+
+		
 function local-set-key {
 	define-key "$_last_keys" "$@"
 }
@@ -760,6 +765,7 @@ keys_debuginput=(
 )
 key_options_debuginput=(
 	[else]='insert-debug-hex'
+	[disable-global]=1
 )
 
 
@@ -2345,14 +2351,15 @@ function input-key {
 	handle-hex "$1"
 }
 function handle-hex {
-	for str in "${!keys_global[@]}"; do
-		[ "$str" = "${input_hex[*]}" ] && {
-			"${keys_global[$str]}"
-			return
-		}
-	done
 	local -i x y mode_contains=0
 	local -n modekeys="keys_${bufferdata[mode]}" key_options="key_options_${bufferdata[mode]}"
+	((key_options[disable-global])) ||
+		for str in "${!keys_global[@]}"; do
+			[ "$str" = "${input_hex[*]}" ] && {
+				"${keys_global[$str]}"
+				return
+			}
+		done
 	((${#key_options[@]})) && {
 		[ -n "${key_options[always]}" ] && "${key_options[always]}"
 	}
