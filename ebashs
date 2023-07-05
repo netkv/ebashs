@@ -1,6 +1,5 @@
 #!/bin/bash
-version="0.6.13"
-printf '\033cdeclaring functions...\n'
+version="0.6.14"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -2620,7 +2619,32 @@ function load-config {
 }
 function init {
 	load-default-config #loads default config
-	load-config
+	case "$1" in
+		'--quick|-Q') shift;;
+		'--version')
+			echo "$version"
+			nocleanup=1; die
+		;;
+		'--help')
+			print-stdin <<EOF
+Usage: ebashs [OPTION-OR-FILENAME]...
+
+Run Ebashs, the extensible, customizable, maybe-real-time
+display editor.  The recommended way to start Ebashs for normal editing
+is with no options at all.
+
+Run C-h r RET inside Ebashs to read "manual".
+
+Initialization options:
+--quick, -Q    don't load config
+--help,        display this help and exit
+--version,     display version information and exit
+EOF
+			nocleanup=1
+			die
+		;;
+		*) load-config
+	esac
 	((options[log])) && init-log # set up log buffer (M-x log)
 	menulinepy=0; menulinep=0 # menu positions
 	case "${options[menuline]}" in
@@ -2675,5 +2699,4 @@ function main
 
 # check if all the syntaxtic sugar had been loaded properly
 [ "$1" = "--debug-fn" ] && nocleanup=1 && exit 0
-printf 'launching init function...'
 init "$@"
