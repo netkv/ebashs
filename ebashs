@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.6.14"
+version="0.6.14.1"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -1868,6 +1868,9 @@ function die {
 	printf '\e[?25h\e[?7h\e[?1049l' # Reset terminal to sane mode	
     exit "${errno:-0}" # Assume that we are exiting without an error
 }
+function abort {
+	((nocleanup=1)) && die "$@"
+}
 
 fragment move <<'+'
 	for ((i = 0; i < ${1:-1}; i++)); do
@@ -2620,10 +2623,10 @@ function load-config {
 function init {
 	load-default-config #loads default config
 	case "$1" in
-		'--quick|-Q') shift;;
+		'--quick'|'-Q') shift;;
 		'--version')
 			echo "$version"
-			nocleanup=1; die
+			abort
 		;;
 		'--help')
 			print-stdin <<EOF
@@ -2640,8 +2643,7 @@ Initialization options:
 --help,        display this help and exit
 --version,     display version information and exit
 EOF
-			nocleanup=1
-			die
+			abort
 		;;
 		*) load-config
 	esac
@@ -2698,5 +2700,5 @@ function main
 	done
 
 # check if all the syntaxtic sugar had been loaded properly
-[ "$1" = "--debug-fn" ] && nocleanup=1 && exit 0
+[ "$1" = "--debug-fn" ] && abort
 init "$@"
