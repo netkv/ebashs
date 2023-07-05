@@ -23,6 +23,7 @@ faces+=(
 	[link]="$(:foreground "#8ec07c" :background "#282828")" # link
 	[menu-selected-face]="$(:foreground "#b8bb26" :background "#3c3836")" # menuitemselected
 	[mode-line]="$(:foreground "#ebdbb2" :background "#3c3836")" # infoline
+	[file-name]="$(:weight bold :foreground "#ebdbb2" :background "#3c3836")" # infoline
 	[line-number]="$(:foreground "#a89984" :background "#282828")" # number
 	[line-number-empty]="$(:foreground "#a89984" :background "#282828")" # numberempty
 	[line-number-current-line]="$(:foreground "#fabd2f" :background "#282828")" # numberselected

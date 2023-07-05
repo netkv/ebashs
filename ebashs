@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.6.12"
+version="0.6.13"
 printf '\033cdeclaring functions...\n'
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
@@ -79,6 +79,7 @@ function load-default-config {
 		local-set-key '1b 5b 31 3b 32 43 0' 'select-forward'
 		local-set-key '1b 5b 31 3b 32 44 0' 'select-backward'
 		local-set-key '1b 20 0' 'set-mark-command' # in gnu emacs this is C-SPC but i cant get that to be detected in bash so M-SPC will suffice
+		local-set-key '20 0' 'insert-space'
 		local-set-key "$(kbd C-h)" 'prefix-help'
 		local-set-key 'RET' 'newline'
 		local-set-key "$(kbd C-l)" 'newline'
@@ -153,12 +154,13 @@ function load-default-config {
 		[default]="$(:weight normal)"
 		[TODO]="$(:background magenta)"
 		[NOTE]="$(:background gray)"
-		[menu]="$(:background gray)"
+		[menu]="$(:mode inverse)"
 		[menu-enabled-face]="$(:background black)"
 		[selected]="$(:foreground black :background magenta)"
 		[link]="$(:foreground light-blue)"
 		[menu-selected-face]="$(:foreground black :background magenta)"
-		[mode-line]="$(:background gray)"
+		[mode-line]="$(:mode inverse)"
+		[file-name]="$(:weight bold)"
 		[line-number]="$(:foreground gray)"
 		[line-number-empty]="$(:foreground gray)"
 		[line-number-current-line]="$(:foreground light-red)"
@@ -188,16 +190,16 @@ function load-default-config {
 		[ansi-color-white]='\e[43m'
 		# syntax highlighting
 		[font-lock-variable-string-face]="$(:foreground cyan)"
-		[font-lock-comment-face]="$(:slant italic :foreground light-gray)"
+		[font-lock-comment-face]="$(:slant italic :weight dim)"
 		[font-lock-variable-name-face]="$(:foreground light-cyan)"
 		[font-lock-argument-face]="$(:foreground light-yellow)"
 		[font-lock-flow-face]="$(:foreground ligth-yellow)"
 		[font-lock-pipe-face]="$(:weight bold :foreground light-blue)"
-		[font-lock-bracket-face]="$(:weight bold :foreground light-magenta)"
+		[font-lock-bracket-face]="$(:weight bold :foreground light-gray)"
 		[font-lock-constant-face]="$(:foreground light-green)"
 		[font-lock-string-face]="$(:foreground green)"
 		[font-lock-assign-face]="$(:foreground light-blue)"
-		[font-lock-function-name-face]="$(:foreground black :background blue)"
+		[font-lock-function-name-face]="$(:weight bold :foreground light-cyan)"
 		[font-lock-keyword-face]="$(:foreground light-red)"
 		[font-lock-declare-face]="$(:foreground red)"
 	)
@@ -447,9 +449,17 @@ function setface {
 }
 function :foreground { mode=38; setface "$@"; }
 function :background { mode=48; setface "$@"; }
+function :mode {
+	case "$1" in
+		inverse) printf '\\e[7m';;
+	esac
+	shift
+	[ -n "$1" ] && "$@";
+}
 function :weight {
 	case "$1" in
 		bold) printf '\\e[1m';;
+		dim) printf '\\e[2m';;
 		normal) printf '\\e[m'
 	esac
 	shift
@@ -564,10 +574,10 @@ function add-menu {
 
 function refresh {
 	clear-screen
+	buffersyntax=''
+	draw-raw
 	message="reloaded..."
-	make-render
 	redraw
-	message=
 }
 function switch-mode {
 	bckmode="${bufferdata[mode]}"
@@ -691,20 +701,18 @@ function make-render-line-loop {
 			' ')
 				syntax-word
 				word=''
-				face default ' '
-				continue;;
+				face default ' ';;
 			'	')
 				syntax-word
 				word=''
-				face tab-face "${options[tabchar]}"
-				continue;;
+				face tab-face "${options[tabchar]}";;
 			'')
 				syntax-word
 				word=''
 				face default ' '
 				return;;
+			*) word+="${char}";;
 		esac
-		word="${word}${char}"
 	done  <<< "${buffer[line]}"
 }
 
@@ -884,9 +892,8 @@ function list-buffers {
 		[base]=1
 		[column]=0
 		[modified]=0
-		[info]='Currently open buffers'
 		[mode]='list_buffers'
-		[help_message]=''
+		[info]='Currently open buffers'
 		[filetype]='i*buffer-list'
 		[file]='*Buffer List*'
 		[raw]=1
@@ -939,9 +946,8 @@ function term {
 		[line]=1
 		[base]=1
 		[column]=0
-		[info]='Terminal'
 		[mode]='term'
-		[help_message]='Terminal'
+		[info]='Terminal'
 		[filetype]='i*bash'
 		[file]='*term*'
 		[modified]=0
@@ -971,9 +977,8 @@ function inputcodes {
 		[line]=1
 		[base]=1
 		[column]=0
-		[info]='Get input codes'
 		[mode]='debuginput'
-		[help_message]='C-x (18 0) to close'
+		[info]='C-x (18 0) to close'
 		[filetype]='i*term'
 		[file]='*debuginput*'
 		[modified]=0
@@ -1006,9 +1011,8 @@ function read-buffer {
 		[line]=0 # Currently selected line (0 means the buffer is empty)
 		[base]=1 # Top-most line shown
 		[column]=0 # Position of the cursor in $line
-		[info]="Ebashs version ${version}" # Feedback text in the status bar
 		[mode]="${options[default_mode]}"
-		[help_message]="${options[help_message]}"
+		[info]="${options[help_message]}"
 		[filetype]="$(filetype "$1")"
 		[file]="$1"
 		[menuline]='menulineedit'
@@ -1018,14 +1022,15 @@ function read-buffer {
 	size-full
 	[ -f "${bufferdata[file]}" ] && mapfile -t -O 1 "${current_buffer}_buffer" <"${bufferdata[file]}" # Read file into an array
 	draw-raw
-	#make-render # TODO: make fast
-	if [[ "${buffer[*]}" ]]; then # Ensure that something was actually read into the file
-		bufferdata[line]=1 # Indicate that we have a buffer loaded
-		bufferdata[modified]=0
-		bufferdata[info]="${bufferdata[file]}: ${#buffer[@]}"
-	else
-		bufferdata[info]="${bufferdata[file]}: empty"
-	fi
+
+	# Ensure that something was actually read into the file
+	[[ -n "${buffer[*]}" ]] && {
+		message="Read ${#buffer[@]} lines from '${bufferdata[file]}'"
+	} || {
+		message="'${bufferdata[file]}' is empty"
+	}
+	bufferdata[line]=1 # Indicate that we have a buffer loaded
+	bufferdata[modified]=0
 }
 function clear-buffer {
 	buffer=()
@@ -1047,9 +1052,8 @@ function dired {
 		[line]=1
 		[base]=1
 		[column]=0
-		[info]='File picker'
+		[info]='Dired'
 		[mode]='dired'
-		[help_message]='Pick a file'
 		[filetype]='i*dired'
 		[file]='*dired*'
 		[modified]=0
@@ -1097,7 +1101,6 @@ function buffer-dialog {
 		[column]=0
 		[info]="$2"
 		[mode]=view
-		[help_message]="$3"
 		[filetype]='i*view'
 		[file]="$4"
 		[modified]=0
@@ -1117,7 +1120,7 @@ function buffer-dialog-draw {
 	redraw
 }
 function about {
-	buffer-dialog about 'About Ebashs' 'About' '*about*'
+	buffer-dialog about 'About' '*about*'
 	mapfile -t -O 1 buffer <<EOF
 Ebashs $version
 Copyrightn't () 2023 Aeknt. 
@@ -1179,7 +1182,7 @@ EOF
 }
 
 function list-faces-display {
-	buffer-dialog faces 'faces' 'faces' '*list-faces-display*'
+	buffer-dialog faces 'faces' '*list-faces-display*'
 	buffer=('')
 	for face in "${!faces[@]}"; do
 		buffer+=(
@@ -1194,7 +1197,7 @@ function list-faces-display {
 function list-data-display {
 	read-command "List data of buffer: " readin
 	local -n bdata="${readin}_bufferdata"
-	buffer-dialog faces 'data' 'data' '*list-data-display*'
+	buffer-dialog faces 'data' '*list-data-display*'
 	buffer=('')
 	for datum in "${!bdata[@]}"; do
 		buffer+=(
@@ -1207,7 +1210,7 @@ function list-data-display {
 }
 
 function list-options-display {
-	buffer-dialog faces 'options' 'options' '*list-data-display*'
+	buffer-dialog faces 'options' '*list-data-display*'
 	buffer=('')
 	for option in "${!options[@]}"; do
 		buffer+=(
@@ -1326,7 +1329,7 @@ EOF2
 }
 
 function manual {
-	buffer-dialog manual 'Ebashs manual' 'Manual' '*manual*'
+	buffer-dialog manual 'Manual' '*manual*'
 	get-manual
 	buffer-dialog-draw
 }
@@ -2302,6 +2305,28 @@ function selection-draw {
 
 function redraw {
 	printf '\e[?25l'
+
+	# the first line should be always empty 
+	unset buffer[0]
+	
+	# handle changing size of the terminal
+	((bufferdata[size_x]!=COLUMNS)) || ((bufferdata[size_y]!=LINES-1)) && {
+		bufferdata[size_x]="$COLUMNS"
+		bufferdata[size_y]=$((LINES-1))
+		# TODO: make this work for multibuffer mode
+	}
+	
+	# handle changing size of buffer
+	((bufferdata[size_x]!=bcksize_x)) || ((bufferdata[size_y]!=bcksize_y)) && {
+		# make the statusline full of dashes
+		dashline=$(
+			for ((i=0; i<bufferdata[size_x]; i++)) {
+				printf '-'
+			}
+		)
+		bcksize_x=${bufferdata[size_x]}
+		bcksize_y=${bufferdata[size_y]}
+	}
 	
 	# get length of line-number of lines
 	bufferdata[length]="${#buffer[@]}"
@@ -2325,7 +2350,7 @@ function redraw {
 			   "${bufferdata[position_y]}"\
 			   "${bufferdata[position_x]}"\
 			   "${bufferdata[size_x]}"\
-			   "${bufferdata[help_message]}"
+			   "${bufferdata[info]}"
 		printf '\e[%sG%s\e[0m\n' "${bufferdata[position_x]}" "${!menuline[*]}"
 	} || printf "\e[%s;%sH" "${bufferdata[position_y]}" "${bufferdata[position_x]}"
 
@@ -2359,16 +2384,19 @@ function redraw-cursor {
 		   $((bufferdata[line] + options[menuline] - bufferdata[base] + bufferdata[position_y]))\
 		   $((bufferdata[column] - bufferdata[basecolumn] + bufferdata[number-lenght] + 1 + bufferdata[position_x]))
 }
+
 function redraw-statusline {
-	printf "\e[%s;%sH\e[%sG${faces[mode-line]}%*s\e[%sG%s %s %d%% (%d,%d) (%s[%s]) (screen: %s)\e[m" \
+	printf "\e[%s;%sH\e[%sG%b%s\e[%sG%s %b%s\e[m%b %d%% (%d,%d) (%s[%s]) (screen: %s) \e[m" \
 	       $((bufferdata[size_y] - 1 + bufferdata[position_y]))\
 		   $((bufferdata[size_x] + bufferdata[position_x]))\
 		   "${bufferdata[position_x]}"\
-		   $((bufferdata[size_x]))\
-		   "${bufferdata[info]}"\
+		   "${faces[mode-line]}"\
+		   "$dashline"\
 		   "${bufferdata[position_x]}" \
 	       "${bufferdata[mode]}"\
+		   "${faces[file-name]}"\
 		   "$(base-name "${bufferdata[file]}")"\
+		   "${faces[mode-line]}"\
 		   $((100 * bufferdata[line] / bufferdata[length]))\
 		   "${bufferdata[line]}"\
 		   "${bufferdata[column]}"\
@@ -2376,6 +2404,7 @@ function redraw-statusline {
 		   "${bufferdata[filetype]}"\
 		   "$current_buffer"
 }
+
 function redraw-commandline {
 	printf "\e[%s;%sH\n${faces[minibuffer-prompt]}%*s\r%s\e[m" \
 		   $((LINES-1)) 1 $((COLUMNS)) ' ' "$message"
@@ -2395,6 +2424,8 @@ function insert-word {
 	redraw
 	bufferdata[modified]=1
 } && @add insert-word
+@fn self-insert 'insert-word $@'
+@fn insert-space 'insert-word " "'
 
 function input-make-hex {
 	input_hex=()
@@ -2481,7 +2512,7 @@ function handle-hex {
 	[ "${input_hex[*]:0:1}" = '1b' ] && return # TODO: prevent escape codes without hacky blocking
 	[ "${key_options[else]}" = 'insert' ] || return && {
 		[[ $1 =~ [[:cntrl:]] ]] && return
-		insert-word "$1"
+		self-insert "$1"
 		[ "$1" = '	' ] && printf '\e[%sC' $((${#options[tabchar]} - 1))
 		bufferdata[modified]=1
 	}
@@ -2631,7 +2662,6 @@ function init {
 	redraw
 	main
 }
-
 
 function main
 	while :; do
