@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.6.16.1"
+version="0.6.17"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -21,209 +21,216 @@ declare message reset readin
 
 
 function load-default-config {
-	### Config options
-	## General options
-	options=(
-		[mouse]=0
-		[todonote]=1
-		[menuline]=1
-		[tabchar]='│   '
-		[file_prompt]='Path: '
-		[command_prompt]='M-x '
-		[cancelhex]='18 0'
-		[default_mode]='edit'
-		[help_message]="Ebashs $version"
-		[dired_message]='Pick a file'
-		[render_chunk]=8
-		[tile_mode]='vertical'
-		[log]=0
-		[log_functions]=0
-	)
+	## Configuration
+	#		The magic :: function
+	#			:: sets value to option depending on current context:
+	#				set-options → define-options() → ass. array options
+	#				global-set → global-set-key → define-key global → as. ar. keys_global
+	#				add-mode → local-set-key → define-key <keys> → a. a. keys_<keys>
+	#					mode-options → local-set-mode-option → define-mode-option → a. a. key_options_<keys>
+	#				set-alias → add-alias → a. a. alias
+	#				add-menu → local-set-menu → define-menu <menu> → menu_<menu>_0 & menu_<menu>_1
+	#				set-highlight → add-highlight → a. a. highlight
+
+					  
+	set-options
+		:: mouse 0
+		:: todonote 1
+		:: menuline 1
+		:: tabchar '│   '
+		:: file_prompt 'Path: '
+		:: command_prompt 'M-x '
+		:: cancelhex '18 0'
+		:: default_mode 'edit'
+		:: help_message "Ebashs $version"
+		:: dired_message 'Pick a file'
+		:: render_chunk 8
+		:: tile_mode 'vertical'
+		:: log 0
+		:: log_functions 0
+		
 	## Key bindings configuration
-	#      A keybindings for a mode x have to be in associative array named keys_${x}, else Ebashs won't see them
-	#      keys_def is special case containing the common definitions.
-	#      Function @kbd field is equivalent to ${keys_def[field]} but nicer
+	#		A keybinding is defined via either
+	#		global-set; :: ... ... or add-mode <mode>; :: ... ...
+	#		:: <key> <command>
+	#			<key> is defined either via
+	#				Hexadecimal format (with ' 0' added as suffix).
+	#				Name of key like '[<key>]'
+	#				Emacsy "$(kbd <key> )" (<key> being something like C-s M-e ...)
+	#			The name of key and $(kbd) get translated into hex. format on startup.
 	#
-	#      Kdeybindings are supplied in hexadecimal format(with ' 0' added as suffix.
-	#      Function kbd provides Emacsy keybinding syntax.
-	#
-	#      A options for the keybings of given mode are defined by ass. array named key_options_${x}
-	#          [else] option defines what should happen if the input wasn't any of keys defined in keybings
-	
-	global-set-key "$(kbd C-x)" 'prefix'
-	global-set-key "$(kbd M-x)" 'execute-extended-command'
-	global-set-key '[f10]' 'menu-top'
-	global-set-key "$(kbd C-g)" 'quit-prefix'
-	global-set-key '[up]' 'previous-line'
-	global-set-key '[down]' 'next-line'
-	global-set-key '[right]' 'forward-char'
-	global-set-key '[left]' 'backward-char'
-	global-set-key '[next]' 'scroll-down'
-	global-set-key '[prior]' 'scroll-up'
-	global-set-key "$(kbd C-a)" 'move-beginning-of-line'
-	global-set-key "$(kbd C-e)" 'move-end-of-line'
-	global-set-key "$(kbd C-p)" 'previous-line'
-	global-set-key "$(kbd C-n)" 'next-line'
-	global-set-key "$(kbd C-f)" 'forward-char'
-	global-set-key "$(kbd M-f)" 'forward-word'
-	global-set-key "$(kbd C-b)" 'backward-char'
-	global-set-key "$(kbd M-b)" 'backward-word'
-	global-set-key "$(kbd C-p)" 'scroll-down'
-	global-set-key "$(kbd C-v)" 'scroll-up'
+	#			mode-options sets magic :: to defining mode options
+	#			:: option value
+
+	global-set
+		:: "$(kbd C-x)" 'prefix'
+		:: "$(kbd M-x)" 'execute-extended-command'
+		:: '[f10]' 'menu-top'
+		:: "$(kbd C-g)" 'quit-prefix'
+		:: '[up]' 'previous-line'
+		:: '[down]' 'next-line'
+		:: '[right]' 'forward-char'
+		:: '[left]' 'backward-char'
+		:: '[next]' 'scroll-down'
+		:: '[prior]' 'scroll-up'
+		:: "$(kbd C-a)" 'move-beginning-of-line'
+		:: "$(kbd C-e)" 'move-end-of-line'
+		:: "$(kbd C-p)" 'previous-line'
+		:: "$(kbd C-n)" 'next-line'
+		:: "$(kbd C-f)" 'forward-char'
+		:: "$(kbd M-f)" 'forward-word'
+		:: "$(kbd C-b)" 'backward-char'
+		:: "$(kbd M-b)" 'backward-word'
+		:: "$(kbd C-p)" 'scroll-down'
+		:: "$(kbd C-v)" 'scroll-up'
 
 	add-mode edit
-	{
-		local-set-key '1b 5b 31 3b 32 41 0' 'select-previous'
-		local-set-key '1b 5b 31 3b 32 42 0' 'select-next'
-		local-set-key '1b 5b 31 3b 32 43 0' 'select-forward'
-		local-set-key '1b 5b 31 3b 32 44 0' 'select-backward'
-		local-set-key '1b 20 0' 'set-mark-command' # in gnu emacs this is C-SPC but i cant get that to be detected in bash so M-SPC will suffice
-		local-set-key '20 0' 'insert-space'
-		local-set-key "$(kbd C-h)" 'prefix-help'
-		local-set-key 'RET' 'newline'
-		local-set-key "$(kbd C-l)" 'newline'
-		local-set-key "$(kbd C-t)" 'execute'
-		local-set-key "$(kbd C-d)" 'delete-line'
-		local-set-key 'DEL' 'backspace'
-		local-set-key '[deletechar]' 'delete'
-		local-set-key "$(kbd M-g)" 'menukey'
-		local-set-key '1b 5b 48 0' 'move-beginning-of-line'
-		local-set-key "$(kbd C-i)" 'indent-for-tab-command'
-		local-set-key '1b 5b 46 0' 'move-end-of-line'
-	}
-	key_options_edit=(
-		[else]='insert'
-	)
+		:: '1b 5b 31 3b 32 41 0' 'select-previous'
+		:: '1b 5b 31 3b 32 42 0' 'select-next'
+		:: '1b 5b 31 3b 32 43 0' 'select-forward'
+		:: '1b 5b 31 3b 32 44 0' 'select-backward'
+		:: '1b 20 0' 'set-mark-command' # in gnu emacs this is C-SPC but i cant get that to be detected in bash so M-SPC will suffice
+		:: '20 0' 'insert-space'
+		:: "$(kbd C-h)" 'prefix-help'
+		:: 'RET' 'newline'
+		:: "$(kbd C-l)" 'newline'
+		:: "$(kbd C-t)" 'execute'
+		:: "$(kbd C-d)" 'delete-line'
+		:: 'DEL' 'backspace'
+		:: '[deletechar]' 'delete'
+		:: "$(kbd M-g)" 'menukey'
+		:: '1b 5b 48 0' 'move-beginning-of-line'
+		:: "$(kbd C-i)" 'indent-for-tab-command'
+		:: '1b 5b 46 0' 'move-end-of-line'
+		mode-options
+			:: else 'insert'
 
 	add-mode dired
-	{
-		local-set-key RET 'dired-select'
-		local-set-key "$(kbd h)" 'toggle_hidden'
-	}
+		:: RET 'dired-select'
+		:: "$(kbd h)" 'toggle_hidden'
 	
 	add-mode view
-	{
-		local-set-key RET 'quit-view'
-	}
+		:: RET 'quit-view'
 	
 	add-mode list_buffers
-	{
-		local-set-key RET 'quit-view'
-	}
-	key_options_list_buffers=(
-		[else]='quit-view'
-	)
+		:: RET 'quit-view'
+		mode-options
+			:: else 'quit-view'
 	
 	add-mode prefix
-	{
-		local-set-key "$(kbd C-c)" 'quit'
-		local-set-key "$(kbd C-s)" 'write_buffer'
-		local-set-key "$(kbd C-f)" 'find-file'
-		local-set-key "$(kbd C-b)" 'list-buffers'
-		local-set-key "$(kbd b)" 'switch-to-buffer'
-		local-set-key "$(kbd 0)" 'delete-window'
-		local-set-key "$(kbd u)" 'undo'
-	}
-	key_options_prefix=(
-		[always]='quit-prefix'
-		[disable-global]=1
-	)
+		:: "$(kbd C-c)" 'quit'
+		:: "$(kbd C-s)" 'write_buffer'
+		:: "$(kbd C-f)" 'find-file'
+		:: "$(kbd C-b)" 'list-buffers'
+		:: "$(kbd b)" 'switch-to-buffer'
+		:: "$(kbd 0)" 'delete-window'
+		:: "$(kbd u)" 'undo'
+		mode-options
+			:: always 'quit-prefix'
+			:: disable-global 1
 	
 	add-mode prefix_help
-	{
-		local-set-key "$(kbd C-a)" 'about'
-		local-set-key "$(kbd r)" 'manual'
-	}
+		:: "$(kbd C-a)" 'about'
+		:: "$(kbd r)" 'manual'
 	
 	add-mode menu
-	{
-		local-set-key '[up]' 'menuup'
-		local-set-key '[down]' 'menudown'
-		local-set-key 'RET' 'menuselect'
-	}
-	key_options_menu=(
-		[else]='menuleave'
-		[disable-global]=1
-	)
+		:: '[up]' 'menuup'
+		:: '[down]' 'menudown'
+		:: 'RET' 'menuselect'
+		mode-options
+			:: else 'menuleave'
+			:: disable-global 1
 	
 	## Faces
-	#      Defined in escape codes
-	#      Helper functions, see extensions/gruvboxdark for example
-	faces=(
-		[default]="$(:weight normal)"
-		[TODO]="$(:background magenta)"
-		[NOTE]="$(:background gray)"
-		[menu]="$(:mode inverse)"
-		[menu-enabled-face]="$(:background black)"
-		[selected]="$(:foreground black :background magenta)"
-		[link]="$(:foreground light-blue)"
-		[button]='\e[4m\e[1m'
-		[menu-selected-face]="$(:foreground black :background magenta)"
-		[mode-line]="$(:mode inverse)"
-		[file-name]="$(:weight bold)"
-		[line-number]="$(:foreground gray)"
-		[line-number-empty]="$(:foreground gray)"
-		[line-number-current-line]="$(:foreground light-red)"
-		[tab-face]="$(:foreground gray)"
-		[region]="$(:weight bold :background gray)"
-		[minibuffer-prompt]="$(:weight normal)"
+	#		Defined in escape codes
+	#		Helper functions:
+	#			:weight
+	#				normal
+	#				bold
+	#			:slant
+	#				normal
+	#				italic
+	#			:background & :foreground
+	#				either hex. colour, colour name, or c<index> for 256 indexed colours
+	#		See extensions/gruvboxdark for another example
+	default_faces=(
+		default "$(:weight normal)"
+		TODO "$(:background magenta)"
+		NOTE "$(:background gray)"
+		menu "$(:mode inverse)"
+		menu-enabled-face "$(:background black)"
+		selected "$(:foreground black :background magenta)"
+		link "$(:foreground light-blue)"
+		button '\e[4m\e[1m'
+		menu-selected-face "$(:foreground black :background magenta)"
+		mode-line "$(:mode inverse)"
+		file-name "$(:weight bold)"
+		line-number "$(:foreground gray)"
+		line-number-empty "$(:foreground gray)"
+		line-number-current-line "$(:foreground light-red)"
+		tab-face "$(:foreground gray)"
+		region "$(:weight bold :background gray)"
+		minibuffer-prompt "$(:weight normal)"
 		# ansi colors # currently just for reference
-		[ansi-color-black]='\e[40m'
-		[ansi-color-blue]='\e[44m'
-		[ansi-color-bold]='\e[1m'
-		[ansi-color-bright-black]='\e[100m'
-		[ansi-color-bright-blue]='\e[104m'
-		[ansi-color-bright-blue]='\e[106m'
-		[ansi-color-bright-blue]='\e[102m'
-		[ansi-color-bright-blue]='\e[105m'
-		[ansi-color-bright-blue]='\e[101m'
-		[ansi-color-bright-blue]='\e[107m'
-		[ansi-color-bright-blue]='\e[103m'
-		[ansi-color-cyan]='\e[46m'
-		[ansi-color-green]='\e[42m'
-		[ansi-color-inverse]='\e[7m'
-		[ansi-color-italic]='\e[3m'
-		[ansi-color-magenta]='\e[45m'
-		[ansi-color-red]='\e[41m'
-		[ansi-color-underline]='\e[4m'
-		[ansi-color-white]='\e[47m'
-		[ansi-color-white]='\e[43m'
+		ansi-color-black '\e[40m'
+		ansi-color-blue '\e[44m'
+		ansi-color-bold '\e[1m'
+		ansi-color-bright-black '\e[100m'
+		ansi-color-bright-blue '\e[104m'
+		ansi-color-bright-blue '\e[106m'
+		ansi-color-bright-blue '\e[102m'
+		ansi-color-bright-blue '\e[105m'
+		ansi-color-bright-blue '\e[101m'
+		ansi-color-bright-blue '\e[107m'
+		ansi-color-bright-blue '\e[103m'
+		ansi-color-cyan '\e[46m'
+		ansi-color-green '\e[42m'
+		ansi-color-inverse '\e[7m'
+		ansi-color-italic '\e[3m'
+		ansi-color-magenta '\e[45m'
+		ansi-color-red '\e[41m'
+		ansi-color-underline '\e[4m'
+		ansi-color-white '\e[47m'
+		ansi-color-white '\e[43m'
 		# syntax highlighting
-		[font-lock-variable-string-face]="$(:foreground cyan)"
-		[font-lock-comment-face]="$(:slant italic :weight dim)"
-		[font-lock-variable-name-face]="$(:foreground light-cyan)"
-		[font-lock-argument-face]="$(:foreground light-yellow)"
-		[font-lock-flow-face]="$(:foreground ligth-yellow)"
-		[font-lock-pipe-face]="$(:weight bold :foreground light-blue)"
-		[font-lock-bracket-face]="$(:weight bold :foreground light-gray)"
-		[font-lock-constant-face]="$(:foreground light-green)"
-		[font-lock-string-face]="$(:foreground green)"
-		[font-lock-assign-face]="$(:foreground light-blue)"
-		[font-lock-function-name-face]="$(:weight bold :foreground light-cyan)"
-		[font-lock-keyword-face]="$(:foreground light-red)"
-		[font-lock-declare-face]="$(:foreground red)"
+		font-lock-variable-string-face "$(:foreground cyan)"
+		font-lock-comment-face "$(:slant italic :weight dim)"
+		font-lock-variable-name-face "$(:foreground light-cyan)"
+		font-lock-argument-face "$(:foreground light-yellow)"
+		font-lock-flow-face "$(:foreground ligth-yellow)"
+		font-lock-pipe-face "$(:weight bold :foreground light-blue)"
+		font-lock-bracket-face "$(:weight bold :foreground light-gray)"
+		font-lock-constant-face "$(:foreground light-green)"
+		font-lock-string-face "$(:foreground green)"
+		font-lock-assign-face "$(:foreground light-blue)"
+		font-lock-function-name-face "$(:weight bold :foreground light-cyan)"
+		font-lock-keyword-face "$(:foreground light-red)"
+		font-lock-declare-face "$(:foreground red)"
 	)
+	load-theme default_faces
 
 	## Aliases
 	#		List of aliases for M-x.
-	{
-		add-alias set-buffer-file 'find-file'
-		add-alias read-file 'read-buffer'
-		add-alias write-file 'write-buffer'
-		add-alias force-quit 'die'
-		add-alias menul 'menu-top'
-		add-alias menu-file 'menu-file'
-		add-alias input 'inputcodes'
-		add-alias tile 'tile-buffers'
-		add-alias vertical 'tile-vertical'
-		add-alias horizontal 'tile-horizontal'
-		add-alias single 'tile-single'
-		add-alias log 'view-log'
-	}
+	set-alias
+		:: set-buffer-file 'find-file'
+		:: read-file 'read-buffer'
+		:: write-file 'write-buffer'
+		:: force-quit 'die'
+		:: menul 'menu-top'
+		:: menu-file 'menu-file'
+		:: input 'inputcodes'
+		:: tile 'tile-buffers'
+		:: vertical 'tile-vertical'
+		:: horizontal 'tile-horizontal'
+		:: single 'tile-single'
+		:: log 'view-log'
 
 	## Menus
-	#		:: is alias for local-set-menu cuz it's nicer
-	#		:: should not be used in Ebashs code itself, only in configs, local-set-menu is for code
+	#		Defined via ordered pseudo-associative double-arrays
+	#			All menu items calling 'menu-top' get applied the 'button' face
+	#
+	#		Menu top is the top menuline & f10 menu	
+	#		Menu dired is the top menuline in dired buffers	
 	add-menu top
 		:: File menu-file
 		:: Keys menu-key
@@ -232,7 +239,6 @@ function load-default-config {
 		:: Redraw refresh
 
 	add-menu file
-		# all menu items calling 'menu-top' get applied the 'button' face
 		:: '        BACK        ' menu-top
 		:: 'Quit        C-x C-c ' quit
 		:: 'Visit file  C-x C-f ' find-file
@@ -269,21 +275,18 @@ function load-default-config {
 		:: 'inputcodes' inputcodes
 		:: 'faces     ' list-faces-display
 
-	highlight=(
-		[bash]=shell    [sh]=shell
-		[ksh]=shell     [mksh]=shell
-		[dash]=shell    [zsh]=shell
-		[conf]=config   [unknown]=unknown
-		[i*dired]=dired [i*bash]=shell
-	)
+	set-highlight
+		:: 'shell' bash ksh dash sh mksh zsh ash oksh i\*bash
+		:: 'config' conf
+		:: 'dired' i\*dired
+		:: 'unknown' unknown
 
 	add-menu dired
 		:: 'toggle hidden (h)' "toggle_hidden"
+
+	# Source extensions here
 }
 
-## source extensions here
-# source extensions/evil
-## rest of this garbageware
 
 # fragments act basically like macros but with cooler name
 # see redraw-buffer function for example usage
@@ -542,17 +545,37 @@ function define-key {
 @fn local-set-key 'define-key "$_last_keys" "$@"'
 @fn global-set-key 'define-key global "$@"'
 
+function define-mode-option {
+	local -n ko="key_options_$1"
+	ko["$2"]="$3"
+}
+@fn local-set-mode-option 'define-mode-option "$_last_keys" "$@"'
+function mode-options {
+	_last_add='mode-options'
+}
+
 function add-alias {
 	local name="$1"
 	shift
 	alias["$name"]="$@"
 }
+@fn set-alias '_last_add=set-alias'
+
+function add-highlight {
+	local name="$1"
+	shift
+	for i in "$@"; {
+		highlight["$i"]="$name"
+	}
+}
+@fn set-highlight '_last_add=set-highlight'
 
 @fn clear-screen "printf '\033c'"
 
 function add-mode {
 	# log TODO fix
 	_last_keys="$1"
+	_last_add='add-mode'
 	declare -Ag "keys_$1"
 	declare -Ag "key_options_$1"
 }
@@ -562,9 +585,25 @@ function add-menu {
 	declare -ag "menu_${1}_0"
 	declare -ag "menu_${1}_1"
 	_last_menu="$1"
+	_last_add='add-menu'
 }
 @fn local-set-menu 'define-menu "$_last_menu" "$1" "$2"'
-@fn :: 'local-set-menu "$@"'
+
+@fn global-set '_last_add=global-set'
+
+@fn define-option 'options["$1"]="$2"'
+@fn set-options '_last_add=set-options'
+
+function ::
+	case "$_last_add" in
+		add-menu) local-set-menu "$@";;
+		set-alias) add-alias "$@";;
+		set-highlight) add-highlight "$@";;
+		global-set) global-set-key "$@";;
+		set-options) define-option "$@";;
+		add-mode) local-set-key "$@";;
+		mode-options) local-set-mode-option "$@"
+	esac
 
 function define-menu {
 	local -n menu_0="menu_${1}_0"
@@ -576,6 +615,22 @@ function define-menu {
 	esac
 	menu_0+=("$item_0")
 	menu_1+=("$3")
+}
+
+function load-theme {
+	local -i t=0
+	local k
+	local -n theme="$1"
+	for i in "${theme[@]}"; {
+		((t==0)) && {
+			k="$i"
+			t=1
+		} || {
+			faces["$k"]="$i"
+			t=0
+		}
+	}
+	((t)) && errno=1 die
 }
 
 function refresh {
@@ -2363,16 +2418,16 @@ function redraw {
 	# the first line should be always empty 
 	unset buffer[0]
 	
-	# handle changing size of the terminal
+	# Handle changing size of the terminal
 	((bufferdata[size_x]!=COLUMNS)) || ((bufferdata[size_y]!=LINES-1)) && {
 		bufferdata[size_x]="$COLUMNS"
 		bufferdata[size_y]=$((LINES-1))
 		# TODO: make this work for multibuffer mode
 	}
 	
-	# handle changing size of buffer
+	# Handle changing size of buffer
 	((bufferdata[size_x]!=bcksize_x)) || ((bufferdata[size_y]!=bcksize_y)) && {
-		# make the statusline full of dashes
+		# Make the statusline full of dashes
 		dashline=$(
 			for ((i=0; i<bufferdata[size_x]; i++)) {
 				printf '-'
@@ -2382,22 +2437,23 @@ function redraw {
 		bcksize_y=${bufferdata[size_y]}
 	}
 	
-	# get length of line-number of lines
+	# Get length of line-number of lines
 	bufferdata[length]="${#buffer[@]}"
 	((bufferdata[length]==0)) && ((bufferdata[length]++))
 	bufferdata[number-lenght]="${#bufferdata[length]}"
 	
-	# update selection ends to current cursor
+	# Update selection ends to current cursor
 	((bufferdata[selection]==1)) && {
 		bufferdata[selection_end_y]="${bufferdata[line]}"
 		bufferdata[selection_end_x]="${bufferdata[column]}"
 	}
-	# move the buffer horizontally if needed
+	# Move the buffer horizontally if needed
 	((bufferdata[column] +3 < bufferdata[size_x] - bufferdata[number-lenght] - 1)) &&
 		bufferdata[basecolumn]=0
 	((bufferdata[column] +3 > bufferdata[size_x] - bufferdata[number-lenght] - 1)) &&
 		bufferdata[basecolumn]=$((bufferdata[column] - (bufferdata[size_x] + bufferdata[position_x] - bufferdata[number-lenght] - 1) +3))
 
+	# Draw top menuline
 	(("${options[menuline]}"==1)) && {
 		local -n top_0="menu_${bufferdata[menuline]}_0"
 		printf "\e[0m\e[%s;%sH${faces[menu]}\e[?25l%*s\r%s"\
@@ -2408,6 +2464,7 @@ function redraw {
 		printf '\e[%sG%s\e[0m\n' "${bufferdata[position_x]}" "${top_0[*]}"
 	} || printf "\e[%s;%sH" "${bufferdata[position_y]}" "${bufferdata[position_x]}"
 
+	# IFS has to be empty in order to bufferarray multiarray be printed as words instead of chars
 	bckIFS="$IFS"
 	IFS=''
 	
@@ -2476,13 +2533,61 @@ function insert-word {
 	redraw
 	bufferdata[modified]=1
 } && @add insert-word
+
 @fn self-insert 'insert-word $@'
 @fn insert-space 'insert-word " "'
 @fn indent-for-tab-command "insert-word '	'"
 
+function handle-mouse {
+	local -i x y
+	#parse mouse stuff somewhatish weirdly
+	[ "${k_hex[*]:0:5}" = '1b 5b 3c 36 34' ] && previous-line && return
+	[ "${k_hex[*]:0:5}" = '1b 5b 3c 36 35' ] && next-line && return
+	[ "${k_hex[*]:0:5}" = '1b 5b 3c 38 30' ] && previous-line 9 && return
+	[ "${k_hex[*]:0:5}" = '1b 5b 3c 38 31' ] && next-line 9 && return
+	((skipnext==1)) && skipnext=0 && return
+	((skipnext==0)) && [ "${k_hex[*]:0:2}" = '1b 5b' ] && {
+		mapfile -t -d '' inputarray <<< "${1}"
+		inputarray[-1]="${inputarray[-1]%?}"
+		[ -z "${inputarray[2]}" ] && skipnext=1
+		mapfile -t -d ';' inputarray <<< "${inputarray[1]}"
+		inputarray[-1]="${inputarray[-1]%?}"	
+		mousemode="${inputarray[0]}"
+		x="${inputarray[1]}"
+		y="${inputarray[2]::-1}"
+		#limitations of movenment
+		#TODO:
+		[ $y = "${bufferdata[position_y]}" ] && menuline-mouse $x && return #handle menuline
+		((x < (bufferdata[number-lenght] + bufferdata[position_x] + 2))) && {
+			if [ "$mousemode" = '[<0' ]; then
+				bufferdata[line]=$(( bufferdata[base] + ( (y - bufferdata[position_y]) - toplines) ))
+				redraw
+			elif [ "$mousemode" = '[<2' ]; then #VERY BAD SOLUTION, TODO: FIX
+				clear-screen
+				echo 'Enter the index: '
+				read -re line
+				redraw
+			fi
+			return
+		}
+		bufferdata[line]=$(( bufferdata[base] + ( y - bufferdata[position_y] - 1) ))
+		bufferdata[column]=$(( x - (bufferdata[position_x] + bufferdata[number-lenght] + 2) ))
+		((bufferdata[line] > ${#bufferexpand[@]})) && bufferdata[line]=${#bufferexpand[@]}
+		((bufferdata[column] > ${#bufferexpand[bufferdata[line]]})) && bufferdata[column]=${#bufferexpand[bufferdata[line]]}
+		redraw
+	}
+}
+
 function input-key {
-	local -i x y mode_contains=0
-	local -n modekeys="keys_${bufferdata[mode]}" key_options="key_options_${bufferdata[mode]}"
+	#arg $1 is the pressed key in normal text form
+	#k_hex is pressed key in hex array ending with 0
+	
+	local -i mode_contains=0
+	local -n\
+		  modekeys="keys_${bufferdata[mode]}"\
+		  key_options="key_options_${bufferdata[mode]}"
+
+	# global keys
 	((key_options[disable-global])) ||
 		for str in "${!keys_global[@]}"; do
 			[ "$str" = "${k_hex[*]}" ] && {
@@ -2490,69 +2595,45 @@ function input-key {
 				return
 			}
 		done
+
+	# Execute the 'always' key option
 	((${#key_options[@]})) && {
 		[ -n "${key_options[always]}" ] && "${key_options[always]}"
 	}
+
+	# Loop over current mode keybindings to match current keypress
 	for str in "${!modekeys[@]}"; do
 		[ "$str" = "${k_hex[*]}" ] && {
 			"${modekeys[$str]}"
 			mode_contains=1
 		}
 	done
+
+	# If mode keybinding doesn't contain current keypress, execute this
 	((${#key_options[@]})) && {
 		((mode_contains == 0)) && [ -n "${key_options[else]}" ] && {
 			[ "${key_options[else]}" = 'insert' ] || "${key_options[else]}"
 		}
 	}
+
+	# Do not continue if mode contains keypress to prevent control chars flooding file
 	((mode_contains == 1)) && {
 		return
 	}
+
+	# The 'insert' option allows the mode to insert chars in normal way
 	[ "${key_options[else]}" = 'insert' ] || return
+
+	# If mouse is enabled, do whatever the hell that ugly piece of code does
 	(("${options[mouse]}"==1)) && {
-		#parse mouse stuff somewhatish weirdly
-		[ "${k_hex[*]:0:5}" = '1b 5b 3c 36 34' ] && previous-line && return
-		[ "${k_hex[*]:0:5}" = '1b 5b 3c 36 35' ] && next-line && return
-		[ "${k_hex[*]:0:5}" = '1b 5b 3c 38 30' ] && previous-line 9 && return
-		[ "${k_hex[*]:0:5}" = '1b 5b 3c 38 31' ] && next-line 9 && return
-		((skipnext==1)) && skipnext=0 && return
-		((skipnext==0)) && [ "${k_hex[*]:0:2}" = '1b 5b' ] && {
-			mapfile -t -d '' inputarray <<< "${1}"
-			inputarray[-1]="${inputarray[-1]%?}"
-			[ -z "${inputarray[2]}" ] && skipnext=1
-			mapfile -t -d ';' inputarray <<< "${inputarray[1]}"
-			inputarray[-1]="${inputarray[-1]%?}"	
-			mousemode="${inputarray[0]}"
-			x="${inputarray[1]}"
-			y="${inputarray[2]::-1}"
-			#limitations of movenment
-			#TODO:
-			[ $y = "${bufferdata[position_y]}" ] && menuline-mouse $x && return #handle menuline
-			((x < (bufferdata[number-lenght] + bufferdata[position_x] + 2))) && {
-				if [ "$mousemode" = '[<0' ]; then
-					bufferdata[line]=$(( bufferdata[base] + ( (y - bufferdata[position_y]) - toplines) ))
-					redraw
-				elif [ "$mousemode" = '[<2' ]; then #VERY BAD SOLUTION, TODO: FIX
-					clear-screen
-					echo 'Enter the index: '
-					read -re line
-					redraw
-				fi
-				return
-			}
-			bufferdata[line]=$(( bufferdata[base] + ( y - bufferdata[position_y] - 1) ))
-			bufferdata[column]=$(( x - (bufferdata[position_x] + bufferdata[number-lenght] + 2) ))
-			((bufferdata[line] > ${#bufferexpand[@]})) && bufferdata[line]=${#bufferexpand[@]}
-			((bufferdata[column] > ${#bufferexpand[bufferdata[line]]})) && bufferdata[column]=${#bufferexpand[bufferdata[line]]}
-			redraw
-			return
-		}
+		handle-mouse "$1"
+		return
 	}
-	#[ "${k_hex[*]:0:3}" = '1b 5b 3c' ] && return
-	[ "${k_hex[*]:0:1}" = '1b' ] && return # TODO: prevent escape codes without hacky blocking
+
+	# Insert the pressed character
 	[ "${key_options[else]}" = 'insert' ] || return && {
-		[[ $1 =~ [[:cntrl:]] ]] && return
+		[[ $1 =~ [[:cntrl:]] ]] && return # If char is control char, return
 		self-insert "$1"
-		[ "$1" = '	' ] && printf '\e[%sC' $((${#options[tabchar]} - 1))
 		bufferdata[modified]=1
 	}
 }
@@ -2601,14 +2682,6 @@ EOF
 	esac
 	bottomlines=2
 	reset='\e[0;0m'
-	function update-menuline-menu {
-		declare -Ag menufancy
-		for item in "${!menulineedit[@]}"; do
-			menufancy+=(["$(printf '%-12s' "$item")"]="${menulineedit["$item"]}")
-		done
-		menufancy+=([Quit        ]=quit)
-	}
-	update-menuline-menu
 	charmap=(
 		#[0] is reserved for any unmapped char
 		[	]='t' # tab
