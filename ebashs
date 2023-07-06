@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.6.14.1"
+version="0.6.15"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -13,7 +13,7 @@ declare -A highlight faces options charmap alias
 declare -A menulineedit diredmenu menulinedebug
 declare -A menufancy
 declare -A keys_def keys_global
-declare -a input_hex overlay listbuffers
+declare -a input_hex listbuffers
 declare -n buffer buffersyntax bufferexpand bufferdata
 declare -i menulinep menulinepy toplines bottomlines hidden ismenu comment current_count
 declare -n menucon
@@ -24,7 +24,7 @@ function load-default-config {
 	### Config options
 	## General options
 	options=(
-		[mouse]=0
+		[mouse]=1
 		[todonote]=1
 		[menuline]=1
 		[tabchar]='│   '
@@ -52,7 +52,7 @@ function load-default-config {
 	
 	global-set-key "$(kbd C-x)" 'prefix'
 	global-set-key "$(kbd M-x)" 'execute-extended-command'
-	global-set-key '[f10]' 'menulinemenu'
+	global-set-key '[f10]' 'menu-top'
 	global-set-key "$(kbd C-g)" 'quit-prefix'
 	global-set-key '[up]' 'previous-line'
 	global-set-key '[down]' 'next-line'
@@ -157,6 +157,7 @@ function load-default-config {
 		[menu-enabled-face]="$(:background black)"
 		[selected]="$(:foreground black :background magenta)"
 		[link]="$(:foreground light-blue)"
+		[button]='\e[4m\e[1m'
 		[menu-selected-face]="$(:foreground black :background magenta)"
 		[mode-line]="$(:mode inverse)"
 		[file-name]="$(:weight bold)"
@@ -210,7 +211,8 @@ function load-default-config {
 		add-alias read-file 'read-buffer'
 		add-alias write-file 'write-buffer'
 		add-alias force-quit 'die'
-		add-alias menul 'menulinemenu'
+		add-alias menul 'menu-top'
+		add-alias menu-file 'menu-file'
 		add-alias input 'inputcodes'
 		add-alias tile 'tile-buffers'
 		add-alias vertical 'tile-vertical'
@@ -218,60 +220,54 @@ function load-default-config {
 		add-alias single 'tile-single'
 		add-alias log 'view-log'
 	}
-	
-	function menulinemenu {
-		declare -ng menucon=menufancy
-		#menulinepy=$(( bufferdata[size_y] - ${#menufancy[@]} ))
-		menu
-	}
-	menulineedit=(
-		[File]=menu-file	[Help]=menu-help
-		[Keys]=menu-key	    [Redraw]=refresh
-		[Debug]=menu-debug
-	)
+
+	## Menus
+	#		:: is alias for local-set-menu cuz it's nicer
+	#		:: should not be used in Ebashs code itself, only in configs, local-set-menu is for code
+	add-menu top
+		:: File menu-file
+		:: Keys menu-key
+		:: Help menu-help
+		:: Debug menu-debug
+		:: Redraw refresh
+
 	add-menu file
-	menu_file=(
-		[        MENU        ]=menulinemenu
-		[Quit        C-x C-c ]="quit"
-		[Visit file  C-x C-f ]="find-file"
-		[Execute         C-t ]="execute"
-		[Save        C-x C-s ]="write-buffer"
-		[File picker         ]="dired"
-	)
+		# all menu items calling 'menu-top' get applied the 'button' face
+		:: '        BACK        ' menu-top
+		:: 'Quit        C-x C-c ' quit
+		:: 'Visit file  C-x C-f ' find-file
+		:: 'Execute         C-t ' execute
+		:: 'Save        C-x C-s ' write-buffer
+		:: 'Dired               ' dired
 	add-menu help
-	menu_help=(
-		[        MENU        ]=menulinemenu
-		[Keybinding          ]=menukey
-		[About               ]=about
-	)
+		:: '        BACK        ' menu-top
+		:: 'Keybinding          ' menu-key
+		:: 'About               ' about
+
 	add-menu key
-	menu_key=(
-		[        MENU        ]=menulinemenu
-		[Exit        C-x C-c ]="quit"
-		[New Line    C-l | ⏎ ]="newline"
-		[Set target      M-r ]="find-file"
-		[Visit file  C-x C-f ]="read-buffer"
-		[Save file   C-x C-s ]="write-buffer"
-		[Delete Line     C-d ]="delete-line"
-		[Prev Line       C-p ]="previous-line"
-		[Next Line       C-n ]="next-line"
-		[Prev Page       C-y ]="scroll-down"
-		[Next Page       C-v ]="scroll-up"
-		[Execute         C-t ]="execute"
-		[Shell           C-s ]="shell"
-		[Force exist     M-q ]="die"
-	)
+	    :: '        BACK        ' menu-top
+		:: 'Exit        C-x C-c ' quit
+		:: 'New Line    C-l | ⏎ ' newline
+		:: 'Set target      M-r ' find-file
+		:: 'Visit file  C-x C-f ' read-buffer
+		:: 'Save file   C-x C-s ' write-buffer
+		:: 'Delete Line     C-d ' delete-line
+		:: 'Prev Line       C-p ' previous-line
+		:: 'Next Line       C-n ' next-line
+		:: 'Prev Page       C-y ' scroll-down
+		:: 'Next Page       C-v ' scroll-up
+		:: 'Execute         C-t ' execute
+		:: 'Shell           C-s ' shell
+		:: 'Force exist     M-q ' die
     add-menu debug
-	menu_debug=(
-		[   MENU   ]=menulinemenu
-		[clear     ]=clear-screen
-		[refresh   ]=refresh
-		[backspace ]=backspace
-		[right     ]=forward-char
-		[left      ]=backward-char
-		[inputcodes]=inputcodes
-		[faces     ]=list-faces-display
-	)
+		:: '   BACK   ' menu-top
+		:: 'clear     ' clear-screen
+		:: 'refresh   ' refresh
+		:: 'backspace ' backspace
+		:: 'right     ' forward-char
+		:: 'left      ' backward-char
+		:: 'inputcodes' inputcodes
+		:: 'faces     ' list-faces-display
 
 	highlight=(
 		[bash]=shell    [sh]=shell
@@ -281,9 +277,8 @@ function load-default-config {
 		[i*dired]=dired [i*bash]=shell
 	)
 
-	diredmenu=(
-		[toggle hidden \(h\)]="toggle_hidden"
-	)
+	add-menu dired
+		:: 'toggle hidden (h)' "toggle_hidden"
 }
 
 ## source extensions here
@@ -544,12 +539,8 @@ function define-key {
 }
 
 		
-function local-set-key {
-	define-key "$_last_keys" "$@"
-}
-function global-set-key {
-	define-key global "$@"
-}
+@fn local-set-key 'define-key "$_last_keys" "$@"'
+@fn global-set-key 'define-key global "$@"'
 
 function add-alias {
 	local name="$1"
@@ -567,8 +558,24 @@ function add-mode {
 }
 function add-menu {
 	# create new menu function & array
-	eval "function menu-${1} { declare -ng menucon=menu_${1}; menu; }"
-	declare -Ag "menu_${1}"
+	eval "function menu-${1} { menu $1; }"
+	declare -ag "menu_${1}_0"
+	declare -ag "menu_${1}_1"
+	_last_menu="$1"
+}
+@fn local-set-menu 'define-menu "$_last_menu" "$1" "$2"'
+@fn :: 'local-set-menu "$@"'
+
+function define-menu {
+	local -n menu_0="menu_${1}_0"
+	local -n menu_1="menu_${1}_1"
+	local item_0
+	case "$3" in
+		'menu-top') item_0="$(printf '%b' "${faces[button]}")$2";;
+		*) item_0="$2"
+	esac
+	menu_0+=("$item_0")
+	menu_1+=("$3")
 }
 
 function refresh {
@@ -583,12 +590,9 @@ function switch-mode {
 	bufferdata[mode]="$1"
 	redraw-statusline
 }
-function prefix {
-	switch-mode prefix
-}
-function prefix-help {
-	switch-mode prefix_help
-}
+@fn prefix switch-mode prefix
+@fn prefix-help switch-mode prefix_help
+
 function quit-prefix {
 	bufferdata[mode]="$bckmode"
 	unset bckmode
@@ -884,8 +888,6 @@ function list-buffers {
 	save openfile
 	set-buffer list_buffers
 	declare -Ag "${current_buffer}_bufferdata"
-	copy-array overlay bckover
-	overlay=()
 	bufferdata=(
 		[line]=1
 		[base]=1
@@ -896,11 +898,10 @@ function list-buffers {
 		[filetype]='i*buffer-list'
 		[file]='*Buffer List*'
 		[raw]=1
-		[menuline]='menulineabout'
+		[menuline]='about'
 	)
-	menulineabout=(
-		[quit]='quit-view'
-	)
+	add-menu about
+		local-set-menu quit 'quit-view'
 	copy-array listbuffers buffer
 	redraw
 }
@@ -951,17 +952,12 @@ function term {
 		[file]='*term*'
 		[modified]=0
 		[raw]=0
-		[menuline]='menulineabout'
+		[menuline]='about'
 	)
 	set-syntax
 	make-render
 	size-full
 	buffer=('')
-	copy-array overlay bckover
-	overlay=()
-	menulinedebug=(
-		[quit]='quit-debuginput'
-	)
 	clear-screen
 	redraw
 }
@@ -982,20 +978,16 @@ function inputcodes {
 		[file]='*debuginput*'
 		[modified]=0
 		[raw]=1
-		[menuline]='menulinedebug'
+		[menuline]='debuginput'
 	)
 	size-full
 	buffer=("")
-	copy-array overlay bckover
-	overlay=()
-	menulinedebug=(
-		[quit]='quit-debuginput'
-	)
+	add-menu debuginput
+		local-set-menu quit 'quit-debuginput'
 	clear-screen
 	redraw
 }
 function quit-debuginput {
-	copy-array bckover overlay
 	restore openfile
 	redraw
 }
@@ -1014,7 +1006,7 @@ function read-buffer {
 		[info]="${options[help_message]}"
 		[filetype]="$(filetype "$1")"
 		[file]="$1"
-		[menuline]='menulineedit'
+		[menuline]='top'
 		[current_state]=0
 	)
 	set-syntax # set bufferdata[syntax]
@@ -1056,7 +1048,7 @@ function dired {
 		[filetype]='i*dired'
 		[file]='*dired*'
 		[modified]=0
-		[menuline]='diredmenu'
+		[menuline]='dired'
 	)
 	set-syntax
 	size-full
@@ -1092,8 +1084,6 @@ function buffer-dialog {
 	set-buffer "$1_${current_count}"
 	add-to-list
 	declare -Ag "${current_buffer}_bufferdata"
-	copy-array overlay bckover
-	overlay=()
 	bufferdata=(
 		[line]=1
 		[base]=1
@@ -1104,14 +1094,11 @@ function buffer-dialog {
 		[file]="$4"
 		[modified]=0
 		[raw]=1
-		[menuline]="menuline_$1"
+		[menuline]='dialog'
 	)
 	size-full
-	declare -Ag "menuline_$1"
-	local -n menuline="${bufferdata[menuline]}"
-	menuline=(
-		[quit]='quit-view'
-	)
+	add-menu dialog
+		local-set-menu quit 'quit-view'
 }
 function buffer-dialog-draw {
 	copy-array buffer bufferexpand
@@ -1683,7 +1670,6 @@ EOF
 	# MAKEDOC INSERT README STOP
 }
 function quit-view {
-	copy-array bckover overlay
 	restore openfile
 	redraw
 }
@@ -2082,59 +2068,60 @@ function toggle-mouse
 			return
 	esac
 
-function menuclick {
-	local -n menuline="${bufferdata[menuline]}"
+function menuline-mouse {
+	local -n top_0="menu_${bufferdata[menuline]}_0"
+	local -n top_1="menu_${bufferdata[menuline]}_1"
 	#determine which item should be triggered
 	[ -z "$1" ] && menulinep=0 || menulinep=$1
 	local cx="${bufferdata[position_x]}"
-	for a in "${!menuline[@]}"; {
-		la="${#a}"
-		((menulinep>cx)) && ((menulinep<(cx + la + 1))) && ${menuline[$a]}
+	i=0
+	for i in "${!top_0[@]}"; {
+		la="${#top_0[i]}"
+		((menulinep>cx)) && ((menulinep<(cx + la + 1))) && {
+			${top_1[$i]}
+			return
+		}
 		cx=$(( cx + la + 1 ))
 	}
 }
-function menudraw {
-	printf '\e[?25l'
+
+function redraw-menu {
+	printf '\e[?25l' # hide cursor (again)
 	printf '\e[%s;0H' $menulinepy
-	local mi=0
-	for action in "${!menucon[@]}"; do
-		if ((mi == menuselection)); then
-			printf "\e[%sC${faces[menu-selected-face]}%s${reset}\n" $menulinep "$action"  
+	for i in "${!menu_0[@]}"; {
+		if ((i == menuselection)); then
+			printf "\e[%sC${faces[menu-selected-face]}%s${reset}\n" $menulinep "${menu_0[i]}"  
 		else
-			printf "\e[%sC${faces[menu-enabled-face]}%s${reset}\n" $menulinep "$action"
+	   		printf "\e[%sC${faces[menu-enabled-face]}%s${reset}\n" $menulinep "${menu_0[i]}"
 		fi
-		((mi++))
-	done
+	}
 }
 template menumove <<'+'
 	function @var 1 {
 		((menuselection @var 2 @var 3 )) && ((menuselection @var 4 ))
-		menudraw
+		redraw-menu
 	}
 +
 @: menuup '>' 0 '--'
-@: menudown '<' '${#menucon[@]} -1' '++'
+@: menudown '<' '${#menu_0[@]} -1' '++'
 
-function menuselect {
-	local mi=0
-	for action in "${menucon[@]}"; do
-		((mi == menuselection)) && "$action"
-		((mi++))
-	done
-}
+function menuselect
+	for i in "${!menu_1[@]}"; {
+		((i == menuselection)) && "${menu_1[i]}"
+	}
 
 function menuleave {
 	ismenu=0
 	bufferdata[mode]="${modebackup}"
-	overlay=()
 	redraw
 }
 function menu {
+	declare -ng menu_0=menu_${1}_0
+	declare -ng menu_1=menu_${1}_1
 	((ismenu == 0 )) && modebackup="${bufferdata[mode]}"
 	ismenu=1
 	declare -ig menuselection=0
 	bufferdata[mode]='menu'
-	overlay+=('menudraw')
 	redraw
 }
 
@@ -2347,13 +2334,13 @@ function redraw {
 		bufferdata[basecolumn]=$((bufferdata[column] - (bufferdata[size_x] + bufferdata[position_x] - bufferdata[number-lenght] - 1) +3))
 
 	(("${options[menuline]}"==1)) && {
-		local -n menuline="${bufferdata[menuline]}"
+		local -n top_0="menu_${bufferdata[menuline]}_0"
 		printf "\e[0m\e[%s;%sH${faces[menu]}\e[?25l%*s\r%s"\
 			   "${bufferdata[position_y]}"\
 			   "${bufferdata[position_x]}"\
 			   "${bufferdata[size_x]}"\
 			   "${bufferdata[info]}"
-		printf '\e[%sG%s\e[0m\n' "${bufferdata[position_x]}" "${!menuline[*]}"
+		printf '\e[%sG%s\e[0m\n' "${bufferdata[position_x]}" "${top_0[*]}"
 	} || printf "\e[%s;%sH" "${bufferdata[position_y]}" "${bufferdata[position_x]}"
 
 	bckIFS="$IFS"
@@ -2361,13 +2348,11 @@ function redraw {
 	
 	# Iterate over shown lines
 	local -i max=$((bufferdata[size_y] - (toplines + bottomlines) + 1))
-	if ((bufferdata[raw])); then
+	((bufferdata[raw])) &&
 		# The raw rendering is just dirty hack to get better perfomance in buffer which don't need fancy effects
 		# Will be removed once normal rendering is fast enough (or rather if it'll ever be
-		redraw-buffer-raw
-	else
-		redraw-buffer
-	fi
+		redraw-buffer-raw ||
+			redraw-buffer
 	
 	redraw-statusline
 	redraw-commandline
@@ -2375,10 +2360,8 @@ function redraw {
 	
 	IFS="$bckIFS"
 	
-	# Render all overlays
-	for o in "${overlay[@]}"; do
-		"${o}"
-	done
+	# redraw menu if open
+	[ "${bufferdata[mode]}" = 'menu' ] && redraw-menu
 }
 
 function redraw-cursor {
@@ -2408,13 +2391,15 @@ function redraw-statusline {
 }
 
 function redraw-commandline {
+	# clear message if it has been printed before already
+	((clrmsg)) && {
+		message=
+		clrmsg=0
+	} || clrmsg=1
 	printf "\e[%s;%sH\n${faces[minibuffer-prompt]}%*s\r%s\e[m" \
 		   $((LINES-1)) 1 $((COLUMNS)) ' ' "$message"
 }
 
-function indent-for-tab-command {
-	insert-word '	'
-}
 function insert-word {
 	save-state
 	@ getrlr
@@ -2428,6 +2413,7 @@ function insert-word {
 } && @add insert-word
 @fn self-insert 'insert-word $@'
 @fn insert-space 'insert-word " "'
+@fn indent-for-tab-command "insert-word '	'"
 
 function input-make-hex {
 	input_hex=()
@@ -2489,7 +2475,7 @@ function handle-hex {
 			y="${inputarray[2]::-1}"
 			#limitations of movenment
 			#TODO:
-			[ $y = "${bufferdata[position_y]}" ] && menuclick $x && return #handle menuline
+			[ $y = "${bufferdata[position_y]}" ] && menuline-mouse $x && return #handle menuline
 			((x < (bufferdata[number-lenght] + bufferdata[position_x] + 2))) && {
 				if [ "$mousemode" = '[<0' ]; then
 					bufferdata[line]=$(( bufferdata[base] + ( (y - bufferdata[position_y]) - toplines) ))
@@ -2553,8 +2539,6 @@ function view-log {
 	save openfile
 	set-buffer log
 	size-full
-	copy-array overlay bckover
-	overlay=()
 	copy-array buffer bufferexpand
 	clear-screen
 	redraw
