@@ -1,19 +1,19 @@
 #!/bin/bash
-version="0.6.15"
+version="0.6.16"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
 shopt -s checkwinsize; (:;:) # Enable and then trigger a terminal size refresh
 trap redraw WINCH ALRM # Attach WINCH and ALRM to redraw the screen
 trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
-trap 'input_hex=(3 0); handle-hex' INT
+trap 'k_hex=(3 0); input-key' INT
 trap quit SIGTERM
 
 declare -A highlight faces options charmap alias
 declare -A menulineedit diredmenu menulinedebug
 declare -A menufancy
 declare -A keys_def keys_global
-declare -a input_hex listbuffers
+declare -a k_hex listbuffers
 declare -n buffer buffersyntax bufferexpand bufferdata
 declare -i menulinep menulinepy toplines bottomlines hidden ismenu comment current_count
 declare -n menucon
@@ -24,7 +24,7 @@ function load-default-config {
 	### Config options
 	## General options
 	options=(
-		[mouse]=1
+		[mouse]=0
 		[todonote]=1
 		[menuline]=1
 		[tabchar]='│   '
@@ -860,7 +860,7 @@ function size-full {
 
 function insert-debug-hex {
 	buffer+=(
-		"${input_hex[*]}"
+		"${k_hex[*]}"
 	)
 	next-line
 	make-render-line
@@ -1076,6 +1076,70 @@ function dired-select
 function pickls {
 	((hidden==0)) && printf '..\n' || printf '%s\n' .*
 	printf '%s\n' *
+}
+
+function init-log {
+	log=1
+	declare -Ag "log_bufferdata"
+	declare -ng bufferlog="log_buffer"
+	log_bufferdata=(
+		[base]=1
+		[column]=0
+		[info]='LOG'
+		[mode]='view'
+		[help_message]='LOG'
+		[filetype]='i*view'
+		[file]='*log*'
+		[modified]=0
+		[raw]=1
+		[menuline]='menulog'
+	)
+	menulog=(
+		[quit]='quit-view'
+	)
+	bufferlog=(
+		''
+		"[ LOG START ] Ebashs version $version"
+		'time function            level  message'
+	)
+	lasttime="$(current-time '%s')"
+}
+function view-log {
+	((log)) || {
+		message='Error: log is not initialised'
+		return
+	}
+	save openfile
+	set-buffer log
+	size-full
+	copy-array buffer bufferexpand
+	clear-screen
+	redraw
+	for ae in "${!bufferdata[@]}"; do
+		printf '%s: %s\n' "$ae" "${bufferdata[$ae]}" >> d
+	done
+}
+function current-time {
+	printf "%($1)T\\n"
+}
+function log {
+	((log)) || return
+	local type="$1"
+	shift
+	tooktime="$(( $(current-time '%s') - lasttime ))"
+	bufferlog+=("$type => ${tooktime}s in ${FUNCNAME[1]}() $@")
+	lasttime="$(current-time '%s')"
+}
+## debug
+# +debug -- basically like set -x but reports stuff into log
+function +log {
+	((log)) || return
+	((options[log_functions])) && log '*' "${FUNCNAME[1]}"
+	trap 'log bash $? $LINENO ${BASH_COMMAND}' ERR
+}
+function +debug {
+	((log)) || return
+	trap 'log DEBUG "${BASH_COMMAND}"' DEBUG
 }
 
 function buffer-dialog {
@@ -2415,26 +2479,12 @@ function insert-word {
 @fn insert-space 'insert-word " "'
 @fn indent-for-tab-command "insert-word '	'"
 
-function input-make-hex {
-	input_hex=()
-	local -i i=0
-	echo "$1" | {
-		while read -rsn1; do
-			input_hex[i]="$(printf "%x\n" "'${1:$i}")"
-			((i++))
-		done
-	}
-}
 function input-key {
-	input-make-hex "$1"
-	handle-hex "$1"
-}
-function handle-hex {
 	local -i x y mode_contains=0
 	local -n modekeys="keys_${bufferdata[mode]}" key_options="key_options_${bufferdata[mode]}"
 	((key_options[disable-global])) ||
 		for str in "${!keys_global[@]}"; do
-			[ "$str" = "${input_hex[*]}" ] && {
+			[ "$str" = "${k_hex[*]}" ] && {
 				"${keys_global[$str]}"
 				return
 			}
@@ -2443,7 +2493,7 @@ function handle-hex {
 		[ -n "${key_options[always]}" ] && "${key_options[always]}"
 	}
 	for str in "${!modekeys[@]}"; do
-		[ "$str" = "${input_hex[*]}" ] && {
+		[ "$str" = "${k_hex[*]}" ] && {
 			"${modekeys[$str]}"
 			mode_contains=1
 		}
@@ -2459,12 +2509,12 @@ function handle-hex {
 	[ "${key_options[else]}" = 'insert' ] || return
 	(("${options[mouse]}"==1)) && {
 		#parse mouse stuff somewhatish weirdly
-		[ "${input_hex[*]:0:5}" = '1b 5b 3c 36 34' ] && previous-line && return
-		[ "${input_hex[*]:0:5}" = '1b 5b 3c 36 35' ] && next-line && return
-		[ "${input_hex[*]:0:5}" = '1b 5b 3c 38 30' ] && previous-line 9 && return
-		[ "${input_hex[*]:0:5}" = '1b 5b 3c 38 31' ] && next-line 9 && return
+		[ "${k_hex[*]:0:5}" = '1b 5b 3c 36 34' ] && previous-line && return
+		[ "${k_hex[*]:0:5}" = '1b 5b 3c 36 35' ] && next-line && return
+		[ "${k_hex[*]:0:5}" = '1b 5b 3c 38 30' ] && previous-line 9 && return
+		[ "${k_hex[*]:0:5}" = '1b 5b 3c 38 31' ] && next-line 9 && return
 		((skipnext==1)) && skipnext=0 && return
-		((skipnext==0)) && [ "${input_hex[*]:0:2}" = '1b 5b' ] && {
+		((skipnext==0)) && [ "${k_hex[*]:0:2}" = '1b 5b' ] && {
 			mapfile -t -d '' inputarray <<< "${1}"
 			inputarray[-1]="${inputarray[-1]%?}"
 			[ -z "${inputarray[2]}" ] && skipnext=1
@@ -2496,8 +2546,8 @@ function handle-hex {
 			return
 		}
 	}
-	#[ "${input_hex[*]:0:3}" = '1b 5b 3c' ] && return
-	[ "${input_hex[*]:0:1}" = '1b' ] && return # TODO: prevent escape codes without hacky blocking
+	#[ "${k_hex[*]:0:3}" = '1b 5b 3c' ] && return
+	[ "${k_hex[*]:0:1}" = '1b' ] && return # TODO: prevent escape codes without hacky blocking
 	[ "${key_options[else]}" = 'insert' ] || return && {
 		[[ $1 =~ [[:cntrl:]] ]] && return
 		self-insert "$1"
@@ -2505,96 +2555,7 @@ function handle-hex {
 		bufferdata[modified]=1
 	}
 }
-function init-log {
-	log=1
-	declare -Ag "log_bufferdata"
-	declare -ng bufferlog="log_buffer"
-	log_bufferdata=(
-		[base]=1
-		[column]=0
-		[info]='LOG'
-		[mode]='view'
-		[help_message]='LOG'
-		[filetype]='i*view'
-		[file]='*log*'
-		[modified]=0
-		[raw]=1
-		[menuline]='menulog'
-	)
-	menulog=(
-		[quit]='quit-view'
-	)
-	bufferlog=(
-		''
-		"[ LOG START ] Ebashs version $version"
-		'time function            level  message'
-	)
-	lasttime="$(current-time '%s')"
-}
-function view-log {
-	((log)) || {
-		message='Error: log is not initialised'
-		return
-	}
-	save openfile
-	set-buffer log
-	size-full
-	copy-array buffer bufferexpand
-	clear-screen
-	redraw
-	for ae in "${!bufferdata[@]}"; do
-		printf '%s: %s\n' "$ae" "${bufferdata[$ae]}" >> d
-	done
-}
-function current-time {
-	printf "%($1)T\\n"
-}
-function log {
-	((log)) || return
-	local type="$1"
-	shift
-	tooktime="$(( $(current-time '%s') - lasttime ))"
-	case "$type" in
-		warn)
-			bufferlog+=(
-				"${tooktime}s $(printf '%-20s' "${FUNCNAME[1]}") [ WARN ] $@"
-			);;
-		info)
-			bufferlog+=(
-				"${tooktime}s $(printf '%-20s' "${FUNCNAME[1]}") [ INFO ] $@"
-			);;
-		error)
-			bufferlog+=(
-				"! ${tooktime}s [ ERROR ] $(printf '%-20s' "${FUNCNAME[1]}") $@"
-			);;
-		bash)
-			(($1==1)) && return
-			bufferlog+=(
-			    "${tooktime}s $(printf '%-20s' "${FUNCNAME[1]}") [ BASH ]"
-				"$(printf '%30s' ' ') code $1"
-				"$(printf '%30s' ' ') line $2"
-				"$(printf '%30s' ' ') cmd  $3"
-			);;
 
-		*)
-			bufferlog+=(
-				"$type => ${tooktime}s in ${FUNCNAME[1]}() $@"
-			);;
-
-	esac
-	lasttime="$(current-time '%s')"
-}
-## debug
-# +debug -- basically like set -x but reports stuff into log
-function +log {
-	((log)) || return
-	((options[log_functions])) && log '*' "${FUNCNAME[1]}"
-	trap 'log bash $? $LINENO ${BASH_COMMAND}' ERR
-}
-function +debug {
-	((log)) || return
-	trap 'log DEBUG "${BASH_COMMAND}"' DEBUG
-}
 function load-config {
 	local config_file
 	local f
@@ -2676,13 +2637,19 @@ EOF
 function main
 	while :; do
 		local -a k=()
-		local -i i=1    
-		if read -rsN1 k[0]; then # Check for ready input
-			while read -rsN1 -t0.0001 k[$i]; do ((i++)); done # Multibyte hack
+		local -i i=1
+		k_hex=() # Also convert the input sequence into hex for way easier handling
+		# Check for ready input
+		read -rsN1 k[0] && {
+			k_hex[0]="$(printf "%x\n" "'${k[0]}")"
+			# Multibyte hack
+			while read -rsN1 -t0.0001 k[$i]; do
+				k_hex[$i]="$(printf "%x\n" "'${k[$i]}")"
+				((i++))
+			done
+			k_hex[$i]='0'
 			input-key "$(printf '%s' "${k[@]}")" # Handle keypress event
-		fi
+		}
 	done
 
-# check if all the syntaxtic sugar had been loaded properly
-[ "$1" = "--debug-fn" ] && abort
 init "$@"
