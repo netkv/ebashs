@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.6.16"
+version="0.6.16.1"
 # Ebashs: text editor written in pure bash powered by murky logic and mess
 shopt -s lastpipe # For syntax
 shopt -s extglob # Ensure advanced pattern matching is available
@@ -530,7 +530,7 @@ function define-key {
 		'[prior]') keys[1b 5b 36 7e 0]="$3";;
 		'[next]')  keys[1b 5b 35 7e 0]="$3";;
 		#return
-		'RET') keys[0]="$3";;
+		'RET') keys[a 0]="$3";;
 		#backspace & delete
 		'DEL') keys[7f 0]="$3";;
 		'[deletechar]') keys[1b 5b 33 7e 0]="$3";;
@@ -2173,6 +2173,7 @@ function menuselect
 	for i in "${!menu_1[@]}"; {
 		((i == menuselection)) && "${menu_1[i]}"
 	}
+
 
 function menuleave {
 	ismenu=0
