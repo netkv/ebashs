@@ -12,6 +12,11 @@ Versions of Ebashs ending in WIP-x are and will be broken, you can check version
 EOF2
 )
 
+$(text '    '<<EOF2
+For more updated help run inside Ebashs $(code 'M-x describe') or $(code 'C-h C-f')
+EOF2
+)
+
 $(header EBASHS)
 
 $(title DESCRIPTION)

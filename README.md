@@ -5,6 +5,8 @@ Note that the readme, may be currently outdated as I am changing the core functi
 
 Versions of Ebashs ending in WIP-x are and will be broken, you can check version via M-x about or by reading the second line of Ebashs script.
 
+For more updated help run inside Ebashs `M-x describe` or `C-h C-f`
+
 # EBASHS
 
 ## DESCRIPTION
