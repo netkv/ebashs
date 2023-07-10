@@ -2068,32 +2068,47 @@ EOF2
 )
 
 $(code-block bash <<EOF2
-    syntax+=(
-        [bash]=syntax-bash
-    )
-    function syntax-bash {
-        ((comment)) && set-face font-lock-comment-face && return
-        case "${word}" in
-             *'=()'|'declare'|'local'|'typeset') set-face font-lock-declare-face;;
-            '"$'*) set-face font-lock-variable-string-face;;
-            '#'*) set-face font-lock-comment-face && comment=1;;
-            '$'*) set-face font-lock-variable-name-face;;
-            '-'*) set-face font-lock-argument-face;;
-            *'()') set-face font-lock-function-name-face;;
-            '||'|'&&'|';'|'&') set-face font-lock-flow-face;;
-            '>'|'<'|'|'|'>>'|'<<'|'<<<') set-face font-lock-pipe-face;;
-            '('|')'|'{'|'}'|'[['|']]'|'['|']') set-face font-lock-bracket-face;;
-            'function') set-face font-lock-function-name-face;;
-            *"'"*) set-face font-lock-constant-face;;
-            *'"'*) set-face font-lock-string-face;;
-            *'='*) set-face font-lock-assign-face;;
-            'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|
-                'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|
-                'let'|'shopt'|'trap'|'set'|'eval'
-                ) set-face font-lock-keyword-face;;
-            *) set-face default;;
-        esac
-    }
+    set-highlight
+        :: shell bash ksh dash sh mksh zsh ash oksh i*bash
+
+	new = syntax-shell
+		:: Syntax function for shell
+		:: Used faces:
+		:: '    * font-lock-declare-face'
+		:: '    * font-lock-variable-string-face'
+		:: '    * font-lock-comment-face & sets comment to 1 for syntax-word function'
+		:: '    * font-lock-variable-name-face'
+		:: '    * font-lock-argument-face'
+		:: '    * font-lock-function-name-face'
+		:: '    * font-lock-flow-face'
+		:: '    * font-lock-pipe-face'
+		:: '    * font-lock-bracket-face'
+		:: '    * font-lock-constant-face'
+		:: '    * font-lock-string-face'
+		:: '    * font-lock-assign-face'
+		:: '    * font-lock-keyword-face'
+		:: '    * font-lock-default-face'
+		function =
+			case "${word}" in
+				*'=()'|'declare'|'local'|'typeset') set-face font-lock-declare-face;;
+				'"$'*) set-face font-lock-variable-string-face;;
+				'#'*) set-face font-lock-comment-face && comment=1;;
+				'$'*) set-face font-lock-variable-name-face;;
+				'-'*) set-face font-lock-argument-face;;
+				*'()') set-face font-lock-function-name-face;;
+				'||'|'&&'|';'|'&') set-face font-lock-flow-face;;
+				'>'|'<'|'|'|'>>'|'<<'|'<<<') set-face font-lock-pipe-face;;
+				'('|')'|'{'|'}'|'[['|']]'|'['|']') set-face font-lock-bracket-face;;
+				'function') set-face font-lock-function-name-face;;
+				*"'"*) set-face font-lock-constant-face;;
+				*'"'*) set-face font-lock-string-face;;
+				*'='*) set-face font-lock-assign-face;;
+				'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|\\
+					'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|\\
+					'let'|'shopt'|'trap'|'set'|'eval'\\
+						) set-face font-lock-keyword-face;;
+				*) set-face default;;
+			esac
 EOF2
 )
 
