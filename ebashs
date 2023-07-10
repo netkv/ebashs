@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.2"
+version="0.7.3"
 ## Ebashs
 #		Emacs-like editor written in pure Bash
 #		Had been tested properly only on Bash 5.2, and will propably be broken on 4.x versions and definitelly on 3 and older.
@@ -8,7 +8,7 @@ shopt -s lastpipe # For syntax highlighting
 shopt -s extglob # Ensure advanced pattern matching is available
 shopt -s checkwinsize && (:) # Enable and then trigger a terminal size refresh
 
-trap redraw WINCH ALRM # Attach WINCH and ALRM to redraw the screen
+trap change-size-screen WINCH ALRM # Attach WINCH and ALRM to redraw the screen
 trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
 trap 'k_hex=(3 0); input-key' INT
 trap quit SIGTERM
@@ -318,8 +318,9 @@ Description text is supplied from stdin, so mostly heredoc.
 	@desc load-default-config <<-'+'
 Load default config included with Ebashs.
 	+
-	
-	function define-new {
+
+	# reverse of new :D
+	function wen {
 		((_addfragment)) && {
 			@add '='
 			_addfragment=0
@@ -340,9 +341,9 @@ Load default config included with Ebashs.
 	
 	function new {
 		if [ -z "$1" ]; then
-			define-new
+			wen
 		else
-			((_isdone)) && define-new
+			((_isdone)) && wen
 			# TODO: add more operations
 			case "$1" in
 				'=')
@@ -1157,7 +1158,7 @@ new = filetype
 				mapfile -d ' ' -t split <<< "${shebang}"
 				printf '%s\n' "${split[1]}"
 				;;
-			'#@')
+			'##')
 				mapfile -d ' ' -t split <<< "${shebang}"
 				printf '%s\n' "${split[1]}"
 				;;
@@ -1271,12 +1272,11 @@ new = buffer-select
 
 
 add-mode term
-	:: "$(kbd C-x)" 'quit-view'
-	:: 'RET' 'term-exec'
-	:: 'DEL' 'backspace'
-	:: '[deletechar]' 'delete'
-	mode-options
-		:: else 'insert'
+	local-set-key "$(kbd C-x)" 'quit-view'
+	local-set-key 'RET' 'term-exec'
+	local-set-key 'DEL' 'backspace'
+	local-set-key '[deletechar]' 'delete'
+	local-set-mode-option else 'insert'
 
 new = term-exec
 	:: Executes and displays command in term buffers
@@ -1323,10 +1323,9 @@ new = term
 	}
 
 add-mode debuginput
-	:: "$(kbd C-x)" 'quit-view'
-	mode-options
-		:: else 'insert-debug-hex'
-		:: disable-global 1
+	local-set-key "$(kbd C-x)" 'quit-view'
+	local-set-mode-option else 'insert-debug-hex'
+	local-set-mode-option disable-global 1
 
 new = inputcodes
 	:: Opens debug input buffer
@@ -1460,103 +1459,127 @@ new = list-directory
 		((hidden==0)) && printf '..\n' || printf '%s\n' .*
 		printf '%s\n' *
 	}
-new
-function init-log {
-	log=1
-	declare -Ag "log_bufferdata"
-	declare -ng bufferlog="log_buffer"
-	log_bufferdata=(
-		[base]=1
-		[column]=0
-		[info]='LOG'
-		[mode]='view'
-		[help_message]='LOG'
-		[filetype]='i*view'
-		[file]='*log*'
-		[modified]=0
-		[raw]=1
-		[menuline]='menulog'
-	)
-	menulog=(
-		[quit]='quit-view'
-	)
-	bufferlog=(
-		''
-		"[ LOG START ] Ebashs version $version"
-		'time function            level  message'
-	)
-	lasttime="$(current-time '%s')"
-}
-function view-log {
-	((log)) || {
-		message='Error: log is not initialised'
-		return
+
+new = init-log
+	:: Initializes M-x view-log buffer
+	function = {
+		log=1
+		declare -Ag "log_bufferdata"
+		declare -ng bufferlog="log_buffer"
+		log_bufferdata=(
+			[base]=1
+			[column]=0
+			[info]='LOG'
+			[mode]='view'
+			[help_message]='LOG'
+			[filetype]='i*view'
+			[file]='*log*'
+			[modified]=0
+			[raw]=1
+			[menuline]='menulog'
+		)
+		add-menu
+			:: 'quit' 'quit-view'
+		bufferlog=(
+			''
+			"[ LOG START ] Ebashs version $version"
+			'time function            level  message'
+		)
+		lasttime="$(current-time '%s')"
 	}
-	save openfile
-	set-buffer log
-	size-full
-	copy-array buffer bufferexpand
-	clear-screen
-	redraw
-	for ae in "${!bufferdata[@]}"; do
-		printf '%s: %s\n' "$ae" "${bufferdata[$ae]}" >> d
-	done
-}
-function current-time {
+
+new = view-log
+	:: Opens log buffer
+	function = {
+		((log)) || {
+			message='Error: log is not initialised'
+			return
+		}
+		save openfile
+		set-buffer log
+		size-full
+		copy-array buffer bufferexpand
+		clear-screen
+		redraw
+		for ae in "${!bufferdata[@]}"; do
+			printf '%s: %s\n' "$ae" "${bufferdata[$ae]}" >> d
+		done
+	}
+
+new = current-time
+	:: Basically like coreutil "'date'"
+	function = {
 	printf "%($1)T\\n"
-}
-function log {
-	((log)) || return
-	local type="$1"
-	shift
-	tooktime="$(( $(current-time '%s') - lasttime ))"
-	bufferlog+=("$type => ${tooktime}s in ${FUNCNAME[1]}() $@")
-	lasttime="$(current-time '%s')"
-}
+	}
+
+new = log
+	:: Adds message into log	
+	function = {
+		((log)) || return
+		local type="$1"
+		shift
+		tooktime="$(( $(current-time '%s') - lasttime ))"
+		bufferlog+=("$type => ${tooktime}s in ${FUNCNAME[1]}() $@")
+		lasttime="$(current-time '%s')"
+	}
+
 ## debug
 # +debug -- basically like set -x but reports stuff into log
-function +log {
-	((log)) || return
-	((options[log_functions])) && log '*' "${FUNCNAME[1]}"
-	trap 'log bash $? $LINENO ${BASH_COMMAND}' ERR
-}
-function +debug {
-	((log)) || return
-	trap 'log DEBUG "${BASH_COMMAND}"' DEBUG
-}
+new = +log	
+	:: Debug function to add logging to function it\'s called from
+	function = {
+		((log)) || return
+		((options[log_functions])) && log '*' "${FUNCNAME[1]}"
+		trap 'log bash $? $LINENO ${BASH_COMMAND}' ERR
+	}
+new = +debug
+	:: Debug function to add extensive \(set -x like\) logging to function it\'s called from
+	function = {
+		((log)) || return
+		trap 'log DEBUG "${BASH_COMMAND}"' DEBUG
+	}
 
-function buffer-dialog {
-	save openfile
-	((current_count++))
-	set-buffer "$1_${current_count}"
-	add-to-list
-	declare -Ag "${current_buffer}_bufferdata"
-	bufferdata=(
-		[line]=1
-		[base]=1
-		[column]=0
-		[info]="$2"
-		[mode]=view
-		[filetype]='i*view'
-		[file]="$4"
-		[modified]=0
-		[raw]=1
-		[menuline]='dialog'
-	)
-	size-full
-	add-menu dialog
+new = buffer-dialog
+	:: Helper functions for creating simple popup buffers
+	function = {
+		save openfile
+		((current_count++))
+		set-buffer "$1_${current_count}"
+		add-to-list
+		declare -Ag "${current_buffer}_bufferdata"
+		bufferdata=(
+			[line]=1
+			[base]=1
+			[column]=0
+			[info]="$2"
+			[mode]=view
+			[filetype]='i*view'
+			[file]="$4"
+			[modified]=0
+			[raw]=1
+			[menuline]='dialog'
+		)
+		size-full
+		add-menu dialog
 		local-set-menu quit 'quit-view'
-}
-function buffer-dialog-draw {
-	copy-array buffer bufferexpand
-	clear-screen
-	redraw
-}
-function about {
-	buffer-dialog about 'About' '*about*'
-	mapfile -t -O 1 buffer <<EOF
+	}
+
+new = buffer-dialog-draw
+	:: Draws buffer created by buffer-dialog
+	function = {
+		copy-array buffer bufferexpand
+		clear-screen
+		redraw
+	}
+
+new = about
+	:: Shows about information	
+	function = {
+		buffer-dialog about 'About' '*about*'
+		mapfile -t -O 1 buffer <<EOF
 Ebashs $version
-Copyrightn't () 2023 Aeknt. 
+Copyrightn't(č) 2022-2023 Aeknt. 
+(bed: Copyrightn't(č) 2020 Comfies.) 
 
 This is Ebashs, one component of the Bash/Bash operating system.
 
@@ -1611,162 +1634,204 @@ Based on                 https://github.com/comfies/bed
   ────────────────────────────────────────────────────────────────────────────────────────────
 
 EOF
-	buffer-dialog-draw
-}
+		buffer-dialog-draw
+	}
 
-function list-faces-display {
-	buffer-dialog faces 'faces' '*list-faces-display*'
-	buffer=('')
-	for face in "${!faces[@]}"; do
-		buffer+=(
-			"$(
+new = list-faces-display
+	:: Displays list of fases
+	function = {
+		buffer-dialog faces 'faces' '*list-faces-display*'
+		buffer=('')
+		for face in "${!faces[@]}"; do
+			buffer+=(
+				"$(
 				printf '%*s%b%s%b' -40 "${face}" "${faces[$face]}" "abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ" "${faces[default]}"
 			)"
-		)
-	done
-	buffer-dialog-draw
-}
+			)
+		done
+		buffer-dialog-draw
+	}
 
-function list-data-display {
-	read-command "List data of buffer: " readin
-	local -n bdata="${readin}_bufferdata"
-	buffer-dialog faces 'data' '*list-data-display*'
-	buffer=('')
-	for datum in "${!bdata[@]}"; do
-		buffer+=(
-			"$(
+new = list-data-display
+	:: Displays list of data of buffer from bufferdata array	
+	function = {
+		read-command "List data of buffer: " readin
+		local -n bdata="${readin}_bufferdata"
+		buffer-dialog faces 'data' '*list-data-display*'
+		buffer=('')
+		for datum in "${!bdata[@]}"; do
+			buffer+=(
+				"$(
 				printf '%*s%s' -20 "${datum}" "${bdata[${datum}]}"
 			)"
-		)
-	done
-	buffer-dialog-draw
-}
+			)
+		done
+		buffer-dialog-draw
+	}
 
-function list-options-display {
-	buffer-dialog faces 'options' '*list-data-display*'
-	buffer=('')
-	for option in "${!options[@]}"; do
-		buffer+=(
-			"$(
-				printf '%*s%s' -20 "${option}" "${options[${option}]}"
-			)"
-		)
-	done
-	buffer-dialog-draw
-}
+new = list-options-display
+	:: Displays list of options
+	function = {
+		buffer-dialog faces 'options' '*list-data-display*'
+		buffer=('')
+		for option in "${!options[@]}"; do
+			buffer+=(
+				"$(
+					printf '%*s%s' -20 "${option}" "${options[${option}]}"
+				)"	
+			)
+		done
+		buffer-dialog-draw
+	}
 
-function table-init {
-	table_columns="$1"
-	shift
-	local -i i=0
-	for col in "$@"; do
-		local -n n="table_column_$i"
-		n="$col"
-		((i++))
-	done
-}
-function table-char
-	if (( ${#@} == 11 )); then
-		table_char=("$@")
-	else
-		table_char=(─ │ ┌ ┬ ┐ ├ ┼ ┤ └ ┴ ┘)
-	fi
-function table-top {
-	printf '%s' "${table_char[2]}"
-	for ((i=0; i<table_columns; i++)); do
-		local -n n="table_column_$i"
-		for ((ii=1; ii-1<n; ii++)); do
-			printf '%s' "${table_char[0]}"
+new = table-init
+	:: Initializes bml \(bash markup language\) table
+	function = {
+		table_columns="$1"
+		shift
+		local -i i=0
+		for col in "$@"; do
+			local -n n="table_column_$i"
+			n="$col"
+			((i++))
 		done
-		((i==table_columns-1)) || printf '%s' "${table_char[3]}"
-		((i==table_columns-1)) && printf '%s' "${table_char[4]}"
-	done
-	printf '\n'
-}
-@fn table-divider 'table-title-line "$@"'
-function table-title-line {
-	printf '%s' "${table_char[5]}"
-	for ((i=0; i<table_columns; i++)); do
-		local -n n="table_column_$i"
-		for ((ii=1; ii-1<n; ii++)); do
-			printf '%s' "${table_char[0]}"
-		done
-		((i==table_columns-1)) || printf '%s' "${table_char[6]}"
-		((i==table_columns-1)) && printf '%s' "${table_char[7]}"
-	done
-	printf '\n'
-}
-function table-bottom {
-	printf '%s' "${table_char[8]}"
-	for ((i=0; i<table_columns; i++)); do
-		local -n n="table_column_$i"
-		for ((ii=1; ii-1<n; ii++)); do
-			printf '%s' "${table_char[0]}"
-		done
-		((i==table_columns-1)) || printf '%s' "${table_char[9]}"
-		((i==table_columns-1)) && printf '%s' "${table_char[10]}"
-	done
-	printf '\n'
-}
-function table-item {
-	local -i i=0
-	for item in "$@"; do
-		local -n n="table_column_$i"
-		printf '%s' "${table_char[1]}"
-		printf '%s' "$item"
-		printf '%*s' $(( n - ${#item} )) ''
-		((i++))
-	done
-	printf '%s' "${table_char[1]}"
-	printf '\n'
-}
-function table-title {
-	local -i i=0
-	for title in "$@"; do
-		local -n n="table_column_$i"
-		printf '%s' "${table_char[1]}"
-		printf '%*s' $(( n / 2 - ( ${#title} / 2 ) )) ''
-		printf '%s' "$title"
-		if ((${#title}%2==0)) && ((n%2==1)); then
-			printf '%*s' $(( ( n / 2 - ( ${#title} / 2 ) ) + 1 )) ''
+	}
+
+new = table-char
+	:: Sets style of bml table
+	function =
+		if (( ${#@} == 11 )); then
+			table_char=("$@")
 		else
-			printf '%*s' $(( n / 2 - ( ${#title} / 2 ) )) ''
+			table_char=(─ │ ┌ ┬ ┐ ├ ┼ ┤ └ ┴ ┘)
 		fi
-		((i++))
-	done
-	printf '%s' "${table_char[1]}"
-	printf '\n'
-}
-function code-block
-	while read -r; do echo "$REPLY"; done
-function print-stdin
-	while read -r; do echo "$REPLY"; done
-function text
-	while read -r; do
-		l=${#REPLY}
-		for ((i=0; i<l; i+=(bufferdata[size_x]/3)*2)); do
-			printf '%s%s\n' "$1" "${REPLY:i:(bufferdata[size_x]/3)*2}"
+
+new = table-top
+	:: Prints top line of bml table
+	function = {
+		printf '%s' "${table_char[2]}"
+		for ((i=0; i<table_columns; i++)); do
+			local -n n="table_column_$i"
+			for ((ii=1; ii-1<n; ii++)); do
+				printf '%s' "${table_char[0]}"
+			done
+			((i==table_columns-1)) || printf '%s' "${table_char[3]}"
+			((i==table_columns-1)) && printf '%s' "${table_char[4]}"
 		done
-	done
+		printf '\n'
+	}
+
+new = table-title-line
+	:: Prints bml table title divider
+	function = {
+		printf '%s' "${table_char[5]}"
+		for ((i=0; i<table_columns; i++)); do
+			local -n n="table_column_$i"
+			for ((ii=1; ii-1<n; ii++)); do
+				printf '%s' "${table_char[0]}"
+			done
+			((i==table_columns-1)) || printf '%s' "${table_char[6]}"
+			((i==table_columns-1)) && printf '%s' "${table_char[7]}"
+		done
+		printf '\n'
+	}
+@fn table-divider 'table-title-line "$@"'
+
+new = table-bottom
+	:: Prints bottom line of bml table
+	function = {
+		printf '%s' "${table_char[8]}"
+		for ((i=0; i<table_columns; i++)); do
+			local -n n="table_column_$i"
+			for ((ii=1; ii-1<n; ii++)); do
+				printf '%s' "${table_char[0]}"
+			done
+			((i==table_columns-1)) || printf '%s' "${table_char[9]}"
+			((i==table_columns-1)) && printf '%s' "${table_char[10]}"
+		done
+		printf '\n'
+	}
+
+new = table-item
+	:: Prints line of table
+	function = {
+		local -i i=0
+		for item in "$@"; do
+			local -n n="table_column_$i"
+			printf '%s' "${table_char[1]}"
+			printf '%s' "$item"
+			printf '%*s' $(( n - ${#item} )) ''
+			((i++))
+		done
+		printf '%s' "${table_char[1]}"
+		printf '\n'
+	}
+
+new = table-title
+	:: Prints title of table
+	function = {
+		local -i i=0
+		for title in "$@"; do
+			local -n n="table_column_$i"
+			printf '%s' "${table_char[1]}"
+			printf '%*s' $(( n / 2 - ( ${#title} / 2 ) )) ''
+			printf '%s' "$title"
+			if ((${#title}%2==0)) && ((n%2==1)); then
+				printf '%*s' $(( ( n / 2 - ( ${#title} / 2 ) ) + 1 )) ''
+			else
+				printf '%*s' $(( n / 2 - ( ${#title} / 2 ) )) ''
+			fi
+			((i++))
+		done
+		printf '%s' "${table_char[1]}"
+		printf '\n'
+	}
+
+new = code-block
+	:: Prints code in bml document
+	function = while read -r; do echo "$REPLY"; done
+
+new = print-stdin
+	:: Basically like coreutil "'cat'"
+	function = while read -r; do echo "$REPLY"; done
+
+new = text
+	:: Prints normal text in bml document
+	function =
+		while read -r; do
+			l=${#REPLY}
+			for ((i=0; i<l; i+=(bufferdata[size_x]/3)*2)); do
+				printf '%s%s\n' "$1" "${REPLY:i:(bufferdata[size_x]/3)*2}"
+			done
+		done
+
 @fn title 'printf "[ %s ]" "$@"'
 @fn code 'printf "%s" "$@"'
-function header {
-	arg=$*
-	table-init 1 $(( ${#arg} * 2 ))
-	table-char ═ ║ ╔ X ╗ X X X ╚ X ╝
-	print-stdin <<EOF2
+
+new = header
+	:: Prints header of bml document
+	function = {
+		arg=$*
+		table-init 1 $(( ${#arg} * 2 ))
+		table-char ═ ║ ╔ X ╗ X X X ╚ X ╝
+		print-stdin <<-EOF2
                                      $(table-top)
                                      $(table-title "${1}")
                                      $(table-bottom)
-EOF2
-}
+		EOF2
+	}
 
-function manual {
-	buffer-dialog manual 'Manual' '*manual*'
-	get-manual
-	buffer-dialog-draw
-}
-function get-manual {
+new = manual
+	:: 'Displays C-h r manual buffer'
+	function = {
+		buffer-dialog manual 'Manual' '*manual*'
+		get-manual
+		buffer-dialog-draw
+	}
+
+new = get-manual
+	:: Parses manual bml document
+	function = {
 	#DO NOT edit following lines, makedoc handles them automatically
 	# MAKEDOC INSERT README START
 mapfile -t -O 1 buffer <<EOF
@@ -1826,7 +1891,7 @@ print-stdin <<EOF2
     $(table-item todonote ' 1' "highlight 'TODO:' & 'NOTE:'")
     $(table-item menuline ' 1' 'display menuline')
     $(table-item tabchar "$(code '|   ')" 'what should tab display as')
-    $(table-item file-prompt "'Path: '" 'file setting prompt')
+    $(table-item file_prompt "'Path: '" 'file setting prompt')
     $(table-item cmd_prompt "'M-x '" 'command line prompt')
     $(table-item cancelhex "'18 0' (C-x)" 'keybinding to exit debug input menu')
     $(table-item default_mode ' edit' 'what mode should be set on launch')
@@ -2122,101 +2187,116 @@ EOF2
 )
 EOF
 	# MAKEDOC INSERT README STOP
-}
+	}
 
-function describe-function {
-	redraw
-	read-command 'Describe function: ' function || return 1
-	buffer-dialog about 'Describe' '*describe*'
-	mapfile -t -O 1 buffer <<< "$(get-description "$function")"
-	buffer-dialog-draw
-}
+new = describe-function
+	:: Displays help and info of function
+	function = {
+		redraw
+		read-command 'Describe function: ' function || return 1
+		buffer-dialog about 'Describe' '*describe*'
+		mapfile -t -O 1 buffer <<< "$(get-description "$function")"
+		buffer-dialog-draw
+	}
 
-function describe {
-	redraw
-	buffer-dialog about 'Describe' '*describe*'
-	local buffertmp=$'\n'
-	buffertmp+='., . __/ --|-- + -- --[]-- +*ł[ FUNCTIONS ]ł*+ --[]-- -- + --|-- \__ . ,.'$'\n'$'\n'
-	buffertmp+='    An overview of Ebashs functions'$'\n'$'\n'
-	while read -r fn;  do
-		buffertmp+="$(get-description "${fn:11}")"$'\n'
-	done <<< "$(declare -F)"
-	mapfile -t buffer <<< "$buffertmp"
-	buffer-dialog-draw
+new = describe
+	:: Displays help and info of all functions
+	function = {
+		redraw
+		buffer-dialog about 'Describe' '*describe*'
+		local buffertmp=$'\n'
+		buffertmp+='., . __/ --|-- + -- --[]-- +*ł[ FUNCTIONS ]ł*+ --[]-- -- + --|-- \__ . ,.'$'\n'$'\n'
+		buffertmp+='    An overview of Ebashs functions'$'\n'$'\n'
+		while read -r fn;  do
+			buffertmp+="$(get-description "${fn:11}")"$'\n'
+		done <<< "$(declare -F)"
+		mapfile -t buffer <<< "$buffertmp"
+		buffer-dialog-draw
 }
 
 @fn is-function 'declare -F -- "$1" > /dev/null'
-function get-description {
-	is-function "$1" || {
-		echo "$1 is not a Ebashs function"
-		return
-	}
-	printf "[ $1 ]\n"
-	[ -z "${descriptions[function_${1}_description]}" ] && {
-		echo ' - -- --- ---- --- -- -'
-		return
-	}
-	local -n fn_desc="${descriptions[function_${1}_description]}"
-	((${#fn_desc[@]})) && {
-		echo
-		for l in "${fn_desc[@]}"; {
-			printf "    %s\n" "$l"
+new = get-description
+	:: Prints desciption of function
+	function = {
+		is-function "$1" || {
+			echo "$1 is not a Ebashs function"
+			return
 		}
-		echo ' '
+		printf "[ $1 ]\n"
+		[ -z "${descriptions[function_${1}_description]}" ] && {
+			echo ' - -- --- ---- --- -- -'
+			return
+		}
+		local -n fn_desc="${descriptions[function_${1}_description]}"
+		((${#fn_desc[@]})) && {
+			echo
+			for l in "${fn_desc[@]}"; {
+				printf "    %s\n" "$l"
+			}
+					 echo ' '
+		}
 	}
-}
 
-function quit-view {
-	restore openfile
-	redraw
-} && @desc quit-view <<+
-	Quits and restores previous buffer.
-	Used mainly for dialog buffers.
-+
+new = quit-view
+	:: Quits and restores previous buffer.
+	:: Used mainly for dialog buffers.
+	function = {
+		restore openfile
+		redraw
+	}
 
+new = newline
+	:: Inserts newline to current buffer at current cursor position
+	function = {
+		bufferdata[modified]=1
+		save-state
+		buffer=('' "${buffer[@]:1:${bufferdata[line]}-1}" '' "${buffer[@]:${bufferdata[line]}}")
+		buffer[bufferdata[line]]="${buffer[${bufferdata[line]}+1]:0:${bufferdata[column]}}"
+		buffer[bufferdata[line]+1]="${buffer[${bufferdata[line]}+1]:${bufferdata[column]}:${#buffer[${bufferdata[line]}+1]}}"
+		bufferdata[column]=0
+		syntax-shift
+		next-line
+	}
 
-function newline {
-	bufferdata[modified]=1
-	save-state
-	buffer=('' "${buffer[@]:1:${bufferdata[line]}-1}" '' "${buffer[@]:${bufferdata[line]}}")
-	buffer[bufferdata[line]]="${buffer[${bufferdata[line]}+1]:0:${bufferdata[column]}}"
-	buffer[bufferdata[line]+1]="${buffer[${bufferdata[line]}+1]:${bufferdata[column]}:${#buffer[${bufferdata[line]}+1]}}"
-	bufferdata[column]=0
-	syntax-shift
-	next-line
-}
+new = syntax-shift
+	:: Moves syntax multibuffer from current cursor position one line to the bottom
+	:: Used in newline function
+	function = {
+		local -a tmp1
+		local -a tmp2
+		local extmp1
+		local extmp2
+		for ((l=bufferdata[line];l<${#buffer[@]}+1;l++)); do
+			local -n linearray="${current_buffer}_syntax${l}"
+			copy-array linearray tmp1
+			copy-array tmp2 linearray
+			copy-array tmp1 tmp2
+			extmp1="${bufferexpand[l]}"
+			bufferexpand[l]="$extmp2"
+			extmp2="$extmp1"
+		done
+		buffersyntax[buffer_length]="${current_buffer}_syntax${bufferdata[number-length]}"
+		unset tmp1 tmp2
+		make-render-area $((bufferdata[line])) $((bufferdata[line]+2))
+	}
 
-syntax-shift() {
-	local -a tmp1
-	local -a tmp2
-	local extmp1
-	local extmp2
-	for ((l=bufferdata[line];l<${#buffer[@]}+1;l++)); do
-		local -n linearray="${current_buffer}_syntax${l}"
-		copy-array linearray tmp1
-		copy-array tmp2 linearray
-		copy-array tmp1 tmp2
-		extmp1="${bufferexpand[l]}"
-		bufferexpand[l]="$extmp2"
-		extmp2="$extmp1"
-	done
-	buffersyntax[buffer_length]="${current_buffer}_syntax${bufferdata[number-length]}"
-	unset tmp1 tmp2
-	make-render-area $((bufferdata[line])) $((bufferdata[line]+2))
-}
+new = delete-line
+	:: Deletes line at current cursor position
+	function = {
+		bufferdata[modified]=1
+		buffer-delete-line "${bufferdata[line]}"
+		((bufferdata[line] == 1)) || previous-line
+		redraw
+	}
 
-function delete-line {
-	bufferdata[modified]=1
-	buffer-delete-line "${bufferdata[line]}"
-	((bufferdata[line] == 1)) || previous-line
-	redraw
-}
-function buffer-delete-line {
-	local -i l=$1
-	save-state
-	buffer=("" "${buffer[@]:1:l-1}" "${buffer[@]:l+1}")
-	buffersyntax=("" "${buffersyntax[@]:1:${bufferdata[line]}-1}")
-}
+new = buffer-delete-line
+	:: Deletes line at \$1
+	function = {
+		local -i l=$1
+		save-state
+		buffer=("" "${buffer[@]:1:l-1}" "${buffer[@]:l+1}")
+		buffersyntax=("" "${buffersyntax[@]:1:l-1}")
+	}
 
 fragment getrlr <<'+'
 	local -i rlr
@@ -2241,122 +2321,144 @@ fragment predelete <<'+'
 	}
 +
 
-function backspace {
-	save-state
-	@ predelete
-	@ getrlr
-	((rlr==0)) && {
-		buffer[bufferdata[line]-1]="${buffer[bufferdata[line]-1]}${buffer[bufferdata[line]]}"
-		delete-line
-		bufferdata[column]=${#bufferexpand[${bufferdata[line]}]}
-		redraw
-		return 0
-	}
-	buffer[${bufferdata[line]}]="${buffer[${bufferdata[line]}]:0:$(( rlr - 1 ))}${buffer[${bufferdata[line]}]:${rlr}}"
-	backward-char #go back with cursor
-	make-render-line # copy the buffer into buffersyntax and bufferexpand
-	redraw #draw it
-	bufferdata[modified]=1
-} && @add backspace
-function delete {
-	save-state
-	@ predelete
-	@ getrlr
-	((rlr==${#buffer[bufferdata[line]]})) && {
-		buffer[bufferdata[line]]="${buffer[bufferdata[line]]}${buffer[bufferdata[line]+1]}"
-		move-next-line
-		delete-line
-		bufferdata[column]=${#bufferexpand[${bufferdata[line]}]}
-		redraw
-		return 0
-	}
-	buffer[bufferdata[line]]="${buffer[bufferdata[line]]:0:rlr}${buffer[bufferdata[line]]:rlr+1:${#buffer[bufferdata[line]]}}"
-	make-render-line # copy the buffer into buffersyntax and bufferexpand
-	redraw #draw it
-	bufferdata[modified]=1
-} && @add delete
-
-function delete-selection {
-	_ sy bufferdata[selection_start_y]
-	_ ey bufferdata[selection_end_y]
-	_ sx bufferdata[selection_start_x]
-	_ ex bufferdata[selection_end_x]
-	((sy == ey)) && {
-		((sx > ex)) && __ sx ex
-		buffer[sy]="${buffer[sy]:0:sx}${buffer[sy]:ex}"
-		bufferdata[column]=$sx
-		make-render-area $sy $((sy+1))
-	} || {
-		((sy > ey)) && {
-			__ sy ey
-			__ sx ex
+new = backspace +fragment
+	:: Deletes previous character
+	function = {
+		save-state
+		@ predelete
+		@ getrlr
+		((rlr==0)) && {
+			buffer[bufferdata[line]-1]="${buffer[bufferdata[line]-1]}${buffer[bufferdata[line]]}"
+			delete-line
+			bufferdata[column]=${#bufferexpand[${bufferdata[line]}]}
+			redraw
+			return 0
 		}
-		buffer[sy]="${buffer[sy]:0:sx}"
-		buffer[ey]="${buffer[ey]:ex}"
-		buffer=("" "${buffer[@]:1:sy}" "${buffer[@]:ey}")
-		buffersyntax=("" "${buffersyntax[@]:1:sy-1}")
-		buffer[sy+1]="${buffer[sy]}${buffer[sy+1]}"
-		buffer=("" "${buffer[@]:1:sy-2}" "${buffer[@]:sy}")
-		bufferdata[line]=$sy
-		bufferdata[column]=$sx
+		buffer[${bufferdata[line]}]="${buffer[${bufferdata[line]}]:0:$(( rlr - 1 ))}${buffer[${bufferdata[line]}]:${rlr}}"
+		backward-char #go back with cursor
+		make-render-line # copy the buffer into buffersyntax and bufferexpand
+		redraw #draw it
+		bufferdata[modified]=1
 	}
-	bufferdata[selection]=0
-	redraw
-	_ # unset reference aliases
-}
 
-function write-buffer
-	if [ -w "${bufferdata[file]}" ]; then
-		true >"${bufferdata[file]}" # Set the file to an empty text file
-		for ln in "${buffer[@]}"; do # Write in the buffer to the file
-			echo "$ln" >>"${bufferdata[file]}"
-		done
-		bufferdata[modified]=0
-		message="Wrote ${#buffer[@]} lines to '$file'"
-	else
-		return 1
-	fi
+new = delete +fragment
+	:: Deletes next character
+	function = {
+		save-state
+		@ predelete
+		@ getrlr
+		((rlr==${#buffer[bufferdata[line]]})) && {
+			buffer[bufferdata[line]]="${buffer[bufferdata[line]]}${buffer[bufferdata[line]+1]}"
+			move-next-line
+			delete-line
+			bufferdata[column]=${#bufferexpand[${bufferdata[line]}]}
+			redraw
+			return 0
+		}
+		buffer[bufferdata[line]]="${buffer[bufferdata[line]]:0:rlr}${buffer[bufferdata[line]]:rlr+1:${#buffer[bufferdata[line]]}}"
+		make-render-line # copy the buffer into buffersyntax and bufferexpand
+		redraw #draw it
+		bufferdata[modified]=1
+	}
+
+new = delete-selection
+	:: Deletes region
+	function = {
+		_ sy bufferdata[selection_start_y]
+		_ ey bufferdata[selection_end_y]
+		_ sx bufferdata[selection_start_x]
+		_ ex bufferdata[selection_end_x]
+		((sy == ey)) && {
+			((sx > ex)) && __ sx ex
+			buffer[sy]="${buffer[sy]:0:sx}${buffer[sy]:ex}"
+			bufferdata[column]=$sx
+			make-render-area $sy $((sy+1))
+		} || {
+			((sy > ey)) && {
+				__ sy ey
+				__ sx ex
+			}
+			buffer[sy]="${buffer[sy]:0:sx}"
+			buffer[ey]="${buffer[ey]:ex}"
+			buffer=("" "${buffer[@]:1:sy}" "${buffer[@]:ey}")
+			buffersyntax=("" "${buffersyntax[@]:1:sy-1}")
+			buffer[sy+1]="${buffer[sy]}${buffer[sy+1]}"
+			buffer=("" "${buffer[@]:1:sy-2}" "${buffer[@]:sy}")
+			bufferdata[line]=$sy
+			bufferdata[column]=$sx
+		}
+		bufferdata[selection]=0
+		redraw
+		_ # unset reference aliases
+	}
+
+new = write-buffer
+	:: Writes current buffer into its target file	
+	function =
+		if [ -w "${bufferdata[file]}" ]; then
+			true >"${bufferdata[file]}" # Set the file to an empty text file
+			for ln in "${buffer[@]}"; do # Write in the buffer to the file
+				echo "$ln" >>"${bufferdata[file]}"
+			done
+			bufferdata[modified]=0
+			message="Wrote ${#buffer[@]} lines to \'${bufferdata[file]}\'"
+		else
+			return 1
+		fi
 
 add-mode quit
 	local-set-key "$(kbd y)" 'save-quit'
 	local-set-key "$(kbd n)" 'die'
 	local-set-key "$(kbd c)" 'quit-quit'
 
-function save-quit
-	if write-buffer; then
-		die
-	else
-		message='File is not writable! [n/c]'
-		redraw-commandline
-	fi
+new = save-quit
+	:: Writes buffer if target is writable
+	function =
+		if write-buffer; then
+			die
+		else
+			message='File is not writable! [n/c]'
+			redraw-commandline
+		fi
 
-function quit-quit {
-	bufferdata[mode]="$bckmode"
-	message='Quit canceled'
-	redraw
-}
-function quit
-	if ((bufferdata[modified])); then
-		[ -z "$bckmode" ] && bckmode="${bufferdata[mode]}"
-		bufferdata[mode]='quit'
-		redraw-statusline
-		printf '\e[%s;0H' $((bufferdata[size_y] + bufferdata[position_y]))
-		printf '%s' 'Buffer modified, save before close? [y/n/c]'
-	else
-		die
-	fi
+new = quit-quit
+	:: Quits quit message
+	function = {
+		bufferdata[mode]="$bckmode"
+		message='Quit canceled'
+		redraw
+	}
 
-function die {
-	((nocleanup)) && exit "${errno:-0}"
-    echo -e "\e[?1000;1006;1015l" #disable mouse tracking
-	clear-screen # TODO fix the buffer switching
-	printf '\e[?25h\e[?7h\e[?1049l' # Reset terminal to sane mode
-	printf '\e[?25h\e[?7h\e[?1049l' # Reset terminal to sane mode	
-    exit "${errno:-0}" # Assume that we are exiting without an error
-}
-function abort {
-	((nocleanup=1)) && die "$@"
-}
+new = quit
+	:: Displays quit message and sets mode to \'quit\'
+	function =
+		if ((bufferdata[modified])); then
+			[ -z "$bckmode" ] && bckmode="${bufferdata[mode]}"
+			bufferdata[mode]='quit'
+			redraw-statusline
+			printf '\e[%s;0H' $((bufferdata[size_y] + bufferdata[position_y]))
+			printf '%s' 'Buffer modified, save before close? [y/n/c]'
+		else
+			die
+		fi
+
+new = die
+	:: Closes Ebashs with exit code \$errno, if errno is empty exit with 0
+	:: If \$nocleanup is 1, do not restore the terminal to sane mode and do not cleanup 
+	:: Else restore to sane mode 
+	function = {
+		((nocleanup)) && exit "${errno:-0}"
+		echo -e "\e[?1000;1006;1015l" #disable mouse tracking
+		clear-screen # TODO fix the buffer switching
+		printf '\e[?25h\e[?7h\e[?1049l' # Reset terminal to sane mode
+		exit "${errno:-0}" # Assume that we are exiting without an error
+	}
+
+new = abort
+	:: Sets \$nocleanup to 1 and dies	
+	function = {
+		((nocleanup=1)) && die "$@"
+	}
 
 fragment move <<'+'
 	for ((i = 0; i < ${1:-1}; i++)); do
@@ -2370,33 +2472,42 @@ fragment keepcolumn <<'+'
 	(( ${#bufferexpand[bufferdata[line]]} > bckrl )) && bufferdata[column]=${bckrl}
 +
 
-function move-previous-line {
-	@ move
-		((bufferdata[line] > 1)) && ((bufferdata[line]--)) # As long as we can keep going up, go up
-		((bufferdata[line] < bufferdata[base] + 1)) && ((bufferdata[base]--)) && # Push back the top if we need to
-			((bufferdata[base] <= 0)) && bufferdata[base]=1 # Don't push back if our base is at 1
-		@ keepcolumn
-	@ end
-} && @add move-previous-line
+new = move-previous-line +fragment
+	:: Moves up \$1 lines, if \$ is empty move up 1 line
+	function = {
+		@ move
+			((bufferdata[line] > 1)) && ((bufferdata[line]--)) # As long as we can keep going up, go up
+			((bufferdata[line] < bufferdata[base] + 1)) && {
+				((bufferdata[base]--)) # Push back the top if we need to
+				move_base=1 # Send signal to redraw-cursor that the buffer was moved, thus needs to be redraw fully
+				((bufferdata[base] <= 0)) && bufferdata[base]=1 # Don't push back if our base is at 1
+			}
+			@ keepcolumn
+		@ end
+	}
 
-function move-next-line {
-	@ move
-		((bufferdata[line] < ${#buffer[@]}+1)) && ((bufferdata[line]++)) # If we can go down, go down
-		# Move window down if needed
-		((bufferdata[line] > bufferdata[base] + bufferdata[size_y] - 3 - bottomlines)) && ((bufferdata[base]++))
-	   @ keepcolumn
-	@ end
-} && @add move-next-line
+new = move-next-line +fragment
+	:: Moves down \$1 lines, if \$ is empty move down 1 line
+	function = {
+		@ move
+			((bufferdata[line] < ${#buffer[@]}+1)) && ((bufferdata[line]++)) # If we can go down, go down
+			# Move window down if needed
+			((bufferdata[line] > bufferdata[base] + bufferdata[size_y] - 3 - bottomlines)) && {
+				((bufferdata[base]++))
+				move_base=1
+			}
+			@ keepcolumn
+		@ end
+}
 
-
-template move <<<'function @var 1 { @var 2 @var 3 ; redraw; }'
+template move <<<'function @var 1 { @var 2 @var 3 ; redraw-statusline; redraw-cursor; }'
 	@: previous-line move-previous-line '$@'
 	@: next-line move-next-line '$@'
 	@: scroll-down move-previous-line '$((bufferdata[size_y] - 3))'
 	@: scroll-up move-next-line '$((bufferdata[size_y] - 3))'
 
-function move-beginning-of-line { bufferdata[column]=0; redraw; }
-function move-end-of-line { bufferdata[column]="${#bufferexpand[${bufferdata[line]}]}"; redraw; }
+@fn move-beginning-of-line 'bufferdata[column]=0; redraw'
+@fn move-end-of-line 'bufferdata[column]="${#bufferexpand[${bufferdata[line]}]}"; redraw'
 
 fragment select <<'+'
     ((bufferdata[selection])) || {
@@ -2452,250 +2563,302 @@ fragment charbreak <<'+'
 	esac
 +
 
-function forward-word {
-	((bufferdata[column] == ${#bufferexpand[bufferdata[line]]})) && {
-		next-line
-		move-beginning-of-line
+new = forward-word +fragment
+	:: Moves forward to next word
+	function = {
+		((bufferdata[column] == ${#bufferexpand[bufferdata[line]]})) && {
+			next-line
+			move-beginning-of-line
+		}
+		while :; do
+			((bufferdata[column] < ${#bufferexpand[bufferdata[line]]})) && ((bufferdata[column]++)) || break
+			@ charbreak
+		done
+		redraw
 	}
-	while :; do
-		((bufferdata[column] < ${#bufferexpand[bufferdata[line]]})) && ((bufferdata[column]++)) || break
-		@ charbreak
-	done
-	redraw
-} && @add forward-word
-function backward-word {
-	((bufferdata[column] == 0)) && {
-		previous-line
-		move-end-of-line
+
+new = backward-word +fragment
+	:: Moves backward to previous word
+	function = {
+		((bufferdata[column] == 0)) && {
+			previous-line
+			move-end-of-line
+		}
+		while :; do
+			((bufferdata[column] > 0)) && ((bufferdata[column]--)) || break
+			@ charbreak
+		done
+		redraw
 	}
-	while :; do
-		((bufferdata[column] > 0)) && ((bufferdata[column]--)) || break
-		@ charbreak
-	done
-	redraw
-} && @add backward-word
 
-function set-mark-command
-	if ((bufferdata[selection])); then
-		log info 'selection disable'
-		bufferdata[selection]=0
-	else
-		bufferdata[selection]=1
-		bufferdata[selection_start_y]="${bufferdata[line]}"
-		bufferdata[selection_start_x]="${bufferdata[column]}"
-		log info 'selection enable'
-	fi
+new = set-mark-command
+	:: Begins selection	
+	function =
+		if ((bufferdata[selection])); then
+			log info 'selection disable'
+			bufferdata[selection]=0
+		else
+			bufferdata[selection]=1
+			bufferdata[selection_start_y]="${bufferdata[line]}"
+			bufferdata[selection_start_x]="${bufferdata[column]}"
+			log info 'selection enable'
+		fi
 
-function shell {
-	clear-screen
-	bash # NOTE: in theory an external command
-	redraw
-}
+new = shell
+	:: Spawns bash as subprocess
+	function = {
+		clear-screen
+		bash # NOTE: in theory an external command
+		redraw
+	}
 
-function execute {
-    ((bufferdata[line] == 0)) && return # If the line is not possible, do nothing
-    printf '\e[?25h\e[%sH' "$((bufferdata[line] + 2 - bufferdata[base]))" # Reset cursor position and enable cursor
-    read -re -p "$(printf '%4s ' "$")" # Present editable line
-    if [[ "$REPLY" != "${buffer[${bufferdata[line]}]}" ]]; then # If the line is changed, update and inform
-        buffer[${bufferdata[line]}]="$($REPLY)"
-        bufferdata[modified]=1
-    fi
-    make-render
-    redraw
-}
+new = execute
+	:: Executes a command and inserts its output into buffer	
+	function = {
+		((bufferdata[line] == 0)) && return # If the line is not possible, do nothing
+		printf '\e[?25h\e[%sH' "$((bufferdata[line] + 2 - bufferdata[base]))" # Reset cursor position and enable cursor
+		read -re -p "$(printf '%4s ' "$")" # Present editable line
+		if [[ "$REPLY" != "${buffer[${bufferdata[line]}]}" ]]; then # If the line is changed, update and inform
+			buffer[${bufferdata[line]}]="$($REPLY)"
+			bufferdata[modified]=1
+		fi
+		make-render-line
+		redraw
+	}
 
-function diff-buffer-syntax {
-	# remove outdated lines from buffersyntax to set them for resyntaxing
-	local -n source="$1"
-	local -n target="$2"
-	for idx in "${!target[@]}"; do
-		[ "${source[idx]}" = "${target[idx]}" ] || buffersyntax[idx]=
-	done
-}
-function diff-buffer-copy {
-	local -n source="$1"
-	local -n check="$2"
-	local -n target="$3"
-	[ -z "${source[*]}" ] && return 1 # | indicate that there's no previous buffer state to check against 
-	[ -z "${check[*]}"  ] && return 1 # | should indicate save-state() to just copy the whole buffer
-	target=()
-	for idx in "${!source[@]}"; do
-		[ "${source[idx]}" = "${check[idx]}" ] || target[idx]="${source[idx]}"
-		[ "${source[idx]}" = "${check[idx]}" ] && target[idx]=''
-	done
-}
-function diff-buffer-merge {
-	local -n source="$1"
-	local -n target="$2"
-	for idx in "${!source[@]}"; do
-		[ -n "${source[idx]}" ] && target[idx]="${source[idx]}"
-	done
-}
+new = diff-buffer-syntax
+	:: Deletes highlighting on modified lines, comparing two buffers
+	function = {
+		# remove outdated lines from buffersyntax to set them for resyntaxing
+		local -n source="$1"
+		local -n target="$2"
+		for idx in "${!target[@]}"; do
+			[ "${source[idx]}" = "${target[idx]}" ] || buffersyntax[idx]=
+		done
+	}
 
-function save-state {
-	((bufferdata[current_state]++))
-	declare -ga "${current_buffer}_buffer_state_${bufferdata[current_state]}"
-	diff-buffer-copy\
-		buffer\
-		"${current_buffer}_buffer_state_$((bufferdata[current_state]-1))"\
-		"${current_buffer}_buffer_state_${bufferdata[current_state]}" || {
+new = diff-buffer-copy
+	:: Compares two buffers and copies the difference into \$3 buffer
+	function = {
+		local -n source="$1"
+		local -n check="$2"
+		local -n target="$3"
+		[ -z "${source[*]}" ] && return 1 # | indicate that there's no previous buffer state to check against 
+		[ -z "${check[*]}"  ] && return 1 # | should indicate save-state() to just copy the whole buffer
+		target=()
+		for idx in "${!source[@]}"; do
+			[ "${source[idx]}" = "${check[idx]}" ] || target[idx]="${source[idx]}"
+			[ "${source[idx]}" = "${check[idx]}" ] && target[idx]=''
+		done
+	}
+
+new = diff-buffer-merge
+	:: Add buffer \$1 on top of \$2
+	function = {
+		local -n source="$1"
+		local -n target="$2"
+		for idx in "${!source[@]}"; do
+			[ -n "${source[idx]}" ] && target[idx]="${source[idx]}"
+		done
+	}
+
+new = save-state
+	:: Saves current buffer for undo function
+	function = {
+		((bufferdata[current_state]++))
+		declare -ga "${current_buffer}_buffer_state_${bufferdata[current_state]}"
+		diff-buffer-copy\
+			buffer\
+			"${current_buffer}_buffer_state_$((bufferdata[current_state]-1))"\
+			"${current_buffer}_buffer_state_${bufferdata[current_state]}" || {
 			copy-array buffer "${current_buffer}_buffer_state_${bufferdata[current_state]}"
 		}
-}
-
-function undo {
-	((bufferdata[current_state]--))
-	((bufferdata[current_state]<0)) && {
-		bufferdata[current_state]=0
-		bufferdata[modified]=0
 	}
-	diff-buffer-syntax buffer "${current_buffer}_buffer_state_${bufferdata[current_state]}"
-	diff-buffer-merge "${current_buffer}_buffer_state_${bufferdata[current_state]}" buffer
-	redraw
-}
 
-function toggle-mouse
-	case "${options[mouse]}" in
-		0)
-			printf '\e[?1000;1006;1015h'
-			options[mouse]=1
-			message='Enabled options[mouse]'
-			return;;
-		*)
-			printf '\e[?1000;1006;1015l'
-			options[mouse]=0
-			message='Disabled options[mouse]'
-			return
-	esac
-
-function menuline-mouse {
-	local -n top_0="menu_${bufferdata[menuline]}_0"
-	local -n top_1="menu_${bufferdata[menuline]}_1"
-	#determine which item should be triggered
-	[ -z "$1" ] && menulinep=0 || menulinep=$1
-	local cx="${bufferdata[position_x]}"
-	i=0
-	for i in "${!top_0[@]}"; {
-		la="${#top_0[i]}"
-		((menulinep>cx)) && ((menulinep<(cx + la + 1))) && {
-			${top_1[$i]}
-			return
+new = undo
+	:: Undo a change
+	function = {
+		((bufferdata[current_state]--))
+		((bufferdata[current_state]<0)) && {
+			bufferdata[current_state]=0
+			bufferdata[modified]=0
 		}
-		cx=$(( cx + la + 1 ))
+		diff-buffer-syntax buffer "${current_buffer}_buffer_state_${bufferdata[current_state]}"
+		diff-buffer-merge "${current_buffer}_buffer_state_${bufferdata[current_state]}" buffer
+		redraw
 	}
-}
 
-function redraw-menu {
-	printf '\e[?25l' # hide cursor (again)
-	printf '\e[%s;0H' $menulinepy
-	for i in "${!menu_0[@]}"; {
-		if ((i == menuselection)); then
-			printf "\e[%sC${faces[menu-selected-face]}%s${reset}\n" $menulinep "${menu_0[i]}"  
-		else
-	   		printf "\e[%sC${faces[menu-enabled-face]}%s${reset}\n" $menulinep "${menu_0[i]}"
-		fi
+new = toggle-mouse
+	:: 'Changes options[mouse]'
+	function =
+		case "${options[mouse]}" in
+			0)
+				printf '\e[?1000;1006;1015h'
+				options[mouse]=1
+				message='Enabled options[mouse]'
+				return;;
+			*)
+				printf '\e[?1000;1006;1015l'
+				options[mouse]=0
+				message='Disabled options[mouse]'
+				return
+		esac
+
+new = menuline-mouse
+	:: Handle clicking on top menu with mouse		
+	function = {
+		local -n top_0="menu_${bufferdata[menuline]}_0"
+		local -n top_1="menu_${bufferdata[menuline]}_1"
+		#determine which item should be triggered
+		[ -z "$1" ] && menulinep=0 || menulinep=$1
+		local cx="${bufferdata[position_x]}"
+		i=0
+		for i in "${!top_0[@]}"; {
+			la="${#top_0[i]}"
+			((menulinep>cx)) && ((menulinep<(cx + la + 1))) && {
+				${top_1[$i]}
+				return
+			}
+			cx=$(( cx + la + 1 ))
+		}
 	}
-}
+
+new = redraw-menu
+	:: Redraw popup menu
+	function = {
+		printf '\e[?25l' # hide cursor (again)
+		printf '\e[%s;0H' $menulinepy
+		for i in "${!menu_0[@]}"; {
+			if ((i == menuselection)); then
+				printf "\e[%sC${faces[menu-selected-face]}%s${reset}\n" $menulinep "${menu_0[i]}"  
+			else
+	   			printf "\e[%sC${faces[menu-enabled-face]}%s${reset}\n" $menulinep "${menu_0[i]}"
+			fi
+		}
+	}
 template menumove <<'+'
 	function @var 1 {
-		((menuselection @var 2 @var 3 )) && ((menuselection @var 4 ))
-		redraw-menu
+		((menuselection @var 2 @var 3 )) && ((menuselection @var 4 ));
+		redraw-menu;
 	}
 +
 @: menuup '>' 0 '--'
 @: menudown '<' '${#menu_0[@]} -1' '++'
 
-function menuselect
-	for i in "${!menu_1[@]}"; {
-		((i == menuselection)) && "${menu_1[i]}"
+new = menuselect
+	:: Execute selected item in menu
+	function =
+		for i in "${!menu_1[@]}"; {
+			((i == menuselection)) && "${menu_1[i]}"
+		}
+
+new = menuleave
+	:: Closes a menu
+	function = {
+		ismenu=0
+		bufferdata[mode]="${modebackup}"
+		redraw
 	}
 
-
-function menuleave {
-	ismenu=0
-	bufferdata[mode]="${modebackup}"
-	redraw
-}
-function menu {
-	declare -ng menu_0=menu_${1}_0
-	declare -ng menu_1=menu_${1}_1
-	((ismenu == 0 )) && modebackup="${bufferdata[mode]}"
-	ismenu=1
-	declare -ig menuselection=0
-	bufferdata[mode]='menu'
-	redraw
-}
+new = menu
+	:: Opens a menu \$1	
+	function = {
+		declare -ng menu_0=menu_${1}_0
+		declare -ng menu_1=menu_${1}_1
+		((ismenu == 0 )) && modebackup="${bufferdata[mode]}"
+		ismenu=1
+		declare -ig menuselection=0
+		bufferdata[mode]='menu'
+		redraw
+	}
 
 fragment targetoff <<'+'
 	target_x_offset=1
  	target_y_offset=1
 +
 
-function tile-buffers {
-	log info "tile redraw-set ${options[tile-mode]}"
-	bck_current_buffer="$current_buffer"
-	case "${options[tile-mode]}" in
-		vertical)
-			target_x=$(( COLUMNS / ${#listbuffers[@]} ))
-			@ targetoff
-			target_y=$((LINES - 1));;
-		horizontal)
-			target_y=$(( LINES / ${#listbuffers[@]} - 1 ))
-			@ targetoff
-			target_x=$COLUMNS;;
-		single)
-			target_y=$LINES
-			@ targetoff
-			target_x=$COLUMNS;;
-	esac
-	for b in "${listbuffers[@]}"; do
-		set-buffer "$b"
-		bufferdata[size_x]=$target_x
-		bufferdata[position_x]=$target_x_offset
-		bufferdata[size_y]=$target_y
-		bufferdata[position_y]=$target_y_offset
+new = tile-buffers +fragment
+	:: Tile active buffers:
+		:: '    * vertical - split buffers vertically'
+		:: '    * horizontal - split buffers horizontally'
+		:: '    * single - make currently selected buffer fullscreen'
+	function = {
+		log info "tile redraw-set ${options[tile-mode]}"
+		bck_current_buffer="$current_buffer"
 		case "${options[tile-mode]}" in
 			vertical)
-				target_x_offset=$((target_x_offset + target_x));;
+				target_x=$(( COLUMNS / ${#listbuffers[@]} ))
+				@ targetoff
+				target_y=$((LINES - 1));;
 			horizontal)
-				target_y_offset=$((target_y_offset + target_y));;
+				target_y=$(( LINES / ${#listbuffers[@]} - 1 ))
+				@ targetoff
+				target_x=$COLUMNS;;
+			single)
+				target_y=$LINES
+				@ targetoff
+				target_x=$COLUMNS;;
 		esac
+		for b in "${listbuffers[@]}"; do
+			set-buffer "$b"
+			bufferdata[size_x]=$target_x
+			bufferdata[position_x]=$target_x_offset
+			bufferdata[size_y]=$target_y
+			bufferdata[position_y]=$target_y_offset
+			case "${options[tile-mode]}" in
+				vertical)
+					target_x_offset=$((target_x_offset + target_x));;
+				horizontal)
+					target_y_offset=$((target_y_offset + target_y));;
+			esac
+			redraw
+			
+		done
+		set-buffer "$bck_current_buffer"
+	}
+
+new = tile-vertical
+	:: Tile buffers vertically
+	function = {
+		options[tile-mode]='vertical'
+		tile-buffers
+	}
+
+new = tile-horizontal
+	:: Tile buffers horizontally
+	function = {
+		options[tile-mode]='horizontal'
+		tile-buffers
+	}
+
+new = tile-single
+	:: Makes currently selected buffer fullscreen
+	function = {
+		options[tile-mode]='single'
+		bufferdata[size_x]=$COLUMNS
+		bufferdata[size_y]=$((LINES - 1))
+		bufferdata[position_x]=1
+		bufferdata[position_y]=1
 		redraw
-		
-	done
-	set-buffer "$bck_current_buffer"
-} && @add tile-buffers
-function tile-vertical {
-	options[tile-mode]='vertical'
-	tile-buffers
-}
-function tile-horizontal {
-	options[tile-mode]='horizontal'
-	tile-buffers
-}
-function tile-single {
-	options[tile-mode]='single'
-	bufferdata[size_x]=$COLUMNS
-	bufferdata[size_y]=$((LINES - 1))
-	bufferdata[position_x]=1
-	bufferdata[position_y]=1
-	redraw
-}
-function delete-window {
-	local -a copy
-	local i=0
-	local index
-	for b in "${listbuffers[@]}"
-	do
-		[[ "$b" != "$current_buffer"  ]] && copy+=("$b")
-		[[ "$b" = "$current_buffer"  ]] && index="$i"
-		((i++))
-	done
-	unset listbuffers
-	copy-array copy listbuffers
-	current_buffer="${listbuffers[index-1]}"
-	tile-buffers
-}
+	}
+
+new = delete-window
+	:: deletes current buffer
+	function = {
+		local -a copy
+		local i=0
+		local index
+		for b in "${listbuffers[@]}"
+		do
+			[[ "$b" != "$current_buffer"  ]] && copy+=("$b")
+			[[ "$b" = "$current_buffer"  ]] && index="$i"
+			((i++))
+		done
+		unset listbuffers
+		copy-array copy listbuffers
+		current_buffer="${listbuffers[index-1]}"
+		tile-buffers
+	}
 
 fragment printarg <<'+'
 	"${bufferdata[position_x]}"\
@@ -2703,390 +2866,433 @@ fragment printarg <<'+'
 	"${faces[default]}"\
 +
 
-function print-line-number {
-	((options[line-number-mode])) && {
-		printf '%b' "${faces[line-number]}"
-		((i == bufferdata[line])) && printf "${faces[line-number-current-line]}" # Highlight line line-number if selected
-		((i > ${#buffer[@]})) && printf "\e[%sG${faces[line-number-empty]}\e[K%$((bufferdata[number-length]/2))s~\e[m\n" "${bufferdata[position_x]}"
-	}
-}
-
-function redraw-buffer-raw {
-	for ((i = bufferdata[base]; i - bufferdata[base] < max; i++)); do
-		print-line-number
-		((i > ${#buffer[@]})) || {
-			if ((options[line-number-mode])); then
-				printf "\e[%sG\e[K%${bufferdata[number-length]}s %b%s\n"\
-					   @ printarg\
-					   "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[number-length] + 1)}"
-			else
-				printf "\e[%sG\e[K%b%s\n"\
-					   "${bufferdata[position_x]}"\
-					   "${faces[default]}"\
-					   "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[number-length] + 1)}"
-			fi
+new = print-line-number
+	:: Print line number of line \$i
+	function = {
+		((options[line-number-mode])) && {
+			printf '%b' "${faces[line-number]}"
+			((i == bufferdata[line])) &&
+				printf '%b' "${faces[line-number-current-line]}" # Highlight line line-number if selected
+			((i > ${#buffer[@]})) &&
+				printf "\e[%sG%b\e[K%*s~\e[m\n" "${bufferdata[position_x]}" "${faces[line-number-empty]}" $((bufferdata[number-length]/2))
 		}
-	done
-} && @add redraw-buffer-raw
+	}
 
-function redraw-buffer {
-	for ((i = bufferdata[base]; i - bufferdata[base] < max; i++)); do
-		print-line-number
-		((i > ${#buffer[@]})) || {
-			# to improve speed syntaxing has to be "lazy" -- having to be heavily cached as ram is far less expensive to waste
-			[ -z "${buffersyntax[bufferdata[base]+bufferdata[size_y]-(bottomlines+toplines)+2]}" ] && {
-				bottomest=$((bufferdata[base]+bufferdata[size_y]-(bottomlines+toplines)+2))
-				make-render-area $bottomest $((bottomest+options[render-chunk]))
+new = redraw-buffer-raw +fragment
+	:: Redraws buffer with 'bufferdata[raw]' enabled	
+	function = {
+		for ((i = bufferdata[base]; i - bufferdata[base] < max; i++)); do
+			print-line-number
+			((i > ${#buffer[@]})) || {
+				if ((options[line-number-mode])); then
+					printf "\e[%sG\e[K%${bufferdata[number-length]}s %b%s\n"\
+						   @ printarg\
+						   "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[number-length] + 1)}"
+				else
+					printf "\e[%sG\e[K%b%s\n"\
+						   "${bufferdata[position_x]}"\
+						   "${faces[default]}"\
+						   "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[number-length] + 1)}"
+				fi
 			}
-			[ -z "${buffersyntax[i]}" ] && {
-				make-render-area $((base + i)) $((base + i + 1)) # idk why make-render-line doesnt work here
-			}
-			local -n linearray="${buffersyntax[i]}"
-			
-			# draw the selection area
-			((bufferdata[selection])) && {
-				((i == bufferdata[selection_start_y])) &&
-					((bufferdata[selection_start_y] == bufferdata[selection_end_y])) && {
-						((bufferdata[selection_start_x] <= bufferdata[selection_end_x])) && {
-							local -n sx=bufferdata[selection_start_x]
-							local -n ex=bufferdata[selection_end_x]
-						} || {
-							local -n sx=bufferdata[selection_end_x]
-							local -n ex=bufferdata[selection_start_x]
+		done
+	}
+
+new = redraw-buffer +fragment
+	:: Redraw buffer
+	function = {
+		for ((i = bufferdata[base]; i - bufferdata[base] < max; i++)); do
+			print-line-number
+			((i > ${#buffer[@]})) || {
+				# to improve speed syntaxing has to be "lazy" -- having to be heavily cached as ram is far less expensive to waste
+				[ -z "${buffersyntax[bufferdata[base]+bufferdata[size_y]-(bottomlines+toplines)+2]}" ] && {
+					bottomest=$((bufferdata[base]+bufferdata[size_y]-(bottomlines+toplines)+2))
+					make-render-area $bottomest $((bottomest+options[render-chunk]))
+				}
+				[ -z "${buffersyntax[i]}" ] && {
+					make-render-area $((base + i)) $((base + i + 1)) # idk why make-render-line doesnt work here
+				}
+				local -n linearray="${buffersyntax[i]}"
+				
+				# draw the selection area
+				((bufferdata[selection])) && {
+					((i == bufferdata[selection_start_y])) &&
+						((bufferdata[selection_start_y] == bufferdata[selection_end_y])) && {
+							((bufferdata[selection_start_x] <= bufferdata[selection_end_x])) && {
+								local -n sx=bufferdata[selection_start_x]
+								local -n ex=bufferdata[selection_end_x]
+							} || {
+								local -n sx=bufferdata[selection_end_x]
+								local -n ex=bufferdata[selection_start_x]
+							}
+							printf "\e[%sG\e[K%${bufferdata[number-length]}s %b%s%b%s%b%s\n"\
+								   @ printarg\
+								   "${linearray[*]:bufferdata[basecolumn]:sx}"\
+								   "\e[m${faces[region]}"\
+								   "${buffer[i]:sx:ex-sx}"\
+								   "\e[m"\
+								   "${linearray[*]:ex:bufferdata[size_x]}" 
+							continue
 						}
-						printf "\e[%sG\e[K%${bufferdata[number-length]}s %b%s%b%s%b%s\n"\
-							   @ printarg\
-							   "${linearray[*]:bufferdata[basecolumn]:sx}"\
-							   "\e[m${faces[region]}"\
-							   "${buffer[i]:sx:ex-sx}"\
-							   "\e[m"\
-							   "${linearray[*]:ex:bufferdata[size_x]}" 
+					((i >= bufferdata[selection_start_y])) && ((i <= bufferdata[selection_end_y])) && {
+						selection-draw selection_start selection_end
 						continue
 					}
-				((i >= bufferdata[selection_start_y])) && ((i <= bufferdata[selection_end_y])) && {
-					selection-draw selection_start selection_end
-					continue
+					((i <= bufferdata[selection_start_y])) && ((i >= bufferdata[selection_end_y])) && {
+						selection-draw selection_end selection_start
+						continue
+					}
 				}
-				((i <= bufferdata[selection_start_y])) && ((i >= bufferdata[selection_end_y])) && {
-					selection-draw selection_end selection_start
-					continue
-				}
+				# due to escape codes present in buffersyntax,
+				# the buffersyntax has to be multidimensional nonsense for perfomance reasons
+				if ((options[line-number-mode])); then
+					printf "\e[%sG\e[K%${bufferdata[number-length]}s %b%s\n"\
+						   @ printarg\
+						   "${linearray[*]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[number-length] + 1)}"
+				else
+					printf "\e[%sG\e[K%b%s\n"\
+						   "${bufferdata[position_x]}"\
+						   "${faces[default]}"\
+						   "${linearray[*]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[number-length] + 1)}"
+				fi
 			}
-			# due to escape codes present in buffersyntax,
-			# the buffersyntax has to be multidimensional nonsense for perfomance reasons
-			if ((options[line-number-mode])); then
-				printf "\e[%sG\e[K%${bufferdata[number-length]}s %b%s\n"\
+		done
+	}
+
+new = selection-draw +fragment
+	:: Draw multiline region
+	function =
+		if ((options[line-number-mode])); then
+			if ((i == bufferdata["${1}_y"])); then
+				printf "\e[%sG\e[K%${bufferdata[number-length]}s %b%s%b%s\n"\
 					   @ printarg\
-					   "${linearray[*]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[number-length] + 1)}"
+					   "${linearray[*]:bufferdata[basecolumn]:bufferdata[${1}_x]}"\
+					   "\e[m${faces[region]}"\
+					   "${buffer[i]:bufferdata[${1}_x]:bufferdata[size_x] - (bufferdata[number-length] + 1)}"
+			elif ((i == bufferdata["${2}_y"])); then
+				printf "\e[%sG\e[K%${bufferdata[number-length]}s %b%b%s%b%s\n"\
+					   @ printarg\
+					   "${faces[region]}"\
+					   "${buffer[i]:bufferdata[basecolumn]:bufferdata[${2}_x]}"\
+					   "\e[m"\
+					   "${linearray[*]:bufferdata[${2}_x]:bufferdata[size_x]}"
 			else
-				printf "\e[%sG\e[K%b%s\n"\
+				printf "\e[%sG\e[K%${bufferdata[number-length]}s %b%b%s\n"\
+					   @ printarg
+				"${faces[region]}" "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[number-length] + 1)}"
+			fi
+		else
+			if ((i == bufferdata["${1}_y"])); then
+				printf "\e[%sG\e[K%b%s%b%s\n"\
 					   "${bufferdata[position_x]}"\
 					   "${faces[default]}"\
-					   "${linearray[*]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[number-length] + 1)}"
+					   "${linearray[*]:bufferdata[basecolumn]:bufferdata[${1}_x]}"\
+					   "\e[m${faces[region]}"\
+					   "${buffer[i]:bufferdata[${1}_x]:bufferdata[size_x] - (bufferdata[number-length] + 1)}"
+			elif ((i == bufferdata["${2}_y"])); then
+				printf "\e[%sG\e[K%b%b%s%b%s\n"\
+					   "${bufferdata[position_x]}"\
+					   "${faces[default]}"\
+					   "${faces[region]}"\
+					   "${buffer[i]:bufferdata[basecolumn]:bufferdata[${2}_x]}"\
+					   "\e[m"\
+					   "${linearray[*]:bufferdata[${2}_x]:bufferdata[size_x]}"
+			else
+				printf "\e[%sG\e[K%b%b%s\n"\
+					   "${bufferdata[position_x]}"\
+					   "${faces[default]}"\
+					   "${faces[region]}" "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[number-length] + 1)}"
 			fi
-		}
-	done
-} && @add redraw-buffer
-
-function selection-draw
-	if ((options[line-number-mode])); then
-		if ((i == bufferdata["${1}_y"])); then
-			printf "\e[%sG\e[K%${bufferdata[number-length]}s %b%s%b%s\n"\
-				   @ printarg\
-				   "${linearray[*]:bufferdata[basecolumn]:bufferdata[${1}_x]}"\
-				   "\e[m${faces[region]}"\
-				   "${buffer[i]:bufferdata[${1}_x]:bufferdata[size_x] - (bufferdata[number-length] + 1)}"
-		elif ((i == bufferdata["${2}_y"])); then
-			printf "\e[%sG\e[K%${bufferdata[number-length]}s %b%b%s%b%s\n"\
-				   @ printarg\
-				   "${faces[region]}"\
-				   "${buffer[i]:bufferdata[basecolumn]:bufferdata[${2}_x]}"\
-				   "\e[m"\
-				   "${linearray[*]:bufferdata[${2}_x]:bufferdata[size_x]}"
-		else
-			printf "\e[%sG\e[K%${bufferdata[number-length]}s %b%b%s\n"\
-				   @ printarg
-			"${faces[region]}" "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[number-length] + 1)}"
 		fi
-	else
-		if ((i == bufferdata["${1}_y"])); then
-			printf "\e[%sG\e[K%b%s%b%s\n"\
-				   "${bufferdata[position_x]}"\
-				   "${faces[default]}"\
-				   "${linearray[*]:bufferdata[basecolumn]:bufferdata[${1}_x]}"\
-				   "\e[m${faces[region]}"\
-				   "${buffer[i]:bufferdata[${1}_x]:bufferdata[size_x] - (bufferdata[number-length] + 1)}"
-		elif ((i == bufferdata["${2}_y"])); then
-			printf "\e[%sG\e[K%b%b%s%b%s\n"\
-				   "${bufferdata[position_x]}"\
-				   "${faces[default]}"\
-				   "${faces[region]}"\
-				   "${buffer[i]:bufferdata[basecolumn]:bufferdata[${2}_x]}"\
-				   "\e[m"\
-				   "${linearray[*]:bufferdata[${2}_x]:bufferdata[size_x]}"
-		else
-			printf "\e[%sG\e[K%b%b%s\n"\
-				   "${bufferdata[position_x]}"\
-				   "${faces[default]}"\
-				   "${faces[region]}" "${buffer[i]:bufferdata[basecolumn]:bufferdata[size_x] - (bufferdata[number-length] + 1)}"
-		fi
-	fi  && @add selection-draw
 
-
-function redraw {
-	printf '\e[?25l'
-
-	# the first line should be always empty 
-	unset buffer[0]
-	
-	# Handle changing size of the terminal
-	((bufferdata[size_x]!=COLUMNS)) || ((bufferdata[size_y]!=LINES-1)) && {
+new = change-size-screen
+	:: Handle changing size of terminal
+	function = {
 		bufferdata[size_x]="$COLUMNS"
 		bufferdata[size_y]=$((LINES-1))
-		# TODO: make this work for multibuffer mode
+		redraw
 	}
-	
-	# Handle changing size of buffer
-	((bufferdata[size_x]!=bcksize_x)) || ((bufferdata[size_y]!=bcksize_y)) && {
-		# Make the statusline full of dashes
-		dashline=$(
-			for ((i=0; i<bufferdata[size_x]; i++)) {
-				printf '-'
-			}
-		)
-		bcksize_x=${bufferdata[size_x]}
-		bcksize_y=${bufferdata[size_y]}
+
+new = redraw
+	:: Redraw screen
+	function = {
+		printf '\e[?25l'
+
+		# the first line should be always empty 
+		unset buffer[0]
+		
+		# Handle changing size of buffer
+		((bufferdata[size_x]!=bcksize_x)) || ((bufferdata[size_y]!=bcksize_y)) && {
+			# Make the statusline full of dashes
+			dashline=$(
+				for ((i=0; i<bufferdata[size_x]; i++)) {
+					printf '-'
+				}
+					)
+			bcksize_x=${bufferdata[size_x]}
+			bcksize_y=${bufferdata[size_y]}
+		}
+		
+		# Get length of line-number of lines
+		bufferdata[length]="${#buffer[@]}"
+		((bufferdata[length]==0)) && ((bufferdata[length]++))
+		((options[line-number-mode])) && {
+			bufferdata[number-length]=${#bufferdata[length]}
+			bufferdata[number-space]=1
+		} || {
+			bufferdata[number-length]=0
+			bufferdata[number-space]=0
+		}
+		
+		# Update selection ends to current cursor
+		((bufferdata[selection]==1)) && {
+			bufferdata[selection_end_y]="${bufferdata[line]}"
+			bufferdata[selection_end_x]="${bufferdata[column]}"
+		}
+		# Move the buffer horizontally if needed
+		((bufferdata[column] +3 < bufferdata[size_x] - bufferdata[number-length] - 1)) &&
+			bufferdata[basecolumn]=0
+		((bufferdata[column] +3 > bufferdata[size_x] - bufferdata[number-length] - 1)) &&
+			bufferdata[basecolumn]=$((bufferdata[column] - (bufferdata[size_x] + bufferdata[position_x] - bufferdata[number-length] - 1) +3))
+
+		# Draw top menuline
+		(("${options[menu-line]}"==1)) && {
+			local -n top_0="menu_${bufferdata[menuline]}_0"
+			printf "\e[0m\e[%s;%sH${faces[menu]}\e[?25l%*s\r%s"\
+				   "${bufferdata[position_y]}"\
+				   "${bufferdata[position_x]}"\
+				   "${bufferdata[size_x]}"\
+				   "${bufferdata[info]}"
+			printf '\e[%sG%s\e[0m\n' "${bufferdata[position_x]}" "${top_0[*]}"
+		} || printf "\e[%s;%sH" "${bufferdata[position_y]}" "${bufferdata[position_x]}"
+
+		# IFS has to be empty in order to bufferarray multiarray be printed as words instead of chars
+		IFS=''
+		
+		# Iterate over shown lines
+		local -i max=$((bufferdata[size_y] - (toplines + bottomlines) + 1))
+		((bufferdata[raw])) &&
+			# The raw rendering is just dirty hack to get better perfomance in buffer which don't need fancy effects
+			# Will be removed once normal rendering is fast enough (or rather if it'll ever be
+			redraw-buffer-raw ||
+				redraw-buffer
+		
+		redraw-statusline
+		redraw-commandline
+		redraw-cursor
+		
+		@ifs
+		
+		# redraw menu if open
+		[ "${bufferdata[mode]}" = 'menu' ] && redraw-menu
 	}
-	
-	# Get length of line-number of lines
-	bufferdata[length]="${#buffer[@]}"
-	((bufferdata[length]==0)) && ((bufferdata[length]++))
-	((options[line-number-mode])) && {
-		bufferdata[number-length]=${#bufferdata[length]}
-		bufferdata[number-space]=1
-	} || {
-		bufferdata[number-length]=0
-		bufferdata[number-space]=0
+
+new = redraw-cursor
+	:: Draw cursor and if move_base is 1 redraw
+	function = {
+		((move_base)) && {
+			move_base=0
+			redraw
+			return
+		}
+		printf '\e[?25h\e[%s;%sH'\
+			$((
+				bufferdata[line] + options[menu-line] - bufferdata[base] + bufferdata[position_y]
+			)) $((
+				bufferdata[column] - bufferdata[basecolumn] + bufferdata[number-length] + bufferdata[position_x] + bufferdata[number-space]
+			))
 	}
-	
-	# Update selection ends to current cursor
-	((bufferdata[selection]==1)) && {
-		bufferdata[selection_end_y]="${bufferdata[line]}"
-		bufferdata[selection_end_x]="${bufferdata[column]}"
+
+new = redraw-statusline
+	:: Draw bottom mode/status line
+	function = {
+		((options[mode-line])) &&
+			printf "\e[%s;%sH\e[%sG%b%s\e[%sG%s %b%s\e[m%b %d%% (%d,%d) (%s[%s]) (screen: %s) \e[m" \
+				   $((bufferdata[size_y] - 1 + bufferdata[position_y]))\
+				   $((bufferdata[size_x] + bufferdata[position_x]))\
+				   "${bufferdata[position_x]}"\
+				   "${faces[mode-line]}"\
+				   "$dashline"\
+				   "${bufferdata[position_x]}" \
+				   "${bufferdata[mode]}"\
+				   "${faces[file-name]}"\
+				   "$(base-name "${bufferdata[file]}")"\
+				   "${faces[mode-line]}"\
+				   $((100 * bufferdata[line] / bufferdata[length]))\
+				   "${bufferdata[line]}"\
+				   "${bufferdata[column]}"\
+				   "${highlight[${bufferdata[filetype]}]}"\
+				   "${bufferdata[filetype]}"\
+				   "$current_buffer"
 	}
-	# Move the buffer horizontally if needed
-	((bufferdata[column] +3 < bufferdata[size_x] - bufferdata[number-length] - 1)) &&
-		bufferdata[basecolumn]=0
-	((bufferdata[column] +3 > bufferdata[size_x] - bufferdata[number-length] - 1)) &&
-		bufferdata[basecolumn]=$((bufferdata[column] - (bufferdata[size_x] + bufferdata[position_x] - bufferdata[number-length] - 1) +3))
 
-	# Draw top menuline
-	(("${options[menu-line]}"==1)) && {
-		local -n top_0="menu_${bufferdata[menuline]}_0"
-		printf "\e[0m\e[%s;%sH${faces[menu]}\e[?25l%*s\r%s"\
-			   "${bufferdata[position_y]}"\
-			   "${bufferdata[position_x]}"\
-			   "${bufferdata[size_x]}"\
-			   "${bufferdata[info]}"
-		printf '\e[%sG%s\e[0m\n' "${bufferdata[position_x]}" "${top_0[*]}"
-	} || printf "\e[%s;%sH" "${bufferdata[position_y]}" "${bufferdata[position_x]}"
+new = redraw-commandline
+	:: Draw bottomest command line message echo area
+	function = {
+		# clear message if it has been printed before already
+		((options[keep-message]==0)) && 
+			((clrmsg)) && {
+				message=
+				clrmsg=0
+			} || clrmsg=1
+		
+		printf "\e[%s;%sH\n${faces[minibuffer-prompt]}%*s\r%s\e[m" \
+			   $((LINES-1)) 1 $((COLUMNS)) ' ' "$message"
+	}
 
-	# IFS has to be empty in order to bufferarray multiarray be printed as words instead of chars
-	IFS=''
-	
-	# Iterate over shown lines
-	local -i max=$((bufferdata[size_y] - (toplines + bottomlines) + 1))
-	((bufferdata[raw])) &&
-		# The raw rendering is just dirty hack to get better perfomance in buffer which don't need fancy effects
-		# Will be removed once normal rendering is fast enough (or rather if it'll ever be
-		redraw-buffer-raw ||
-			redraw-buffer
-	
-	redraw-statusline
-	redraw-commandline
-	redraw-cursor
-	
-	@ifs
-	
-	# redraw menu if open
-	[ "${bufferdata[mode]}" = 'menu' ] && redraw-menu
-}
-
-function redraw-cursor {
-	printf '\e[?25h\e[%s;%sH'\
-		   $((bufferdata[line] + options[menu-line] - bufferdata[base] + bufferdata[position_y]))\
-		   $((bufferdata[column] - bufferdata[basecolumn] + bufferdata[number-length] + bufferdata[position_x] + bufferdata[number-space]))
-}
-
-function redraw-statusline {
-	((options[mode-line])) &&
-		printf "\e[%s;%sH\e[%sG%b%s\e[%sG%s %b%s\e[m%b %d%% (%d,%d) (%s[%s]) (screen: %s) \e[m" \
-			   $((bufferdata[size_y] - 1 + bufferdata[position_y]))\
-			   $((bufferdata[size_x] + bufferdata[position_x]))\
-			   "${bufferdata[position_x]}"\
-			   "${faces[mode-line]}"\
-			   "$dashline"\
-			   "${bufferdata[position_x]}" \
-			   "${bufferdata[mode]}"\
-			   "${faces[file-name]}"\
-			   "$(base-name "${bufferdata[file]}")"\
-			   "${faces[mode-line]}"\
-			   $((100 * bufferdata[line] / bufferdata[length]))\
-			   "${bufferdata[line]}"\
-			   "${bufferdata[column]}"\
-			   "${highlight[${bufferdata[filetype]}]}"\
-			   "${bufferdata[filetype]}"\
-			   "$current_buffer"
-}
-
-function redraw-commandline {
-	# clear message if it has been printed before already
-	((options[keep-message]==0)) && 
-		((clrmsg)) && {
-			message=
-			clrmsg=0
-		} || clrmsg=1
-	
-	printf "\e[%s;%sH\n${faces[minibuffer-prompt]}%*s\r%s\e[m" \
-		   $((LINES-1)) 1 $((COLUMNS)) ' ' "$message"
-}
-
-function insert-word {
-	save-state
-	@ getrlr
-	buffer[bufferdata[line]]="${buffer[${bufferdata[line]}]:0:${rlr}}$1${buffer[${bufferdata[line]}]:${rlr}}"\
-		  #add at cursor position - amount of tabs * tab size
-	((bufferdata[raw])) || make-render-line
-	forward-char "${#1}"
-	bufferdata[selection]=0
-	redraw
-	bufferdata[modified]=1
-} && @add insert-word
+new = insert-word +fragment
+	:: Insert \$1 to buffer
+	function = {
+		save-state
+		@ getrlr
+		buffer[bufferdata[line]]="${buffer[${bufferdata[line]}]:0:${rlr}}$1${buffer[${bufferdata[line]}]:${rlr}}"\
+			  #add at cursor position - amount of tabs * tab size
+			  ((bufferdata[raw])) || make-render-line
+		forward-char "${#1}"
+		bufferdata[selection]=0
+		redraw
+		bufferdata[modified]=1
+	}
 
 @fn self-insert 'insert-word $@'
 @fn insert-space 'insert-word " "'
 @fn indent-for-tab-command "insert-word '	'"
 
-function handle-mouse {
-	local -i x y
-	#parse mouse stuff somewhatish weirdly
-	[ "${k_hex[*]:0:5}" = '1b 5b 3c 36 34' ] && previous-line && return
-	[ "${k_hex[*]:0:5}" = '1b 5b 3c 36 35' ] && next-line && return
-	[ "${k_hex[*]:0:5}" = '1b 5b 3c 38 30' ] && previous-line 9 && return
-	[ "${k_hex[*]:0:5}" = '1b 5b 3c 38 31' ] && next-line 9 && return
-	((skipnext==1)) && skipnext=0 && return
-	((skipnext==0)) && [ "${k_hex[*]:0:2}" = '1b 5b' ] && {
-		mapfile -t -d '' inputarray <<< "${1}"
-		inputarray[-1]="${inputarray[-1]%?}"
-		[ -z "${inputarray[2]}" ] && skipnext=1
-		mapfile -t -d ';' inputarray <<< "${inputarray[1]}"
-		inputarray[-1]="${inputarray[-1]%?}"	
-		mousemode="${inputarray[0]}"
-		x="${inputarray[1]}"
-		y="${inputarray[2]::-1}"
-		#limitations of movenment
-		#TODO:
-		[ $y = "${bufferdata[position_y]}" ] && menuline-mouse $x && return #handle menuline
-		((x < (bufferdata[number-length] + bufferdata[position_x] + 2))) && {
-			if [ "$mousemode" = '[<0' ]; then
-				bufferdata[line]=$(( bufferdata[base] + ( (y - bufferdata[position_y]) - toplines) ))
-				redraw
-			elif [ "$mousemode" = '[<2' ]; then #VERY BAD SOLUTION, TODO: FIX
-				clear-screen
-				echo 'Enter the index: '
-				read -re line
-				redraw
-			fi
-			return
-		}
-		bufferdata[line]=$(( bufferdata[base] + ( y - bufferdata[position_y] - 1) ))
-		bufferdata[column]=$(( x - (bufferdata[position_x] + bufferdata[number-length] + 2) ))
-		((bufferdata[line] > ${#bufferexpand[@]})) && bufferdata[line]=${#bufferexpand[@]}
-		((bufferdata[column] > ${#bufferexpand[bufferdata[line]]})) && bufferdata[column]=${#bufferexpand[bufferdata[line]]}
-		redraw
-	}
-}
-
-function has-options ((${#key_options[@]}))
-function input-key {
-	#arg $1 is the pressed key in normal text form
-	#k_hex is pressed key in hex array ending with 0
-	
-	local -i mode_contains=0
-	local -n\
-		  modekeys="keys_${bufferdata[mode]}"\
-		  key_options="key_options_${bufferdata[mode]}"
-
-	# global keys
-	((key_options[disable-global])) ||
-		for str in "${!keys_global[@]}"; do
-			[ "$str" = "${k_hex[*]}" ] && {
-				"${keys_global[$str]}"
+new = handle-mouse
+	:: Handle mouse click
+	function = {
+		local -i x y
+		#parse mouse stuff somewhatish weirdly
+		[ "${k_hex[*]:0:5}" = '1b 5b 3c 36 34' ] && previous-line && return
+		[ "${k_hex[*]:0:5}" = '1b 5b 3c 36 35' ] && next-line && return
+		[ "${k_hex[*]:0:5}" = '1b 5b 3c 38 30' ] && previous-line 9 && return
+		[ "${k_hex[*]:0:5}" = '1b 5b 3c 38 31' ] && next-line 9 && return
+		((skipnext==1)) && skipnext=0 && return
+		((skipnext==0)) && [ "${k_hex[*]:0:2}" = '1b 5b' ] && {
+			mapfile -t -d '' inputarray <<< "${1}"
+			inputarray[-1]="${inputarray[-1]%?}"
+			[ -z "${inputarray[2]}" ] && skipnext=1
+			mapfile -t -d ';' inputarray <<< "${inputarray[1]}"
+			inputarray[-1]="${inputarray[-1]%?}"	
+			mousemode="${inputarray[0]}"
+			x="${inputarray[1]}"
+			y="${inputarray[2]::-1}"
+			#limitations of movenment
+			#TODO:
+			[ $y = "${bufferdata[position_y]}" ] && menuline-mouse $x && return #handle menuline
+			((x < (bufferdata[number-length] + bufferdata[position_x] + 2))) && {
+				if [ "$mousemode" = '[<0' ]; then
+					bufferdata[line]=$(( bufferdata[base] + ( (y - bufferdata[position_y]) - toplines) ))
+					redraw
+				elif [ "$mousemode" = '[<2' ]; then #VERY BAD SOLUTION, TODO: FIX
+					clear-screen
+					echo 'Enter the index: '
+					read -re line
+					redraw
+				fi
 				return
+			}
+			bufferdata[line]=$(( bufferdata[base] + ( y - bufferdata[position_y] - 1) ))
+			bufferdata[column]=$(( x - (bufferdata[position_x] + bufferdata[number-length] + 1) ))
+			((bufferdata[line] > ${#bufferexpand[@]})) &&
+				bufferdata[line]=${#bufferexpand[@]}
+			((bufferdata[column] > ${#bufferexpand[bufferdata[line]]})) &&
+				bufferdata[column]=${#bufferexpand[bufferdata[line]]}
+			redraw
+		}
+	}
+
+new = has-options
+	:: Checks if current mode has options attached to it
+	function = ((${#key_options[@]}))
+
+new = input-key
+	:: Handle input
+	:: Either \$1 raw character input or k_hex array containing hex values of characters is used
+	function = {
+		#arg $1 is the pressed key in normal text form
+		#k_hex is pressed key in hex array ending with 0
+		
+		local -i mode_contains=0
+		local -n\
+			  modekeys="keys_${bufferdata[mode]}"\
+			  key_options="key_options_${bufferdata[mode]}"
+
+		# global keys
+		((key_options[disable-global])) ||
+			for str in "${!keys_global[@]}"; do
+				[ "$str" = "${k_hex[*]}" ] && {
+					"${keys_global[$str]}"
+					return
+				}
+			done
+
+		# Execute the 'always' key option
+		has-options && {
+			[ -n "${key_options[always]}" ] && "${key_options[always]}"
+		}
+
+		# Loop over current mode keybindings to match current keypress
+		for str in "${!modekeys[@]}"; do
+			[ "$str" = "${k_hex[*]}" ] && {
+				"${modekeys[$str]}"
+				mode_contains=1
 			}
 		done
 
-	# Execute the 'always' key option
-	has-options && {
-		[ -n "${key_options[always]}" ] && "${key_options[always]}"
-	}
-
-	# Loop over current mode keybindings to match current keypress
-	for str in "${!modekeys[@]}"; do
-		[ "$str" = "${k_hex[*]}" ] && {
-			"${modekeys[$str]}"
-			mode_contains=1
+		# If mode keybinding doesn't contain current keypress, execute this
+		has-options && {
+			((mode_contains == 0)) && [ -n "${key_options[else]}" ] && {
+				[ "${key_options[else]}" = 'insert' ] || "${key_options[else]}"
+			}
 		}
-	done
 
-	# If mode keybinding doesn't contain current keypress, execute this
-	has-options && {
-		((mode_contains == 0)) && [ -n "${key_options[else]}" ] && {
-			[ "${key_options[else]}" = 'insert' ] || "${key_options[else]}"
+		# Do not continue if mode contains keypress to prevent control chars flooding file
+		((mode_contains == 1)) && {
+			return
 		}
+
+		# The 'insert' option allows the mode to insert chars in normal way
+		[ "${key_options[else]}" = 'insert' ] || return
+
+		# If mouse is enabled, do whatever the hell that ugly piece of code does
+		(("${options[mouse]}"==1)) && {
+			handle-mouse "$1"
+			return
+		}
+
+		# Insert the pressed character
+		[ "${key_options[else]}" = 'insert' ] || return && {
+				[[ $1 =~ [[:cntrl:]] ]] && return # If char is control char, return
+				self-insert "$1"
+				bufferdata[modified]=1
+			}
 	}
 
-	# Do not continue if mode contains keypress to prevent control chars flooding file
-	((mode_contains == 1)) && {
-		return
+new = load-config
+	:: Sources custom config file
+	function = {
+		local config_file
+		local f
+		f=~/.config/ebashsrc ;[ -f "$f" ] && config_file="$f"
+		f=~/.ebashsrc ;[ -f "$f" ] && config_file="$f"
+		f=.ebashsrc ;[ -f "$f" ] && config_file="$f"
+		[ -z "$config_file" ] && return
+		source "$config_file"
 	}
 
-	# The 'insert' option allows the mode to insert chars in normal way
-	[ "${key_options[else]}" = 'insert' ] || return
-
-	# If mouse is enabled, do whatever the hell that ugly piece of code does
-	(("${options[mouse]}"==1)) && {
-		handle-mouse "$1"
-		return
-	}
-
-	# Insert the pressed character
-	[ "${key_options[else]}" = 'insert' ] || return && {
-		[[ $1 =~ [[:cntrl:]] ]] && return # If char is control char, return
-		self-insert "$1"
-		bufferdata[modified]=1
-	}
-}
-
-function load-config {
-	local config_file
-	local f
-	f=~/.config/ebashsrc ;[ -f "$f" ] && config_file="$f"
-	f=~/.ebashsrc ;[ -f "$f" ] && config_file="$f"
-	f=.ebashsrc ;[ -f "$f" ] && config_file="$f"
-	[ -z "$config_file" ] && return
-	source "$config_file"
-}
-function init {
-	load-default-config #loads default config
-	case "$1" in
-		'--quick'|'-Q') shift;;
-		'--version')
-			echo "$version"
-			abort
-		;;
-		'--help')
-			print-stdin <<EOF
+new = init
+	:: Prepares variables and launches main function
+	function = {
+		load-default-config #loads default config
+		case "$1" in
+			'--quick'|'-Q') shift;;
+			'--version')
+				echo "$version"
+				abort
+				;;
+			'--help')
+				print-stdin <<EOF
 Usage: ebashs [OPTION-OR-FILENAME]...
 
 Run Ebashs, the extensible, customizable, maybe-real-time
@@ -3100,51 +3306,52 @@ Initialization options:
 --help,        display this help and exit
 --version,     display version information and exit
 EOF
-			abort
-		;;
-		*) load-config
-	esac
-	((options[log])) && init-log # set up log buffer (M-x log)
-	menulinepy=0; menulinep=0 # menu positions
-	case "${options[menu-line]}" in
-		1) toplines=1;;
-		0) toplines=0;;
-	esac
-	# this is reverse because the value is added to buffer redrawing size
-	case "${options[mode-line]}" in
-		1) ((bottomlines=0));;
-		0) ((bottomlines=-1));;
-	esac
-	((bottomlines+=2))
-	reset='\e[0;0m'
-	charmap=(
-		#[0] is reserved for any unmapped char
-		[	]='t' # tab
-		[ ]='s' # space
-	)
-	printf '\e[?1049h'
-	(("${options[mouse]}")) && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
-    if [[ "$1" ]]; then # If a file was provided in the terminal pre-load it
-		log info "argument $1"
-        if [ -d "$1" ]; then
-			log info "[$1] is directory => dired"
-			cd "$1" || exit
-			dired # enter the file selector in specified folder
+				abort
+				;;
+			*) load-config
+		esac
+		((options[log])) && init-log # set up log buffer (M-x log)
+		menulinepy=0; menulinep=0 # menu positions
+		case "${options[menu-line]}" in
+			1) toplines=1;;
+			0) toplines=0;;
+		esac
+		# this is reverse because the value is added to buffer redrawing size
+		case "${options[mode-line]}" in
+			1) ((bottomlines=0));;
+			0) ((bottomlines=-1));;
+		esac
+		((bottomlines+=2))
+		reset='\e[0;0m'
+		charmap=(
+			#[0] is reserved for any unmapped char
+			[	]='t' # tab
+			[ ]='s' # space
+		)
+		printf '\e[?1049h'
+		(("${options[mouse]}")) && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
+		if [[ "$1" ]]; then # If a file was provided in the terminal pre-load it
+			log info "argument $1"
+			if [ -d "$1" ]; then
+				log info "[$1] is directory => dired"
+				cd "$1" || exit
+				dired # enter the file selector in specified folder
+			else
+				log info "[$1] is file => read-buffer"
+				read-buffer "$1"
+			fi
 		else
-			log info "[$1] is file => read-buffer"
-			read-buffer "$1"
+			log info "no arg => dired"
+			dired # enter the file selector
 		fi
-    else
-		log info "no arg => dired"
-		dired # enter the file selector
-	fi
-	log info 'entering main loop...'
-	redraw
-	main
-}
+		log info 'entering main loop...'
+		redraw
+		main
+	}
 
-function main
-	while :; do
+new = main
+	:: Main keyboard loop
+	function = while :; do
 		local -a k=()
 		local -i i=1
 		k_hex=() # Also convert the input sequence into hex for way easier handling
@@ -3160,5 +3367,6 @@ function main
 			input-key "$(printf '%s' "${k[@]}")" # Handle keypress event
 		}
 	done
-
+wen
+		
 init "$@"
