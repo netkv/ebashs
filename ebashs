@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.4"
+version="0.7.5"
 ## Ebashs
 #		Emacs-like editor written in pure Bash
 #		Had been tested properly only on Bash 5.2, and will propably be broken on 4.x versions and definitelly on 3 and older.
@@ -443,7 +443,11 @@ Load default config included with Ebashs.
 			_last_template="$1"
 			declare -g "_template_$1"
 			local -n tpl="_template_$1"
-			tpl=$(</dev/stdin)
+			IFS=''
+			while read -r -d $'\n' tpll; do
+				tpl+="$tpll"
+			done
+			@ifs
 		}
 	new = @def
 		:: Defines a function template
@@ -2558,18 +2562,18 @@ fragment backwardcheck <<'+'
 
 template char <<'+'
 	function @var 1 {
-		@ move
+		@ move ;
 			case "${bufferexpand[${bufferdata[line]}]:${bufferdata[column]} @var 2 1:1}" in
 				't') bufferdata[column]=$(( bufferdata[column] @var 2 ${#options[tabchar]}));;
 				*) ((bufferdata[column] @var 3 ));;
-			esac; @var 4 ; bckrl=
-		@ end
+			esac; @var 4 ; bckrl= ;
+		@ end ;
 		if ((bufferdata[selection])); then
-			redraw
+			redraw ;
 		else
-			redraw-cursor
-		fi
-	} && @add @var 1
+			redraw-cursor ;
+		fi ;
+	} && @add @var 1 ;
 +
 	@: forward-char + ++ '@ forwardcheck'
 	@: backward-char - -- '@ backwardcheck'
@@ -3349,8 +3353,10 @@ new = init
 			'--quick'|'-Q') shift;;
 			'--version')
 				echo "$version"
-				abort
-				;;
+				abort;;
+			'--dump')
+			    declare -f
+				abort;;
 			'--help')
 				print-stdin <<EOF
 Usage: ebashs [OPTION-OR-FILENAME]...
@@ -3366,8 +3372,7 @@ Initialization options:
 --help,        display this help and exit
 --version,     display version information and exit
 EOF
-				abort
-				;;
+				abort;;
 			*) load-config
 		esac
 		((options[log])) && init-log # set up log buffer (M-x log)
