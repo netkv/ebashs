@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.6"
+version="0.7.7"
 ## Ebashs
 #		Emacs-like editor written in pure Bash
 #		Had been tested properly only on Bash 5.2, and will propably be broken on 4.x versions and definitelly on 3 and older.
@@ -524,6 +524,16 @@ Load default config included with Ebashs.
 				target[idx]="${source[idx]}"
 			done
 		}
+
+	new = append-array
+		:: Append array \$1 to \$2  
+		function = {
+			local -n source="$1"
+			local -n target="$2"
+			for idx in "${!source[@]}"; do
+				target+=("${source[idx]}")
+			done
+		}
 	
 	new = setface
 		:: Convert colors to escape codes
@@ -845,8 +855,8 @@ new = execute-extended-command
 				return
 			}
 		}
-					$readin
-					redraw
+		$readin
+		redraw
 	}
 
 ### TODO: make this make sense
@@ -1262,9 +1272,11 @@ new = list-buffers
 			[raw]=1
 			[menuline]='about'
 		)
+		size-full
 		add-menu about
 		local-set-menu quit 'quit-view'
-		copy-array listbuffers buffer
+		buffer=('')
+		append-array listbuffers buffer
 		redraw
 	}
 	
@@ -2859,9 +2871,12 @@ new = tile-buffers +fragment
 		:: '    * vertical - split buffers vertically'
 		:: '    * horizontal - split buffers horizontally'
 		:: '    * single - make currently selected buffer fullscreen'
+	# TODO: do this in far more extensible way
+	# Perhaps being able to split every buffer into two would be easiest to manage (sort of like very regular tree)
 	function = {
 		log info "tile redraw-set ${options[tile-mode]}"
 		bck_current_buffer="$current_buffer"
+		redraw_tiled=1
 		case "${options[tile-mode]}" in
 			vertical)
 				target_x=$(( COLUMNS / ${#listbuffers[@]} ))
@@ -2874,7 +2889,8 @@ new = tile-buffers +fragment
 			single)
 				target_y=$LINES
 				@ targetoff
-				target_x=$COLUMNS;;
+				target_x=$COLUMNS
+				redraw_tiled=0;;
 		esac
 		for b in "${listbuffers[@]}"; do
 			set-buffer "$b"
@@ -2886,10 +2902,9 @@ new = tile-buffers +fragment
 				vertical)
 					target_x_offset=$((target_x_offset + target_x));;
 				horizontal)
-					target_y_offset=$((target_y_offset + target_y));;
+					target_y_offset=$((target_y_offset + target_y))
 			esac
 			redraw
-			
 		done
 		set-buffer "$bck_current_buffer"
 	}
@@ -2916,6 +2931,7 @@ new = tile-single
 		bufferdata[size_y]=$((LINES - 1))
 		bufferdata[position_x]=1
 		bufferdata[position_y]=1
+		redraw_tiled=0
 		redraw
 	}
 
