@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.5"
+version="0.7.6"
 ## Ebashs
 #		Emacs-like editor written in pure Bash
 #		Had been tested properly only on Bash 5.2, and will propably be broken on 4.x versions and definitelly on 3 and older.
@@ -1364,7 +1364,7 @@ new = inputcodes
 new = read-buffer
 	:: Reads file \$1 into new buffer
 	function = {
-		log info "arg: $*"
+		log info "reading $* ..."
 		((current_count++))
 		set-buffer "file_${current_count}"
 		add-to-list
@@ -1486,10 +1486,19 @@ new = init-log
 		)
 		add-menu
 			:: 'quit' 'quit-view'
+
 		bufferlog=(
 			''
-			"[ LOG START ] Ebashs version $version"
-			'time function            level  message'
+			"Ebashs version $version"
+			"    [ LOG START ]"
+			''
+			'System info:'
+			"    Bash version: ${BASH_VERSION}"
+			"    System: ${OSTYPE}"
+			"    Terminal type: ${TERM}"
+			"    Locale: ${LANG}"
+			''
+			'level time function message'
 		)
 		lasttime="$(current-time '%s')"
 	}
@@ -1525,7 +1534,7 @@ new = log
 		local type="$1"
 		shift
 		tooktime="$(( $(current-time '%s') - lasttime ))"
-		bufferlog+=("$type => ${tooktime}s in ${FUNCNAME[1]}() $@")
+		bufferlog+=("[$type] ${tooktime}s [${FUNCNAME[1]}] $*")
 		lasttime="$(current-time '%s')"
 	}
 
@@ -2716,15 +2725,62 @@ new = toggle-mouse
 			0)
 				printf '\e[?1000;1006;1015h'
 				options[mouse]=1
-				message='Enabled options[mouse]'
-				return;;
-			*)
+				message='Enabled options[mouse]';;
+			1)
 				printf '\e[?1000;1006;1015l'
 				options[mouse]=0
 				message='Disabled options[mouse]'
-				return
 		esac
 
+new = toggle-mode-line
+	:: 'Changes options[mode-line]'
+	function =
+		case "${options[mode-line]}" in
+			0)
+				options[mode-line]=1
+				((bottomlines++))
+				redraw;;
+			1)
+				options[mode-line]=0
+				((bottomlines--))
+				redraw
+		esac
+
+new = toggle-command-line
+	:: 'Changes options[command-line]'
+	function =
+		case "${options[command-line]}" in
+			0)
+				options[commandline]=1
+				((bottomlines++))
+				redraw;;
+			1)
+				options[command-line]=0
+				((bottomlines--))
+				redraw
+		esac
+
+new = toggle-line-number-mode
+	:: 'Changes options[line-number-mode]'
+	function = {
+		case "${options[line-number-mode]}" in
+			0) options[line-number-mode]=1;;
+			1) options[line-number-mode]=0
+		esac
+		redraw
+	}
+
+new = toggle-menu-line
+	:: 'Changes options[menu-line]'
+	function = {
+		case "${options[menu-line]}" in
+			0) options[menu-line]=1;;
+			1) options[menu-line]=0
+		esac
+		toplines="${options[menu-line]}"
+		redraw
+	}
+		
 new = menuline-mouse
 	:: Handle clicking on top menu with mouse		
 	function = {
@@ -3377,27 +3433,32 @@ EOF
 		esac
 		((options[log])) && init-log # set up log buffer (M-x log)
 		menulinepy=0; menulinep=0 # menu positions
-		case "${options[menu-line]}" in
-			1) toplines=1;;
-			0) toplines=0;;
-		esac
+		log info 'Setting menu-line'
+		toplines="${options[menu-line]}"
+
 		# this is reverse because the value is added to buffer redrawing size
+		log info 'Setting mode-line'
 		((options[mode-line]==0)) && ((bottomlines--))
+		log info 'Setting command-line'
 		((options[command-line]==0)) && ((bottomlines--))
 		((bottomlines+=2))
+		log info 'Setting reset'
 		reset='\e[0;0m'
+		log info 'Setting charmap'
 		charmap=(
 			#[0] is reserved for any unmapped char
 			[	]='t' # tab
 			[ ]='s' # space
 		)
+		log info 'Setting nlchar'
 		nlchar='\n'
 		printf '\e[?1049h'
+		log info 'Setting mouse'
 		(("${options[mouse]}")) && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
 
 		
 		if [[ "$1" ]]; then # If a file was provided in the terminal pre-load it
-			log info "argument $1"
+			log info "args: $1"
 			if [ -d "$1" ]; then
 				log info "[$1] is directory => dired"
 				cd "$1" || exit
