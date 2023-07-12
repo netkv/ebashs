@@ -1,0 +1,109 @@
+#!/bin/bash
+## ebashs
+bcreen_version='0.0.1'
+
+## Bcreen -- Tiling interface for Ebashs
+# Will be probably merged back into Ebashs once it'll be robust & stable enoughish
+
+# Modifier key
+global-set-key "$(kbd C-r)" 'bcreen-prefix'
+
+# Bcreen keybindings
+add-mode bcreen
+	:: "$(kbd r)" 'bcreen'
+	:: "$(kbd v)" 'tile-vertical'
+	:: "$(kbd h)" 'tile-horizontal'
+	:: "$(kbd k)" 'delete-buffer'
+
+new = bcreen-prefix
+	:: Handles Bcreen keybindings
+	function = {
+		switch-mode bcreen
+	}
+
+new = bcreen
+	:: Bcreen extension "$bcreen_version"
+	:: Main Bcreen function 
+	::
+	:: C-r r redraw tiling
+	:: C-r v split vertically
+	:: C-r h split horizontally
+	:: C-r k delete buffer
+	function = {
+		tile-buffers
+	}
+wen
+
+fragment targetoff <<'+'
+	target_x_offset=1
+ 	target_y_offset=1
++
+
+new = tile-buffers +fragment
+	:: Tile active buffers:
+		:: '    * vertical - split buffers vertically'
+		:: '    * horizontal - split buffers horizontally'
+		:: '    * single - make currently selected buffer fullscreen'
+	# TODO: do this in far more extensible way
+	# Perhaps being able to split every buffer into two would be easiest to manage (sort of like very regular tree)
+	function = {	
+		log info "tile redraw-set ${options[tile-mode]}"
+		bck_current_buffer="$current_buffer"
+		redraw_tiled=1
+		case "${options[tile-mode]}" in
+			vertical)
+				target_x=$(( COLUMNS / ${#listbuffers[@]} ))
+				@ targetoff
+				target_y=$((LINES - 1));;
+			horizontal)
+				target_y=$(( LINES / ${#listbuffers[@]} ))
+				@ targetoff
+				target_x=$COLUMNS;;
+			single)
+				target_y=$LINES
+				@ targetoff
+				target_x=$COLUMNS
+				redraw_tiled=0;;
+		esac
+		for b in "${listbuffers[@]}"; do
+			set-buffer "$b"
+			bufferdata[size_x]=$target_x
+			bufferdata[position_x]=$target_x_offset
+			bufferdata[size_y]=$target_y
+			bufferdata[position_y]=$target_y_offset
+			case "${options[tile-mode]}" in
+				vertical)
+					target_x_offset=$((target_x_offset + target_x));;
+				horizontal)
+					target_y_offset=$((target_y_offset + target_y))
+			esac
+			redraw
+		done
+		set-buffer "$bck_current_buffer"
+	}
+
+new = tile-vertical
+	:: Tile buffers vertically
+	function = {
+		options[tile-mode]='vertical'
+		tile-buffers
+	}
+
+new = tile-horizontal
+	:: Tile buffers horizontally
+	function = {
+		options[tile-mode]='horizontal'
+		tile-buffers
+	}
+
+new = tile-single
+	:: Makes currently selected buffer fullscreen
+	function = {
+		options[tile-mode]='single'
+		bufferdata[size_x]=$COLUMNS
+		bufferdata[size_y]=$((LINES - 1))
+		bufferdata[position_x]=1
+		bufferdata[position_y]=1
+		redraw_tiled=0
+		redraw
+	}
