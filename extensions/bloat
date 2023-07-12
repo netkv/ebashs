@@ -1,0 +1,99 @@
+#!/bin/bash
+## ebashs
+bcreen_version='0.0.1'
+
+## Bloat -- Floating interface for Ebashs
+
+# Modifier key
+global-set-key "$(kbd C-r)" 'bloat-prefix'
+
+# Bcreen keybindings
+add-mode bloat
+	:: "$(kbd h)" 'redraw-windows'
+
+	:: "$(kbd h)" 'window-left'
+	:: "$(kbd j)" 'window-down'
+	:: "$(kbd k)" 'window-up'
+	:: "$(kbd l)" 'window-right'
+
+	:: "$(kbd C-h)" 'window-width+'
+	:: "$(kbd C-j)" 'window-height+'
+	:: "$(kbd C-k)" 'window-height-'
+	:: "$(kbd C-l)" 'window-width-'
+	
+new = bloat-prefix
+	:: Handles Bloat keybindings
+	function = {
+		switch-mode bloat
+	}
+
+new = redraw-windows
+	:: Redraw all active buffers
+	function = {
+		clear-screen
+		bck_current_buffer="$current_buffer"
+		for b in "${listbuffers[@]}"; do
+			set-buffer "$b"
+			redraw
+		done
+		set-buffer "$bck_current_buffer"
+	}
+	
+## Moving
+new = window-left
+	:: Moves window to left
+	function = {
+		((bufferdata[position_x]--))
+		redraw-windows
+	}
+
+new = window-right
+	:: Moves window to right
+	function = {
+		((bufferdata[position_x]++))
+		redraw-windows
+	}
+
+new = window-down
+	:: Moves window down
+	function = {
+		((bufferdata[position_y]++))
+		redraw-windows
+	}
+
+new = window-up
+	:: Moves window up
+	function = {
+		((bufferdata[position_y]--))
+		redraw-windows
+	}
+
+## Resizing
+new = window-width+
+	:: Increase width of window
+	function = {
+		((bufferdata[size_x]++))
+		redraw-windows
+	}
+
+new = window-width-
+	:: Decrease width of window
+	function = {
+		((bufferdata[size_x]--))
+		redraw-windows
+	}
+
+new = window-height+
+	:: Increase height of window
+	function = {
+		((bufferdata[size_y]++))
+		redraw-windows
+	}
+
+new = window-height-
+	:: Decrase height of window
+	function = {
+		((bufferdata[size_y]--))
+		redraw-windows
+	}
+wen

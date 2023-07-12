@@ -1,6 +1,6 @@
 #!/bin/bash
 ## ebashs
-bcreen_version='0.0.1'
+bcreen_version='0.0.2'
 
 ## Bcreen -- Tiling interface for Ebashs
 # Will be probably merged back into Ebashs once it'll be robust & stable enoughish
@@ -32,7 +32,6 @@ new = bcreen
 	function = {
 		tile-buffers
 	}
-wen
 
 fragment targetoff <<'+'
 	target_x_offset=1
@@ -107,3 +106,4 @@ new = tile-single
 		redraw_tiled=0
 		redraw
 	}
+wen
