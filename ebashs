@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.7"
+version="0.7.8"
 ## Ebashs
 #		Emacs-like editor written in pure Bash
 #		Had been tested properly only on Bash 5.2, and will propably be broken on 4.x versions and definitelly on 3 and older.
@@ -120,6 +120,10 @@ function load-default-config {
 	
 	add-mode view
 		:: RET 'quit-view'
+
+	add-mode doc
+		:: RET 'doc-select'
+		:: "$(kbd C-c)" 'quit-doc'
 	
 	add-mode list_buffers
 		:: RET 'quit-view'
@@ -307,17 +311,17 @@ function ebashs-extensions {
 	function @ifs { IFS="$DEFIFS"; }
 	
 	# Make bash not be bashy enough
-	function @desc {
+	function doc {
 		mapfile -t "description_${desc_count}"
 		descriptions["function_${1}_description"]="description_${desc_count}"
 		((desc_count++))
-	} && @desc @desc <<-'+'
+	} && doc doc <<-'+'
 Adds description to a function
-@desc <function>
+doc <function>
 Description text is supplied from stdin, so mostly heredoc.
 	+
 	
-	@desc load-default-config <<-'+'
+	doc load-default-config <<-'+'
 Load default config included with Ebashs.
 	+
 
@@ -825,9 +829,9 @@ new = switch-mode
 		redraw-statusline
 	}
 @fn prefix switch-mode prefix
-	@desc prefix <<<'-> switch-mode prefix'
+	doc prefix <<<'-> switch-mode prefix'
 @fn prefix-help switch-mode prefix_help
-	@desc prefix-help <<<'-> switch-mode prefix-help'
+	doc prefix-help <<<'-> switch-mode prefix-help'
 
 new = quit-prefix
 	:: Restores previous mode '(→ quits prefixes)'
@@ -1087,14 +1091,14 @@ new = syntax-ebashs
 				'let'|'shopt'|'trap'|'set'|'eval'\
 					) set-face font-lock-keyword-face;;
 			'set-options'|'global-set'|'define-key'|'local-set-key'|'add-mode'|'mode-options'|\
-			 	'load-theme'|'set-alias'|'add-menu'|'@ifs'|'@desc'|'_'|'__'|'copy-array'|\
+			 	'load-theme'|'set-alias'|'add-menu'|'@ifs'|'doc'|'_'|'__'|'copy-array'|\
 				':foreground'|':background'|':mode'|'weight'|':slant'|'kbd'|'add-highlight'\
 					) set-face font-lock-keyword-face;;
 			*) set-face default;;
 	esac
 									 
 @fn syntax-unknown 'set-face default'
-	@desc syntax-unknown <<-'+'
+	doc syntax-unknown <<-'+'
 Default syntax function
 Sets everything to default face
 	+
@@ -2244,18 +2248,52 @@ new = describe-function
 new = describe
 	:: Displays help and info of all functions
 	function = {
-		redraw
-		buffer-dialog about 'Describe' '*describe*'
+	    save openfiledoc
+		((current_count++))
+		set-buffer "doc_${current_count}"
+		add-to-list
+		declare -Ag "${current_buffer}_bufferdata"
+		bufferdata=(
+			[line]=1
+			[base]=1
+			[column]=0
+			[info]="Documentation"
+			[mode]=doc
+			[filetype]='i*doc'
+			[file]="Functions"
+			[modified]=0
+			[raw]=1
+			[menuline]='dialog'
+		)
+		size-full
+		add-menu dialog
+		
+		local-set-menu quit 'quit-view'
 		local buffertmp=$'\n'
-		buffertmp+='., . __/ --|-- + -- --[]-- +*ł[ FUNCTIONS ]ł*+ --[]-- -- + --|-- \__ . ,.'$'\n'$'\n'
-		buffertmp+='    An overview of Ebashs functions'$'\n'$'\n'
 		while read -r fn;  do
-			buffertmp+="$(get-description "${fn:11}")"$'\n'
+			#buffertmp+="$(get-description "${fn:11}")"$'\n'
+			buffertmp+="${fn:11}"$'\n'
 		done <<< "$(declare -F)"
 		mapfile -t buffer <<< "$buffertmp"
 		buffer-dialog-draw
 }
 
+new = doc-select	
+	:: Select documentation item
+	function = {
+		local function="${buffer[bufferdata[line]]}"
+	   	buffer-dialog about 'Describe' '*describe*'
+		mapfile -t -O 1 buffer <<< "$(get-description "$function")"
+		buffer-dialog-draw
+	}
+
+new = quit-doc
+	:: Quits and restores previous buffer.
+	function = {
+		restore openfiledoc
+		redraw
+	}
+	
 @fn is-function 'declare -F -- "$1" > /dev/null'
 new = get-description
 	:: Prints desciption of function
@@ -2266,16 +2304,15 @@ new = get-description
 		}
 		printf "[ $1 ]\n"
 		[ -z "${descriptions[function_${1}_description]}" ] && {
-			echo ' - -- --- ---- --- -- -'
+			echo 'Function has no documentation'
 			return
 		}
 		local -n fn_desc="${descriptions[function_${1}_description]}"
 		((${#fn_desc[@]})) && {
 			echo
 			for l in "${fn_desc[@]}"; {
-				printf "    %s\n" "$l"
+				printf "%s\n" "$l"
 			}
-					 echo ' '
 		}
 	}
 
