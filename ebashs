@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.8.1"
+version="0.7.9"
 ## Ebashs
 #		Emacs-like editor written in pure Bash
 #		Had been tested properly only on Bash 5.2, and will propably be broken on 4.x versions and definitelly on 3 and older.
