@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.9"
+version="0.7.10"
 ## Ebashs
 #		Emacs-like editor written in pure Bash
 #		Had been tested properly only on Bash 5.2, and will propably be broken on 4.x versions and definitelly on 3 and older.
@@ -57,6 +57,7 @@ function load-default-config {
 		:: tile-mode 'vertical'
 		:: log 0
 		:: log_functions 0
+		:: tty-linuxfb 1
 		
 	## Key bindings configuration
 	#		A keybinding is defined via either
@@ -568,7 +569,7 @@ Load default config included with Ebashs.
 				magenta)    [ "$mode" = '38' ] && printf '\\e[35m' || printf '\\e[45m';;
 				cyan)       [ "$mode" = '38' ] && printf '\\e[36m' || printf '\\e[46m';;
 				light-gray) [ "$mode" = '38' ] && printf '\\e[37m' || printf '\\e[47m';;
-				
+
 				gray)          [ "$mode" = '38' ] && printf '\\e[90m' || printf '\\e[100m';;
 				light-red)     [ "$mode" = '38' ] && printf '\\e[91m' || printf '\\e[101m';;
 				light-green)   [ "$mode" = '38' ] && printf '\\e[92m' || printf '\\e[102m';;
@@ -579,18 +580,17 @@ Load default config included with Ebashs.
 				white)         [ "$mode" = '38' ] && printf '\\e[97m' || printf '\\e[107m';;
 				*) case "${1::1}" in
 					   '#')
-						   case "$TERM" in
-							   linux) # Hack for linux framebuffer tty
-								   case "$mode" in
-									   38) printf '\\e]P2%s\\e[32m' "${1:1:6}" ;;
-									   48) printf '\\e]P1%s\\e[41m' "${1:1:6}"
-								   esac;;
-							   *)
+						   if [ "$TERM" = 'linux' ] && ((options[tty-linuxfb])); then # Hack for linux framebuffer tty
+							   case "$mode" in
+								   38) printf '\\e]P2%s\\e[32m' "${1:1:6}" ;;
+								   48) printf '\\e]P1%s\\e[41m' "${1:1:6}"
+							   esac
+						   else
 								   local r="${1:1:2}"
 								   local g="${1:3:2}"
 								   local b="${1:5:2}"
 								   printf '\\e[%d;2;%d;%d;%dm' "${mode}" $((16#$r)) $((16#$g)) $((16#$b))
-						   esac;;
+						   fi;;
 					   'c')
 						   printf '\\e[%d;5;%dm' "${mode}" "${1:1}"
 				   esac
