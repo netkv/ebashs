@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.10"
+version="0.7.10.1"
 ## Ebashs
 #		Emacs-like editor written in pure Bash
 #		Had been tested properly only on Bash 5.2, and will propably be broken on 4.x versions and definitelly on 3 and older.
@@ -557,7 +557,13 @@ Load default config included with Ebashs.
 			:: '    white'
 		:: 'or hex. color (like "#bb2040")'
 		:: 'or indexed 256 color with "c" as prefix (like c127)'
-		:: 'for background color $mode has to be 48 and for foreground 38'  
+		:: 'for background color $mode has to be 48 and for foreground 38'
+		::
+		:: If \$TERM \(current "$TERM"\) is \'linux\' & option tty-linuxfb is 1 try to use true color even for tty
+		:: Instead of normal '\e[$mode;r;g;bm' is used '\e]P$~1mode$Hexcode\e[$~2modem'
+		:: '    $mode 38 → $~1mode 2 & $~2mode 32'
+		:: '    $mode 48 → $~1mode 1 & $~2mode 41'
+		:: Note that the linuxfb colors are very experimental and suffer from cursor implicitly overwriting them on movenment
 		function = {
 			[ -z "$1" ] && return
 			case "$1" in
