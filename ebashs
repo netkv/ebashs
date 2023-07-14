@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.11.1"
+version="0.7.11.1.1"
 ## Ebashs
 #		Emacs-like editor written in pure Bash
 #		Had been tested properly only on Bash 5.2, and will propably be broken on 4.x versions and definitelly on 3 and older.
@@ -57,7 +57,7 @@ function load-default-config {
 		:: log 0
 		:: log_functions 0
 		:: tty-linuxfb 1 # enable truecolor support for framebuffer
-		:: full-redraw 1 # redraws whole buffer, can fix artifacting in linuxfb at cost of performance
+		:: full-redraw 0 # redraws whole buffer, can fix artifacting in linuxfb at cost of performance
 		
 	## Key bindings configuration
 	#		A keybinding is defined via either
