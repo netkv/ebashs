@@ -1,5 +1,6 @@
 #!/bin/bash
-version="0.7.11.1.1"
+version="0.7.11.2"
+log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
 #		Had been tested properly only on Bash 5.2, and will propably be broken on 4.x versions and definitelly on 3 and older.
@@ -8,22 +9,16 @@ shopt -s lastpipe # For syntax highlighting
 shopt -s extglob # Ensure advanced pattern matching is available
 shopt -s checkwinsize && (:) # Enable and then trigger a terminal size refresh
 
-trap change-size-screen WINCH ALRM # Attach WINCH and ALRM to redraw the screen
-trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
-trap 'k_hex=(3 0); input-key' INT
-trap quit SIGTERM
-
 declare -r DEFIFS="$IFS"
 declare -A highlight faces options charmap alias descriptions
 declare -A menulineedit diredmenu menulinedebug
 declare -A menufancy
 declare -A keys_def keys_global
-declare -a k_hex listbuffers
+declare -a k_hex listbuffers log_buffer
 declare -n buffer buffersyntax bufferexpand bufferdata
 declare -i menulinep menulinepy toplines bottomlines hidden ismenu comment current_count _isdone
 declare -n menucon
 declare message reset readin
-
 
 function load-default-config {
 	## Configuration
@@ -307,7 +302,7 @@ function load-default-config {
 ## syntaxy sugar sugary syntax
 
 function ebashs-extensions {
-
+	log_buffer+=('- LOADING BASH EXTENSIONS -')
 	function @ifs { IFS="$DEFIFS"; }
 	
 	# Make bash not be bashy enough
@@ -349,6 +344,7 @@ Load default config included with Ebashs.
 		if [ -z "$1" ]; then
 			wen
 		else
+			log_buffer+=("    NEW: $2")
 			((_isdone)) && wen
 			# TODO: add more operations
 			case "$1" in
@@ -390,6 +386,7 @@ Load default config included with Ebashs.
 	new = fragment
 		:: Creates a function-insertable macro
 		function = {
+			log_buffer+=("        FRAGMENT: $1")
 			declare -ag "_fragment_$1"
 			mapfile "_fragment_$1"
 		}
@@ -444,6 +441,7 @@ Load default config included with Ebashs.
 		:: Creates a function template
 		:: Function template is turned into function with @def function
 		function = {
+			log_buffer+=("        TEMPLATE: $1")
 			_last_template="$1"
 			declare -g "_template_$1"
 			local -n tpl="_template_$1"
@@ -818,7 +816,8 @@ Load default config included with Ebashs.
 			}
 					 ((t)) && errno=1 die
 		}
-	new
+	wen
+	log_buffer+=('- LOADING BASH EXTENSIONS DONE -')	
 }
 ebashs-extensions
 ## rest of this garbageware
@@ -1515,7 +1514,7 @@ new = init-log
 		add-menu
 			:: 'quit' 'quit-view'
 
-		bufferlog=(
+		bufferlog+=(
 			''
 			"Ebashs version $version"
 			"    [ LOG START ]"
@@ -3389,6 +3388,7 @@ new = input-key
 new = load-config
 	:: Sources custom config file
 	function = {
+		log_buffer+=('LOADING CONFIG...')
 		local config_file
 		local f
 		f=~/.config/ebashsrc ;[ -f "$f" ] && config_file="$f"
@@ -3396,6 +3396,7 @@ new = load-config
 		f=.ebashsrc ;[ -f "$f" ] && config_file="$f"
 		[ -z "$config_file" ] && return
 		source "$config_file"
+		log_buffer+=("LOADED $f")
 	}
 
 new = init
@@ -3403,6 +3404,7 @@ new = init
 	function = {
 		bottomlines=0
 		toplines=0
+		log_buffer+=('- LOAD DEFAULT CONFIG -')
 		load-default-config #loads default config
 		case "$1" in
 			'--quick'|'-Q') shift;;
@@ -3430,7 +3432,14 @@ EOF
 				abort;;
 			*) load-config
 		esac
-		((options[log])) && init-log # set up log buffer (M-x log)
+		((options[log])) && init-log || unset buffer_log # set up log buffer (M-x log)
+
+		log info setting traps...
+		trap change-size-screen WINCH ALRM # Attach WINCH and ALRM to redraw the screen
+		trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
+		trap 'k_hex=(3 0); input-key' INT
+		trap quit SIGTERM
+		
 		menulinepy=0; menulinep=0 # menu positions
 		log info 'Setting menu-line'
 		toplines="${options[menu-line]}"
@@ -3494,5 +3503,6 @@ new = main
 		}
 	done
 wen
-		
+
+log_buffer+=('INIT')
 init "$@"
