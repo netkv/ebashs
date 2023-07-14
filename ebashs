@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.11"
+version="0.7.11.1"
 ## Ebashs
 #		Emacs-like editor written in pure Bash
 #		Had been tested properly only on Bash 5.2, and will propably be broken on 4.x versions and definitelly on 3 and older.
@@ -54,10 +54,10 @@ function load-default-config {
 		:: help_message "Ebashs $version"
 		:: dired_message 'Pick a file'
 		:: render-chunk 8
-		:: tile-mode 'vertical'
 		:: log 0
 		:: log_functions 0
-		:: tty-linuxfb 1
+		:: tty-linuxfb 1 # enable truecolor support for framebuffer
+		:: full-redraw 1 # redraws whole buffer, can fix artifacting in linuxfb at cost of performance
 		
 	## Key bindings configuration
 	#		A keybinding is defined via either
@@ -3186,7 +3186,7 @@ new = redraw
 		
 		redraw-statusline
 		redraw-commandline
-		redraw-cursor
+		((no_cursor)) || redraw-cursor
 		
 		@ifs
 		
@@ -3197,6 +3197,11 @@ new = redraw
 new = redraw-cursor
 	:: Draw cursor and if move_base is 1 redraw
 	function = {
+		((options[full-redraw])) && {
+			no_cursor=1
+			redraw
+			no_cursor=0
+		}
 		((move_base)) && {
 			move_base=0
 			redraw
