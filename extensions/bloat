@@ -21,13 +21,13 @@ add-mode bloat
 	:: "$(kbd C-k)" 'window-height-'
 	:: "$(kbd C-l)" 'window-width-'
 	
-new = bloat-prefix
+defun bloat-prefix
 	:: Handles Bloat keybindings
 	function = {
 		switch-mode bloat
 	}
 
-new = redraw-windows
+defun redraw-windows
 	:: Redraw all active buffers
 	function = {
 		clear-screen
@@ -40,28 +40,28 @@ new = redraw-windows
 	}
 	
 ## Moving
-new = window-left
+defun window-left
 	:: Moves window to left
 	function = {
 		((bufferdata[position_x]--))
 		redraw-windows
 	}
 
-new = window-right
+defun window-right
 	:: Moves window to right
 	function = {
 		((bufferdata[position_x]++))
 		redraw-windows
 	}
 
-new = window-down
+defun window-down
 	:: Moves window down
 	function = {
 		((bufferdata[position_y]++))
 		redraw-windows
 	}
 
-new = window-up
+defun window-up
 	:: Moves window up
 	function = {
 		((bufferdata[position_y]--))
@@ -69,31 +69,31 @@ new = window-up
 	}
 
 ## Resizing
-new = window-width+
+defun window-width+
 	:: Increase width of window
 	function = {
 		((bufferdata[size_x]++))
 		redraw-windows
 	}
 
-new = window-width-
+defun window-width-
 	:: Decrease width of window
 	function = {
 		((bufferdata[size_x]--))
 		redraw-windows
 	}
 
-new = window-height+
+defun window-height+
 	:: Increase height of window
 	function = {
 		((bufferdata[size_y]++))
 		redraw-windows
 	}
 
-new = window-height-
+defun window-height-
 	:: Decrase height of window
 	function = {
 		((bufferdata[size_y]--))
 		redraw-windows
 	}
-wen
+nufed

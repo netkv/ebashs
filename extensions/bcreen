@@ -15,13 +15,13 @@ add-mode bcreen
 	:: "$(kbd h)" 'tile-horizontal'
 	:: "$(kbd k)" 'delete-buffer'
 
-new = bcreen-prefix
+defun bcreen-prefix
 	:: Handles Bcreen keybindings
 	function = {
 		switch-mode bcreen
 	}
 
-new = bcreen
+defun bcreen
 	:: Bcreen extension "$bcreen_version"
 	:: Main Bcreen function 
 	::
@@ -38,7 +38,7 @@ fragment targetoff <<'+'
  	target_y_offset=1
 +
 
-new = tile-buffers +fragment
+defun tile-buffers +fragment
 	:: Tile active buffers:
 		:: '    * vertical - split buffers vertically'
 		:: '    * horizontal - split buffers horizontally'
@@ -81,21 +81,21 @@ new = tile-buffers +fragment
 		set-buffer "$bck_current_buffer"
 	}
 
-new = tile-vertical
+defun tile-vertical
 	:: Tile buffers vertically
 	function = {
 		options[tile-mode]='vertical'
 		tile-buffers
 	}
 
-new = tile-horizontal
+defun tile-horizontal
 	:: Tile buffers horizontally
 	function = {
 		options[tile-mode]='horizontal'
 		tile-buffers
 	}
 
-new = tile-single
+defun tile-single
 	:: Makes currently selected buffer fullscreen
 	function = {
 		options[tile-mode]='single'

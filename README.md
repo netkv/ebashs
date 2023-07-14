@@ -153,7 +153,7 @@ Here is sample bash syntax function included with Ebashs:
     set-highlight
         :: shell bash ksh dash sh mksh zsh ash oksh i*bash
 
-	new = syntax-shell
+	defun syntax-shell
 		:: Syntax function for shell
 		:: Used faces:
 		:: '    * font-lock-declare-face'

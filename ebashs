@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.11.2"
+version="0.7.11.2.1"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -320,8 +320,8 @@ Description text is supplied from stdin, so mostly heredoc.
 Load default config included with Ebashs.
 	+
 
-	# reverse of new :D
-	function wen {
+	# reverse of defun :D
+	function nufed {
 		((_addfragment)) && {
 			@add '='
 			_addfragment=0
@@ -340,27 +340,21 @@ Load default config included with Ebashs.
 		((desc_count++))
 	}
 	
-	function new {
+	function defun {
 		if [ -z "$1" ]; then
-			wen
+			nufed
 		else
-			log_buffer+=("    NEW: $2")
-			((_isdone)) && wen
-			# TODO: add more operations
-			case "$1" in
-				'=')
-					descriptions["function_${2}_description"]="description_${desc_count}"
-					_function="$2"
-					_isdone=1
-					_last_add=add-doc
-					[ "$3" = '+fragment' ] && _addfragment=1
-					;;
-				*) return 1
-			esac
+			log_buffer+=("    DEFUN: $1")
+			((_isdone)) && nufed
+			descriptions["function_${1}_description"]="description_${desc_count}"
+			_function="$1"
+			_isdone=1
+			_last_add=add-doc
+			[ "$2" = '+fragment' ] && _addfragment=1
 		fi
 	}
 
-	new = ::
+	defun ::
 		function =
 			case "$_last_add" in
 				add-menu) local-set-menu "$@";;
@@ -373,7 +367,7 @@ Load default config included with Ebashs.
 				mode-options) local-set-mode-option "$@"
 			esac
 
-	new = add-doc
+	defun add-doc
 		function = {
 			local -n cdoc="description_${desc_count}"
 			cdoc+=("$*")
@@ -383,7 +377,7 @@ Load default config included with Ebashs.
 	
 	# fragments act basically like macros but with cooler name
 	# see redraw-buffer function for example usage
-	new = fragment
+	defun fragment
 		:: Creates a function-insertable macro
 		function = {
 			log_buffer+=("        FRAGMENT: $1")
@@ -391,7 +385,7 @@ Load default config included with Ebashs.
 			mapfile "_fragment_$1"
 		}
 	
-	new = @add
+	defun @add
 		:: Adds fragment to a function
 		function = {
 			local -a _add_fn
@@ -437,7 +431,7 @@ Load default config included with Ebashs.
 	# @: creates function from last defined template
 	# @: <@var 1> <@var 2>...
 	
-	new = template
+	defun template
 		:: Creates a function template
 		:: Function template is turned into function with @def function
 		function = {
@@ -451,7 +445,7 @@ Load default config included with Ebashs.
 			done
 			@ifs
 		}
-	new = @def
+	defun @def
 		:: Defines a function template
 		function = {
 			local -n _tpl="_template_$1"
@@ -474,13 +468,13 @@ Load default config included with Ebashs.
 			eval "$_fn"
 		}
 	
-	new = @:
+	defun @:
 		:: Calls @def with lastest defined template as argument
 		function = { @def "$_last_template" "$@"; }
 	
 	# unbashing bash one step at time °o°
 	
-	new = _
+	defun _
 		:: Variable refernce helper
 		function = {
 			# this function is here to simplify stuff as writing overlong variables indexed by overloong variable index...
@@ -495,7 +489,7 @@ Load default config included with Ebashs.
 			declare -gn "$1"="$2"
 			refalias+=("$1")
 		}
-	new = __
+	defun __
 		:: Swap variable references
 		function = {
 			# swap two references
@@ -507,7 +501,7 @@ Load default config included with Ebashs.
 			declare -gn "$2"="${_swap_copy_1}"
 		}
 	
-	new = @fn
+	defun @fn
 		:: Shorthand for one line functions
 		function = {
 			[ -z "$*" ] && exit 1 # error if empty
@@ -516,7 +510,7 @@ Load default config included with Ebashs.
 			eval "function $name { $@; }"
 		}
 	
-	new = copy-array
+	defun copy-array
 		:: A univeral function to copy both normal and associative arrays
 		function = {
 			local -n source="$1"
@@ -527,7 +521,7 @@ Load default config included with Ebashs.
 			done
 		}
 
-	new = append-array
+	defun append-array
 		:: Append array \$1 to \$2  
 		function = {
 			local -n source="$1"
@@ -537,7 +531,7 @@ Load default config included with Ebashs.
 			done
 		}
 	
-	new = setface
+	defun setface
 		:: Convert colors to escape codes
 		:: '$1' can be either one of colors:
 			:: '    black'
@@ -609,7 +603,7 @@ Load default config included with Ebashs.
 	function :foreground { mode=38; setface "$@"; }
 	function :background { mode=48; setface "$@"; }
 
-	new = :mode
+	defun :mode
 		:: Sets text mode:
 			:: '	inverse - inverses background and foreground'
 		function = {
@@ -619,7 +613,7 @@ Load default config included with Ebashs.
 			shift
 			[ -n "$1" ] && "$@";
 		}
-	new = :weight
+	defun :weight
 		:: Sets thickness of text:
 		:: '    bold'
 		:: '    dim'
@@ -633,7 +627,7 @@ Load default config included with Ebashs.
 			shift
 			[ -n "$1" ] && "$@";
 		}
-	new = :slant
+	defun :slant
 		function = {
 			case "$1" in
 				italic) printf '\\e[3m';;
@@ -642,7 +636,7 @@ Load default config included with Ebashs.
 			shift
 			[ -n "$1" ] && "$@";
 		}
-	new = kbd
+	defun kbd
 		:: Converts Emacs like key notation into hex.
 		function = {
 			local -i i=0
@@ -681,7 +675,7 @@ Load default config included with Ebashs.
 			printf '%s' "${out}"
 		}
 
-	new = define-key
+	defun define-key
 		:: defines keybinding
 		:: '$1' can be either:
 		:: '    [function-key]'
@@ -727,7 +721,7 @@ Load default config included with Ebashs.
 	@fn local-set-key 'define-key "$_last_keys" "$@"'
 	@fn global-set-key 'define-key global "$@"'
 
-	new = define-mode-option
+	defun define-mode-option
 		:: Sets option of mode '$1'
 		function = {
 			local -n ko="key_options_$1"
@@ -736,7 +730,7 @@ Load default config included with Ebashs.
 	@fn local-set-mode-option 'define-mode-option "$_last_keys" "$@"'
 	@fn mode-options '_last_add="mode-options"'
 
-	new = add-alias
+	defun add-alias
 		:: Adds alias '$1' of command '$2...' to M-x
 		function = {
 			local name="$1"
@@ -745,7 +739,7 @@ Load default config included with Ebashs.
 		}
 	@fn set-alias '_last_add=set-alias'
 
-	new = add-highlight
+	defun add-highlight
 		:: Sets highlighting mode '$1' for file types '$2...'
 		function = {
 			local name="$1"
@@ -758,7 +752,7 @@ Load default config included with Ebashs.
 	
 	@fn clear-screen "printf '\033c'"
 
-	new = add-mode
+	defun add-mode
 		:: Adds keybing mode
 		function = {
 			_last_keys="$1"
@@ -767,7 +761,7 @@ Load default config included with Ebashs.
 			declare -Ag "key_options_$1"
 		}
 
-	new = add-menu
+	defun add-menu
 		:: Adds menu
 		function = {
 			# create new menu function & array
@@ -784,7 +778,7 @@ Load default config included with Ebashs.
 	@fn define-option 'options["$1"]="$2"'
 	@fn set-options '_last_add=set-options'
 
-	new = define-menu
+	defun define-menu
 		:: Defines item in menu '$1' with name '$2' with command '$3'
 		:: '    If command is "menu-top" face button is used.'
 		function = {
@@ -799,7 +793,7 @@ Load default config included with Ebashs.
 			menu_1+=("$3")
 		}
 
-	new = load-theme
+	defun load-theme
 		:: Loads theme from array
 		function = {
 			local -i t=0
@@ -816,13 +810,13 @@ Load default config included with Ebashs.
 			}
 					 ((t)) && errno=1 die
 		}
-	wen
+	nufed
 	log_buffer+=('- LOADING BASH EXTENSIONS DONE -')	
 }
 ebashs-extensions
 ## rest of this garbageware
 
-new = refresh
+defun refresh
 	:: Refreshes buffer
 		:: '    clears screen, reset syntax, redraws'
 	function = {
@@ -833,7 +827,7 @@ new = refresh
 		redraw
 	}
 
-new = switch-mode
+defun switch-mode
 	:: Change current mode of buffer into '$1'
 	function = {
 		bckmode="${bufferdata[mode]}"
@@ -845,7 +839,7 @@ new = switch-mode
 @fn prefix-help switch-mode prefix_help
 	doc prefix-help <<<'-> switch-mode prefix-help'
 
-new = quit-prefix
+defun quit-prefix
 	:: Restores previous mode '(→ quits prefixes)'
 	function = {
 		bufferdata[mode]="$bckmode"
@@ -853,7 +847,7 @@ new = quit-prefix
 		redraw-statusline
 	}
 
-new = read-command
+defun read-command
 	:: Works like normal "'read'" but for bottom commanline
 	function = {
 		printf '\e[%s;0H' $((bufferdata[size_y] + bufferdata[position_y]))
@@ -861,7 +855,7 @@ new = read-command
 		read -re -p "$1" "$2" || return 1
 	}
 
-new = execute-extended-command
+defun execute-extended-command
 	:: 'Handles M-x command prompt & execution'
 	function = {
 		read-command "${options[command-prompt]}" readin || return 1
@@ -876,14 +870,14 @@ new = execute-extended-command
 	}
 
 ### TODO: make this make sense
-new = save
+defun save
 	:: Saves current buffer references data as '$1'
 	function = {
 		local name="$1"
 		local -n savedcurrent_buffer="current_buffer${name}"
 		savedcurrent_buffer="$current_buffer"
 	}
-new = restore
+defun restore
 	:: Restores '$1' buffer references data to current
 	function = {
 		local name="$1"
@@ -891,7 +885,7 @@ new = restore
 		set-buffer "${savedcurrent_buffer}"
 	}
 
-new = set-syntax
+defun set-syntax
 	:: Picks syntax highlighting function for current filetype
 	function = if
 		[ -n "${highlight[*]}" ] && bufferdata[syntax]="syntax-${highlight[unknown]}"
@@ -905,7 +899,7 @@ new = set-syntax
 		log warn 'no highlight array... using unknown'
 	fi
 
-new = make-render
+defun make-render
 	:: Creates syntax highlighting for currently visible lines
 	function = {
 		((bufferdata[raw])) ||
@@ -922,7 +916,7 @@ fragment setrender <<'+'
 	IFS=
 +
 
-new = make-render-area +fragment
+defun make-render-area +fragment
 	:: Creates syntax highlighting for lines from '$1' to '$2'
 	function = {
 		@ setrender
@@ -937,7 +931,7 @@ new = make-render-area +fragment
 		done
 		IFS="$bckeIFS"
 	}
-new = make-render-line +fragment
+defun make-render-line +fragment
 	:: Syntax highlights single line '$1'
 	:: Defaults to currently selected line if no argument is passed
 	function = {
@@ -947,7 +941,7 @@ new = make-render-line +fragment
 		IFS="$bckeIFS"
 	}
 
-new = expand-char
+defun expand-char
 	:: Creates bufferexpand for handling cursor movenment
 	:: Is controled via charmap associative array
 	:: "    Tab is 't'"
@@ -972,7 +966,7 @@ new = expand-char
 		@ifs
 	}
 
-new = make-render-line-loop
+defun make-render-line-loop
 	:: Backend for make-render-area \& make-render-line
 	function = {
 		bufferexpand[line]="$(expand-char <<< "${buffer[line]}")"
@@ -999,7 +993,7 @@ new = make-render-line-loop
 		done  <<< "${buffer[line]}"
 	}
 
-new = syntax-word
+defun syntax-word
 	:: Decides what a word should highlighted as:
 	:: '    If todonote option is enabled, highlight "NOTE:" & "TODO:"'
 	:: '    If the word is supposed to be comment highlight it as it'
@@ -1016,7 +1010,7 @@ new = syntax-word
 		face "$syntax_face" "$word"
 	}
 
-new = face
+defun face
 	:: Add highlighted word to multidimensional nonsense "'buffersyntax'" arry
 	function = {
 		IFS=' '
@@ -1027,7 +1021,7 @@ new = face
 	
 @fn set-face 'syntax_face="$1"'
 
-new = syntax-shell
+defun syntax-shell
 	:: Syntax function for shell
 	:: Used faces:
 	:: '    * font-lock-declare-face'
@@ -1066,7 +1060,7 @@ new = syntax-shell
 			*) set-face default;;
 		esac
 
-new = syntax-ebashs
+defun syntax-ebashs
 	:: Syntax function for Ebashs files cuz it\'s too weird already
 	:: Used faces:
 	:: '    * font-lock-declare-face'
@@ -1115,7 +1109,7 @@ Default syntax function
 Sets everything to default face
 	+
 
-new = syntax-dired
+defun syntax-dired
 	:: Highlighting for dired buffers
 	:: '    * Directories → link'
 	:: '    * Files → default'
@@ -1124,7 +1118,7 @@ new = syntax-dired
 		[ -f "$word" ] && set-face default
 	}
 
-new = syntax-config
+defun syntax-config
 	:: Basic syntax function for config files
 	:: Used faces:
 	:: '    * default'
@@ -1135,7 +1129,7 @@ new = syntax-config
 			*) set-face default;;
 		esac
 
-new = base-name
+defun base-name
 	:: Basically equivalent to the "'basename'" coreutil		
 	function =
 		for file in "$@"; {
@@ -1143,7 +1137,7 @@ new = base-name
 			printf '%s\n' "${file##*/}"
 		}
 
-new = filetype
+defun filetype
 	:: Detect type of file '$1':					
 	:: "    * If file doesn't exist → unknown"
 	:: "    * If is COMMIT_EDITMSG → conf"
@@ -1199,7 +1193,7 @@ new = filetype
 		@ifs
 	}
 
-new = find-file
+defun find-file
 	:: Asks for file and opens it
 	function = {
 		printf '\e[%s;0H' $((bufferdata[size_y] + bufferdata[position_y]))
@@ -1216,7 +1210,7 @@ new = find-file
 
 
 # draw something for nice transition
-new = draw-raw
+defun draw-raw
 	:: Draw the buffer without any special effects
 	:: Equivalent to setting bufferdata[raw] to 1 in subshell
 	function = (
@@ -1224,7 +1218,7 @@ new = draw-raw
 		redraw
 	)
 
-new = size-full
+defun size-full
 	:: Sets size of buffer to be fullscreen
 	function = {
 		bufferdata+=(
@@ -1235,7 +1229,7 @@ new = size-full
 		)
 	}
 
-new = insert-debug-hex
+defun insert-debug-hex
 	:: Adds hex code of keypress into buffer
 	function = {
 		buffer+=(
@@ -1245,7 +1239,7 @@ new = insert-debug-hex
 		make-render-line
 }
 
-new = set-buffer
+defun set-buffer
 	:: Switch to buffer \$1 
 	function = {
 		log info "switch to buffer [$1]"
@@ -1256,7 +1250,7 @@ new = set-buffer
 		declare -ng bufferdata="${current_buffer}_bufferdata"
 	}
 
-new = switch-to-buffer
+defun switch-to-buffer
 	:: Interactive wrapper for set-buffer
 	function = {
 		redraw
@@ -1264,13 +1258,13 @@ new = switch-to-buffer
 		set-buffer "$readin"
 		redraw
 	}
-new = add-to-list
+defun add-to-list
 	:: Adds a buffer into currently active buffer list
 	function = {
 		log info "added into buffer list: $current_buffer"
 		listbuffers+=("$current_buffer")
 	}
-new = list-buffers
+defun list-buffers
 	:: Displays currently active buffers
 	function = {
 		save openfile
@@ -1295,7 +1289,7 @@ new = list-buffers
 		redraw
 	}
 	
-new = buffer-select
+defun buffer-select
 	:: Is ran on RET inside list_buffers buffer
 	function = {
 		set-buffer "${buffer[bufferdata[line]]}"
@@ -1311,7 +1305,7 @@ add-mode term
 	local-set-key '[deletechar]' 'delete'
 	local-set-mode-option else 'insert'
 
-new = term-exec
+defun term-exec
 	:: Executes and displays command in term buffers
 	function = {
 		IFS=$'\n'
@@ -1327,7 +1321,7 @@ new = term-exec
 		@ifs
 	}
 
-new = term
+defun term
 	:: Opens a terminal buffer
 	function = {
 		save openfile
@@ -1360,7 +1354,7 @@ add-mode debuginput
 	local-set-mode-option else 'insert-debug-hex'
 	local-set-mode-option disable-global 1
 
-new = inputcodes
+defun inputcodes
 	:: Opens debug input buffer
 	function = {
 		save openfile
@@ -1388,7 +1382,7 @@ new = inputcodes
 		redraw
 	}
 
-new = read-buffer
+defun read-buffer
 	:: Reads file \$1 into new buffer
 	function = {
 		log info "reading $* ..."
@@ -1422,7 +1416,7 @@ new = read-buffer
 		bufferdata[modified]=0
 	}
 
-new = clear-buffer
+defun clear-buffer
 	:: Empties buffer buffersyntax bufferexpand \& bufferdata
 	function = {
 		buffer=()
@@ -1431,14 +1425,14 @@ new = clear-buffer
 		bufferdata=()
 	}
 
-new = toggle_hidden
+defun toggle_hidden
 	:: Toggles hidden files in dired buffer
 	function = {
 		((hidden==0)) && hidden=1 || hidden=0
 		dired
 	}
 
-new = dired
+defun dired
 	:: Open file manager in current working directory
 	function = {
 		((current_count++))
@@ -1470,7 +1464,7 @@ new = dired
 		fi
 		redraw
 	}
-new = dired-select
+defun dired-select
 	:: Select a item in dired buffer
 		:: '    * If it is a directory cd into it and open new dired'
 		:: '    * If it is a file open it via read-buffer function'
@@ -1484,7 +1478,7 @@ new = dired-select
 		redraw
 	fi
 
-new = list-directory
+defun list-directory
 	:: Basically like ls command
 		:: '    If' \$hidden is 1 also show hidden files 
 		:: '    If' \$hidden is 0 also show the special .. 
@@ -1493,7 +1487,7 @@ new = list-directory
 		printf '%s\n' *
 	}
 
-new = init-log
+defun init-log
 	:: Initializes M-x view-log buffer
 	function = {
 		log=1
@@ -1530,7 +1524,7 @@ new = init-log
 		lasttime="$(current-time '%s')"
 	}
 
-new = view-log
+defun view-log
 	:: Opens log buffer
 	function = {
 		((log)) || {
@@ -1548,13 +1542,13 @@ new = view-log
 		done
 	}
 
-new = current-time
+defun current-time
 	:: Basically like coreutil "'date'"
 	function = {
 	printf "%($1)T\\n"
 	}
 
-new = log
+defun log
 	:: Adds message into log	
 	function = {
 		((log)) || return
@@ -1567,21 +1561,21 @@ new = log
 
 ## debug
 # +debug -- basically like set -x but reports stuff into log
-new = +log	
+defun +log	
 	:: Debug function to add logging to function it\'s called from
 	function = {
 		((log)) || return
 		((options[log_functions])) && log '*' "${FUNCNAME[1]}"
 		trap 'log bash $? $LINENO ${BASH_COMMAND}' ERR
 	}
-new = +debug
+defun +debug
 	:: Debug function to add extensive \(set -x like\) logging to function it\'s called from
 	function = {
 		((log)) || return
 		trap 'log DEBUG "${BASH_COMMAND}"' DEBUG
 	}
 
-new = buffer-dialog
+defun buffer-dialog
 	:: Helper functions for creating simple popup buffers
 	function = {
 		save openfile
@@ -1604,7 +1598,7 @@ new = buffer-dialog
 		size-full
 	}
 
-new = buffer-dialog-draw
+defun buffer-dialog-draw
 	:: Draws buffer created by buffer-dialog
 	function = {
 		copy-array buffer bufferexpand
@@ -1612,7 +1606,7 @@ new = buffer-dialog-draw
 		redraw
 	}
 
-new = about
+defun about
 	:: Shows about information	
 	function = {
 		buffer-dialog about 'About' '*about*'
@@ -1677,7 +1671,7 @@ EOF
 		buffer-dialog-draw
 	}
 
-new = list-faces-display
+defun list-faces-display
 	:: Displays list of fases
 	function = {
 		buffer-dialog faces 'faces' '*list-faces-display*'
@@ -1692,7 +1686,7 @@ new = list-faces-display
 		buffer-dialog-draw
 	}
 
-new = list-data-display
+defun list-data-display
 	:: Displays list of data of buffer from bufferdata array	
 	function = {
 		read-command "List data of buffer: " readin
@@ -1709,7 +1703,7 @@ new = list-data-display
 		buffer-dialog-draw
 	}
 
-new = list-options-display
+defun list-options-display
 	:: Displays list of options
 	function = {
 		buffer-dialog faces 'options' '*list-data-display*'
@@ -1724,7 +1718,7 @@ new = list-options-display
 		buffer-dialog-draw
 	}
 
-new = table-init
+defun table-init
 	:: Initializes bml \(bash markup language\) table
 	function = {
 		table_columns="$1"
@@ -1737,7 +1731,7 @@ new = table-init
 		done
 	}
 
-new = table-char
+defun table-char
 	:: Sets style of bml table
 	function =
 		if (( ${#@} == 11 )); then
@@ -1746,7 +1740,7 @@ new = table-char
 			table_char=(─ │ ┌ ┬ ┐ ├ ┼ ┤ └ ┴ ┘)
 		fi
 
-new = table-top
+defun table-top
 	:: Prints top line of bml table
 	function = {
 		printf '%s' "${table_char[2]}"
@@ -1761,7 +1755,7 @@ new = table-top
 		printf '\n'
 	}
 
-new = table-title-line
+defun table-title-line
 	:: Prints bml table title divider
 	function = {
 		printf '%s' "${table_char[5]}"
@@ -1777,7 +1771,7 @@ new = table-title-line
 	}
 @fn table-divider 'table-title-line "$@"'
 
-new = table-bottom
+defun table-bottom
 	:: Prints bottom line of bml table
 	function = {
 		printf '%s' "${table_char[8]}"
@@ -1792,7 +1786,7 @@ new = table-bottom
 		printf '\n'
 	}
 
-new = table-item
+defun table-item
 	:: Prints line of table
 	function = {
 		local -i i=0
@@ -1807,7 +1801,7 @@ new = table-item
 		printf '\n'
 	}
 
-new = table-title
+defun table-title
 	:: Prints title of table
 	function = {
 		local -i i=0
@@ -1827,15 +1821,15 @@ new = table-title
 		printf '\n'
 	}
 
-new = code-block
+defun code-block
 	:: Prints code in bml document
 	function = while read -r; do echo "$REPLY"; done
 
-new = print-stdin
+defun print-stdin
 	:: Basically like coreutil "'cat'"
 	function = while read -r; do echo "$REPLY"; done
 
-new = text
+defun text
 	:: Prints normal text in bml document
 	function =
 		while read -r; do
@@ -1848,7 +1842,7 @@ new = text
 @fn title 'printf "[ %s ]" "$@"'
 @fn code 'printf "%s" "$@"'
 
-new = header
+defun header
 	:: Prints header of bml document
 	function = {
 		arg=$*
@@ -1861,7 +1855,7 @@ new = header
 		EOF2
 	}
 
-new = manual
+defun manual
 	:: 'Displays C-h r manual buffer'
 	function = {
 		buffer-dialog manual 'Manual' '*manual*'
@@ -1869,7 +1863,7 @@ new = manual
 		buffer-dialog-draw
 	}
 
-new = get-manual
+defun get-manual
 	:: Parses manual bml document
 	function = {
 	#DO NOT edit following lines, makedoc handles them automatically
@@ -2111,7 +2105,7 @@ $(code-block bash <<EOF2
     set-highlight
         :: shell bash ksh dash sh mksh zsh ash oksh i*bash
 
-	new = syntax-shell
+	defun syntax-shell
 		:: Syntax function for shell
 		:: Used faces:
 		:: '    * font-lock-declare-face'
@@ -2244,7 +2238,7 @@ EOF
 	# MAKEDOC INSERT README STOP
 	}
 
-new = describe-function
+defun describe-function
 	:: Displays help and info of function
 	function = {
 		redraw
@@ -2254,7 +2248,7 @@ new = describe-function
 		buffer-dialog-draw
 	}
 
-new = describe
+defun describe
 	:: Displays help and info of all functions
 	function = {
 	    save openfiledoc
@@ -2284,7 +2278,7 @@ new = describe
 		buffer-dialog-draw
 }
 
-new = doc-select	
+defun doc-select	
 	:: Select documentation item
 	function = {
 		local function="${buffer[bufferdata[line]]}"
@@ -2293,7 +2287,7 @@ new = doc-select
 		buffer-dialog-draw
 	}
 
-new = quit-doc
+defun quit-doc
 	:: Quits and restores previous buffer.
 	function = {
 		restore openfiledoc
@@ -2301,7 +2295,7 @@ new = quit-doc
 	}
 	
 @fn is-function 'declare -F -- "$1" > /dev/null'
-new = get-description
+defun get-description
 	:: Prints desciption of function
 	function = {
 		is-function "$1" || {
@@ -2322,7 +2316,7 @@ new = get-description
 		}
 	}
 
-new = quit-view
+defun quit-view
 	:: Quits and restores previous buffer.
 	:: Used mainly for dialog buffers.
 	function = {
@@ -2330,7 +2324,7 @@ new = quit-view
 		redraw
 	}
 
-new = newline
+defun newline
 	:: Inserts newline to current buffer at current cursor position
 	function = {
 		bufferdata[modified]=1
@@ -2343,7 +2337,7 @@ new = newline
 		next-line
 	}
 
-new = syntax-shift
+defun syntax-shift
 	:: Moves syntax multibuffer from current cursor position one line to the bottom
 	:: Used in newline function
 	function = {
@@ -2365,7 +2359,7 @@ new = syntax-shift
 		make-render-area $((bufferdata[line])) $((bufferdata[line]+2))
 	}
 
-new = delete-line
+defun delete-line
 	:: Deletes line at current cursor position
 	function = {
 		bufferdata[modified]=1
@@ -2374,7 +2368,7 @@ new = delete-line
 		redraw
 	}
 
-new = buffer-delete-line
+defun buffer-delete-line
 	:: Deletes line at \$1
 	function = {
 		local -i l=$1
@@ -2406,7 +2400,7 @@ fragment predelete <<'+'
 	}
 +
 
-new = backspace +fragment
+defun backspace +fragment
 	:: Deletes previous character
 	function = {
 		save-state
@@ -2426,7 +2420,7 @@ new = backspace +fragment
 		bufferdata[modified]=1
 	}
 
-new = delete +fragment
+defun delete +fragment
 	:: Deletes next character
 	function = {
 		save-state
@@ -2446,7 +2440,7 @@ new = delete +fragment
 		bufferdata[modified]=1
 	}
 
-new = delete-selection
+defun delete-selection
 	:: Deletes region
 	function = {
 		_ sy bufferdata[selection_start_y]
@@ -2477,7 +2471,7 @@ new = delete-selection
 		_ # unset reference aliases
 	}
 
-new = write-buffer
+defun write-buffer
 	:: Writes current buffer into its target file	
 	function =
 		if [ -w "${bufferdata[file]}" ]; then
@@ -2496,7 +2490,7 @@ add-mode quit
 	local-set-key "$(kbd n)" 'die'
 	local-set-key "$(kbd c)" 'quit-quit'
 
-new = save-quit
+defun save-quit
 	:: Writes buffer if target is writable
 	function =
 		if write-buffer; then
@@ -2506,7 +2500,7 @@ new = save-quit
 			redraw-commandline
 		fi
 
-new = quit-quit
+defun quit-quit
 	:: Quits quit message
 	function = {
 		bufferdata[mode]="$bckmode"
@@ -2514,7 +2508,7 @@ new = quit-quit
 		redraw
 	}
 
-new = quit
+defun quit
 	:: Displays quit message and sets mode to \'quit\'
 	function =
 		if ((bufferdata[modified])); then
@@ -2527,7 +2521,7 @@ new = quit
 			die
 		fi
 
-new = die
+defun die
 	:: Closes Ebashs with exit code \$errno, if errno is empty exit with 0
 	:: If \$nocleanup is 1, do not restore the terminal to sane mode and do not cleanup 
 	:: Else restore to sane mode 
@@ -2539,7 +2533,7 @@ new = die
 		exit "${errno:-0}" # Assume that we are exiting without an error
 	}
 
-new = abort
+defun abort
 	:: Sets \$nocleanup to 1 and dies	
 	function = {
 		((nocleanup=1)) && die "$@"
@@ -2557,7 +2551,7 @@ fragment keepcolumn <<'+'
 	(( ${#bufferexpand[bufferdata[line]]} > bckrl )) && bufferdata[column]=${bckrl}
 +
 
-new = move-previous-line +fragment
+defun move-previous-line +fragment
 	:: Moves up \$1 lines, if \$ is empty move up 1 line
 	function = {
 		@ move
@@ -2571,7 +2565,7 @@ new = move-previous-line +fragment
 		@ end
 	}
 
-new = move-next-line +fragment
+defun move-next-line +fragment
 	:: Moves down \$1 lines, if \$ is empty move down 1 line
 	function = {
 		@ move
@@ -2648,7 +2642,7 @@ fragment charbreak <<'+'
 	esac
 +
 
-new = forward-word +fragment
+defun forward-word +fragment
 	:: Moves forward to next word
 	function = {
 		((bufferdata[column] == ${#bufferexpand[bufferdata[line]]})) && {
@@ -2662,7 +2656,7 @@ new = forward-word +fragment
 		redraw
 	}
 
-new = backward-word +fragment
+defun backward-word +fragment
 	:: Moves backward to previous word
 	function = {
 		((bufferdata[column] == 0)) && {
@@ -2676,7 +2670,7 @@ new = backward-word +fragment
 		redraw
 	}
 
-new = set-mark-command
+defun set-mark-command
 	:: Begins selection	
 	function =
 		if ((bufferdata[selection])); then
@@ -2689,7 +2683,7 @@ new = set-mark-command
 			log info 'selection enable'
 		fi
 
-new = shell
+defun shell
 	:: Spawns bash as subprocess
 	function = {
 		clear-screen
@@ -2697,7 +2691,7 @@ new = shell
 		redraw
 	}
 
-new = execute
+defun execute
 	:: Executes a command and inserts its output into buffer	
 	function = {
 		((bufferdata[line] == 0)) && return # If the line is not possible, do nothing
@@ -2711,7 +2705,7 @@ new = execute
 		redraw
 	}
 
-new = diff-buffer-syntax
+defun diff-buffer-syntax
 	:: Deletes highlighting on modified lines, comparing two buffers
 	function = {
 		# remove outdated lines from buffersyntax to set them for resyntaxing
@@ -2722,7 +2716,7 @@ new = diff-buffer-syntax
 		done
 	}
 
-new = diff-buffer-copy
+defun diff-buffer-copy
 	:: Compares two buffers and copies the difference into \$3 buffer
 	function = {
 		local -n source="$1"
@@ -2737,7 +2731,7 @@ new = diff-buffer-copy
 		done
 	}
 
-new = diff-buffer-merge
+defun diff-buffer-merge
 	:: Add buffer \$1 on top of \$2
 	function = {
 		local -n source="$1"
@@ -2747,7 +2741,7 @@ new = diff-buffer-merge
 		done
 	}
 
-new = save-state
+defun save-state
 	:: Saves current buffer for undo function
 	function = {
 		((bufferdata[current_state]++))
@@ -2760,7 +2754,7 @@ new = save-state
 		}
 	}
 
-new = undo
+defun undo
 	:: Undo a change
 	function = {
 		((bufferdata[current_state]--))
@@ -2773,7 +2767,7 @@ new = undo
 		redraw
 	}
 
-new = toggle-mouse
+defun toggle-mouse
 	:: 'Changes options[mouse]'
 	function =
 		case "${options[mouse]}" in
@@ -2787,7 +2781,7 @@ new = toggle-mouse
 				message='Disabled options[mouse]'
 		esac
 
-new = toggle-mode-line
+defun toggle-mode-line
 	:: 'Changes options[mode-line]'
 	function =
 		case "${options[mode-line]}" in
@@ -2801,7 +2795,7 @@ new = toggle-mode-line
 				redraw
 		esac
 
-new = toggle-command-line
+defun toggle-command-line
 	:: 'Changes options[command-line]'
 	function =
 		case "${options[command-line]}" in
@@ -2815,7 +2809,7 @@ new = toggle-command-line
 				redraw
 		esac
 
-new = toggle-line-number-mode
+defun toggle-line-number-mode
 	:: 'Changes options[line-number-mode]'
 	function = {
 		case "${options[line-number-mode]}" in
@@ -2825,7 +2819,7 @@ new = toggle-line-number-mode
 		redraw
 	}
 
-new = toggle-menu-line
+defun toggle-menu-line
 	:: 'Changes options[menu-line]'
 	function = {
 		case "${options[menu-line]}" in
@@ -2836,7 +2830,7 @@ new = toggle-menu-line
 		redraw
 	}
 		
-new = menuline-mouse
+defun menuline-mouse
 	:: Handle clicking on top menu with mouse		
 	function = {
 		local -n top_0="menu_${bufferdata[menuline]}_0"
@@ -2855,7 +2849,7 @@ new = menuline-mouse
 		}
 	}
 
-new = redraw-menu
+defun redraw-menu
 	:: Redraw popup menu
 	function = {
 		printf '\e[?25l' # hide cursor (again)
@@ -2877,14 +2871,14 @@ template menumove <<'+'
 @: menuup '>' 0 '--'
 @: menudown '<' '${#menu_0[@]} -1' '++'
 
-new = menuselect
+defun menuselect
 	:: Execute selected item in menu
 	function =
 		for i in "${!menu_1[@]}"; {
 			((i == menuselection)) && "${menu_1[i]}"
 		}
 
-new = menuleave
+defun menuleave
 	:: Closes a menu
 	function = {
 		ismenu=0
@@ -2892,7 +2886,7 @@ new = menuleave
 		redraw
 	}
 
-new = menu
+defun menu
 	:: Opens a menu \$1	
 	function = {
 		declare -ng menu_0=menu_${1}_0
@@ -2904,7 +2898,7 @@ new = menu
 		redraw
 	}
 
-new = delete-buffer
+defun delete-buffer
 	:: deletes current buffer
 	function = {
 		local -a copy
@@ -2939,7 +2933,7 @@ fragment printargnonl <<'+'
 	"${faces[default]}"\
 +
 
-new = print-line-number
+defun print-line-number
 	:: Print line number of line \$i
 	function = {
 		((options[line-number-mode])) && {
@@ -2959,7 +2953,7 @@ new = print-line-number
 				   "$nlchar"
 	}
 
-new = redraw-buffer-raw +fragment
+defun redraw-buffer-raw +fragment
 	:: Redraws buffer with 'bufferdata[raw]' enabled	
 	function =
 		for ((i = bufferdata[base]; i - bufferdata[base] < max; i++)); do
@@ -2982,7 +2976,7 @@ new = redraw-buffer-raw +fragment
 			}
 		done
 
-new = redraw-buffer +fragment
+defun redraw-buffer +fragment
 	:: Redraw buffer
 	function =
 		for ((i = bufferdata[base]; i - bufferdata[base] < max; i++)); do
@@ -3062,7 +3056,7 @@ new = redraw-buffer +fragment
 			fi
 		done
 
-new = selection-draw +fragment
+defun selection-draw +fragment
 	:: Draw multiline region
 	function =
 		if ((options[line-number-mode])); then
@@ -3111,7 +3105,7 @@ new = selection-draw +fragment
 			fi
 		fi
 
-new = change-size-screen
+defun change-size-screen
 	:: Handle changing size of terminal
 	function = {
 		bufferdata[size_x]="$COLUMNS"
@@ -3119,7 +3113,7 @@ new = change-size-screen
 		redraw
 	}
 
-new = redraw
+defun redraw
 	:: Redraw screen
 	function = {
 		printf '\e[?25l'
@@ -3193,7 +3187,7 @@ new = redraw
 		[ "${bufferdata[mode]}" = 'menu' ] && redraw-menu
 	}
 
-new = redraw-cursor
+defun redraw-cursor
 	:: Draw cursor and if move_base is 1 redraw
 	function = {
 		((options[full-redraw])) && {
@@ -3214,7 +3208,7 @@ new = redraw-cursor
 			))
 	}
 
-new = redraw-statusline
+defun redraw-statusline
 	:: Draw bottom mode/status line
 	function = {
 		((options[mode-line])) &&
@@ -3237,7 +3231,7 @@ new = redraw-statusline
 				   "$current_buffer"
 	}
 
-new = redraw-commandline
+defun redraw-commandline
 	:: Draw bottomest command line message echo area
 	function = {
 		# clear message if it has been printed before already
@@ -3256,7 +3250,7 @@ new = redraw-commandline
 		fi
 	}
 
-new = insert-word +fragment
+defun insert-word +fragment
 	:: Insert \$1 to buffer
 	function = {
 		save-state
@@ -3274,7 +3268,7 @@ new = insert-word +fragment
 @fn insert-space 'insert-word " "'
 @fn indent-for-tab-command "insert-word '	'"
 
-new = handle-mouse
+defun handle-mouse
 	:: Handle mouse click
 	function = {
 		local -i x y
@@ -3318,11 +3312,11 @@ new = handle-mouse
 		}
 	}
 
-new = has-options
+defun has-options
 	:: Checks if current mode has options attached to it
 	function = ((${#key_options[@]}))
 
-new = input-key
+defun input-key
 	:: Handle input
 	:: Either \$1 raw character input or k_hex array containing hex values of characters is used
 	function = {
@@ -3385,7 +3379,7 @@ new = input-key
 			}
 	}
 
-new = load-config
+defun load-config
 	:: Sources custom config file
 	function = {
 		log_buffer+=('LOADING CONFIG...')
@@ -3399,7 +3393,7 @@ new = load-config
 		log_buffer+=("LOADED $f")
 	}
 
-new = init
+defun init
 	:: Prepares variables and launches main function
 	function = {
 		bottomlines=0
@@ -3484,7 +3478,7 @@ EOF
 		main
 	}
 
-new = main
+defun main
 	:: Main keyboard loop
 	function = while :; do
 		local -a k=()
@@ -3502,7 +3496,7 @@ new = main
 			input-key "$(printf '%s' "${k[@]}")" # Handle keypress event
 		}
 	done
-wen
+nufed
 
 log_buffer+=('INIT')
 init "$@"
