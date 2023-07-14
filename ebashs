@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.10.2"
+version="0.7.11"
 ## Ebashs
 #		Emacs-like editor written in pure Bash
 #		Had been tested properly only on Bash 5.2, and will propably be broken on 4.x versions and definitelly on 3 and older.
@@ -299,6 +299,9 @@ function load-default-config {
 
 	add-menu dired
 		:: 'toggle hidden (h)' "toggle_hidden"
+
+	add-menu dialog
+		:: quit 'quit-view'
 }
 
 ## syntaxy sugar sugary syntax
@@ -1288,7 +1291,6 @@ new = list-buffers
 		)
 		size-full
 		add-menu about
-		local-set-menu quit 'quit-view'
 		buffer=('')
 		append-array listbuffers buffer
 		redraw
@@ -1601,8 +1603,6 @@ new = buffer-dialog
 			[menuline]='dialog'
 		)
 		size-full
-		add-menu dialog
-		local-set-menu quit 'quit-view'
 	}
 
 new = buffer-dialog-draw
@@ -2276,9 +2276,6 @@ new = describe
 			[menuline]='dialog'
 		)
 		size-full
-		add-menu dialog
-		
-		local-set-menu quit 'quit-view'
 		local buffertmp=$'\n'
 		while read -r fn;  do
 			#buffertmp+="$(get-description "${fn:11}")"$'\n'
@@ -2952,11 +2949,14 @@ new = print-line-number
 				printf '%b' "${faces[line-number-current-line]}" # Highlight line line-number if selected
 		}
 		((i > ${#buffer[@]})) &&
-			printf '\e[%sG%b%*s%s\e[m%b'\
+			printf '\e[%sG%b%*s%s%b%*s%b'\
 				   "${bufferdata[position_x]}"\
 				   "${faces[line-number-empty]}"\
 				   $((bufferdata[number-length]/2)) ''\
 				   "${options[empty-line-char]}"\
+				   "${faces[default]}"\
+				   $((bufferdata[size_x] - bufferdata[number-length]))\
+				   ''\
 				   "$nlchar"
 	}
 
