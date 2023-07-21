@@ -2,7 +2,7 @@
 shopt -s lastpipe
 IFS=$'\n'
 declare -i i=1
-file="${2:-ebashs}"
+file="${1:-ebashs}"
 doc="doc/README.bml"
 function print-stdin {
 	while read -r; do echo "$REPLY"; done
