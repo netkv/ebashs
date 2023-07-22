@@ -43,28 +43,28 @@ defun redraw-windows
 defun window-left
 	:: Moves window to left
 	function = {
-		((bfopt[pos-x]--))
+		((bf_d[pos-x]--))
 		redraw-windows
 	}
 
 defun window-right
 	:: Moves window to right
 	function = {
-		((bfopt[pos-x]++))
+		((bf_d[pos-x]++))
 		redraw-windows
 	}
 
 defun window-down
 	:: Moves window down
 	function = {
-		((bfopt[pos-y]++))
+		((bf_d[pos-y]++))
 		redraw-windows
 	}
 
 defun window-up
 	:: Moves window up
 	function = {
-		((bfopt[pos-y]--))
+		((bf_d[pos-y]--))
 		redraw-windows
 	}
 
@@ -72,28 +72,28 @@ defun window-up
 defun window-width+
 	:: Increase width of window
 	function = {
-		((bfopt[size-x]++))
+		((bf_d[size-x]++))
 		redraw-windows
 	}
 
 defun window-width-
 	:: Decrease width of window
 	function = {
-		((bfopt[size-x]--))
+		((bf_d[size-x]--))
 		redraw-windows
 	}
 
 defun window-height+
 	:: Increase height of window
 	function = {
-		((bfopt[size-y]++))
+		((bf_d[size-y]++))
 		redraw-windows
 	}
 
 defun window-height-
 	:: Decrase height of window
 	function = {
-		((bfopt[size-y]--))
+		((bf_d[size-y]--))
 		redraw-windows
 	}
 nufed

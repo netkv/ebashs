@@ -66,10 +66,10 @@ defun tile-buffers +fragment
 		esac
 		for b in "${listbuffers[@]}"; do
 			set-buffer "$b"
-			bfopt[size-x]=$target_x
-			bfopt[pos-x]=$target_x_offset
-			bfopt[size-y]=$target_y
-			bfopt[pos-y]=$target_y_offset
+			bf_d[size-x]=$target_x
+			bf_d[pos-x]=$target_x_offset
+			bf_d[size-y]=$target_y
+			bf_d[pos-y]=$target_y_offset
 			case "${options[tile-mode]}" in
 				vertical)
 					target_x_offset=$((target_x_offset + target_x));;
@@ -99,10 +99,10 @@ defun tile-single
 	:: Makes currently selected buffer fullscreen
 	function = {
 		options[tile-mode]='single'
-		bfopt[size-x]=$COLUMNS
-		bfopt[size-y]=$((LINES - 1))
-		bfopt[pos-x]=1
-		bfopt[pos-y]=1
+		bf_d[size-x]=$COLUMNS
+		bf_d[size-y]=$((LINES - 1))
+		bf_d[pos-x]=1
+		bf_d[pos-y]=1
 		redraw_tiled=0
 		redraw
 	}
