@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.11.3"
+version="0.7.11.4"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -322,7 +322,7 @@ Load default config included with Ebashs.
 
 	# reverse of defun :D
 	function nufed {
-		((_addfragment)) && {
+		((_addfragment==1)) && {
 			@add '='
 			_addfragment=0
 		}
@@ -346,13 +346,29 @@ Load default config included with Ebashs.
 		else
 			log_buffer+=("    DEFUN: $1")
 			((_isdone)) && nufed
+			_addfragment="${_pass_addfragment}"
 			descriptions["function_${1}_description"]="description_${desc_count}"
 			_function="$1"
 			_isdone=1
 			_last_add=add-doc
-			[ "$2" = '+fragment' ] && _addfragment=1
 		fi
-	}
+	} && doc defun <<+
+Begins defining an function
+Function definition should be like:
+
+	defun something
+		:: some-docs
+		function = {
+			...
+		}
+	defun something-else
+		:: ...	
+		function = ...
+	defun this-nonsense
+		...
+	def.. ...
+	nufed
++
 
 	defun ::
 		function =
@@ -374,7 +390,14 @@ Load default config included with Ebashs.
 		}
 	
 	# hell
-	
+
+defun defun-fragment
+	:: Same as defun but includes fragments for the function
+	function = {
+		_pass_addfragment=1
+		defun "$@"
+	}
+		
 	# fragments act basically like macros but with cooler name
 	# see redraw-buffer function for example usage
 	defun fragment
@@ -508,6 +531,13 @@ Load default config included with Ebashs.
 			local name="$1"
 			shift
 			eval "function $name { $@; }"
+			doc "$name" <<+
+A short function with no documentation
+			
+[ Code ]
+
+	$@
++
 		}
 	
 	defun copy-array
@@ -916,7 +946,7 @@ fragment setrender <<'+'
 	IFS=
 +
 
-defun make-render-area +fragment
+defun-fragment make-render-area
 	:: Creates syntax highlighting for lines from '$1' to '$2'
 	function = {
 		@ setrender
@@ -931,7 +961,7 @@ defun make-render-area +fragment
 		done
 		IFS="$bckeIFS"
 	}
-defun make-render-line +fragment
+defun-fragment make-render-line
 	:: Syntax highlights single line '$1'
 	:: Defaults to currently selected line if no argument is passed
 	function = {
@@ -1233,7 +1263,7 @@ defun insert-debug-hex
 	:: Adds hex code of keypress into buffer
 	function = {
 		buffer+=(
-			"${k_hex[*]}"
+			"keypress hex: ${k_hex[*]}"
 		)
 		next-line
 		make-render-line
@@ -2296,7 +2326,7 @@ defun quit-doc
 	
 @fn is-function 'declare -F -- "$1" > /dev/null'
 defun get-description
-	:: Prints desciption of function
+	:: Prints desciption of function \$1
 	function = {
 		is-function "$1" || {
 			echo "$1 is not a Ebashs function"
@@ -2313,6 +2343,11 @@ defun get-description
 			for l in "${fn_desc[@]}"; {
 				printf "%s\n" "$l"
 			}
+			for i in {0..25}; {
+				printf '\n'
+			}
+			printf '[ Source ]\n\n'
+			declare -f "$1"
 		}
 	}
 
@@ -2400,7 +2435,7 @@ fragment predelete <<'+'
 	}
 +
 
-defun backspace +fragment
+defun-fragment backspace
 	:: Deletes previous character
 	function = {
 		save-state
@@ -2420,7 +2455,7 @@ defun backspace +fragment
 		bf_d[modified]=1
 	}
 
-defun delete +fragment
+defun-fragment delete
 	:: Deletes next character
 	function = {
 		save-state
@@ -2475,28 +2510,42 @@ defun write-buffer
 	:: Writes current buffer into its target file	
 	function =
 		if [ -w "${bf_d[file]}" ]; then
-			true >"${bf_d[file]}" # Set the file to an empty text file
-			for ln in "${buffer[@]}"; do # Write in the buffer to the file
-				echo "$ln" >>"${bf_d[file]}"
-			done
+			dump-buffer "${bf_d[file]}"
 			bf_d[modified]=0
 			message="Wrote ${#buffer[@]} lines to \'${bf_d[file]}\'"
 		else
 			return 1
 		fi
 
+defun dump-buffer
+	:: Dumps current buffer into a file	
+	function = {
+			true >"$1" # Set the file to an empty text file
+			for ln in "${buffer[@]}"; do # Write in the buffer to the file
+				echo "$ln" >>"$1"
+			done
+	}
+  
 add-mode quit
 	local-set-key "$(kbd y)" 'save-quit'
 	local-set-key "$(kbd n)" 'die'
 	local-set-key "$(kbd c)" 'quit-quit'
+	local-set-key "$(kbd C-y)" 'save-quit-force'
 
+defun save-quit-force
+	:: Force saving file
+	function = {
+		dump-buffer "${bf_d[file]}"
+		die
+	}
+	
 defun save-quit
 	:: Writes buffer if target is writable
 	function =
 		if write-buffer; then
 			die
 		else
-			message='File is not writable! [n/c]'
+			message='File is not writable! [n/c] (to force save C-y)'
 			redraw-commandline
 		fi
 
@@ -2551,7 +2600,7 @@ fragment keepcolumn <<'+'
 	(( ${#bf_e[bf_d[line]]} > bckrl )) && bf_d[column]=${bckrl}
 +
 
-defun move-previous-line +fragment
+defun-fragment move-previous-line
 	:: Moves up \$1 lines, if \$ is empty move up 1 line
 	function = {
 		@ move
@@ -2565,7 +2614,7 @@ defun move-previous-line +fragment
 		@ end
 	}
 
-defun move-next-line +fragment
+defun-fragment move-next-line
 	:: Moves down \$1 lines, if \$ is empty move down 1 line
 	function = {
 		@ move
@@ -2642,7 +2691,7 @@ fragment charbreak <<'+'
 	esac
 +
 
-defun forward-word +fragment
+defun-fragment forward-word
 	:: Moves forward to next word
 	function = {
 		((bf_d[column] == ${#bf_e[bf_d[line]]})) && {
@@ -2656,7 +2705,7 @@ defun forward-word +fragment
 		redraw
 	}
 
-defun backward-word +fragment
+defun-fragment backward-word
 	:: Moves backward to previous word
 	function = {
 		((bf_d[column] == 0)) && {
@@ -2953,7 +3002,7 @@ defun print-line-number
 				   "$nlchar"
 	}
 
-defun redraw-buffer-raw +fragment
+defun-fragment redraw-buffer-raw
 	:: Redraws buffer with 'bf_d[raw]' enabled	
 	function =
 		for ((i = bf_d[base]; i - bf_d[base] < max; i++)); do
@@ -2976,7 +3025,7 @@ defun redraw-buffer-raw +fragment
 			}
 		done
 
-defun redraw-buffer +fragment
+defun-fragment redraw-buffer
 	:: Redraw buffer
 	function =
 		for ((i = bf_d[base]; i - bf_d[base] < max; i++)); do
@@ -3056,7 +3105,7 @@ defun redraw-buffer +fragment
 			fi
 		done
 
-defun selection-draw +fragment
+defun-fragment selection-draw
 	:: Draw multiline region
 	function =
 		if ((options[line-number-mode])); then
@@ -3250,7 +3299,7 @@ defun redraw-commandline
 		fi
 	}
 
-defun insert-word +fragment
+defun-fragment insert-word
 	:: Insert \$1 to buffer
 	function = {
 		save-state
@@ -3263,7 +3312,7 @@ defun insert-word +fragment
 		redraw
 		bf_d[modified]=1
 	}
-
+	
 @fn self-insert 'insert-word $@'
 @fn insert-space 'insert-word " "'
 @fn indent-for-tab-command "insert-word '	'"
