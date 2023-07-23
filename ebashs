@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.11.4"
+version="0.7.11.5"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -1263,10 +1263,11 @@ defun insert-debug-hex
 	:: Adds hex code of keypress into buffer
 	function = {
 		buffer+=(
-			"keypress hex: ${k_hex[*]}"
+			"${k_hex[*]}"
 		)
 		next-line
 		make-render-line
+		redraw
 }
 
 defun set-buffer
@@ -1405,7 +1406,15 @@ defun inputcodes
 			[menuline]='debuginput'
 		)
 		size-full
-		buffer=("")
+		buffer=(
+			''
+			'[ KEY DEBUGGER ]'
+			''
+			"Press any key to see Ebashs's native hex. representation of it."
+			"See C-h f define-key & C-h f kbd for fancier key settings"
+			''
+		)
+		bf_d[line]=7
 		add-menu debuginput
 		local-set-menu quit 'quit-debuginput'
 		clear-screen
