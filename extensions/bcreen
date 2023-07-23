@@ -1,6 +1,7 @@
 #!/bin/bash
 ## ebashs
-bcreen_version='0.0.2.1'
+extension bcreen
+	version: '0.0.2.1'
 
 ## Bcreen -- Tiling interface for Ebashs
 # Will be probably merged back into Ebashs once it'll be robust & stable enoughish
