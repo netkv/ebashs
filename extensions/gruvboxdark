@@ -1,10 +1,15 @@
 #!/bin/bash
+## ebashs
+extension gruvboxdark
+	version: 0.999
 # Example gruvbox theme for Ebashs
 # Requires truecolor support in terminal emu.
 
 # To use it either copy it inside ebashs script, or add it into config
 # Config resides either at:
+#	~/.config/ebashsrc.d/init.bash
 #	~/.config/ebashsrc
+#	~/.ebashsrc.d/init.bash
 #	~/.ebashsrc
 #	.ebashsrc - this is mostly for testing
 #the += is there to ensure that in case of Ebashs update there won't be any blank styles

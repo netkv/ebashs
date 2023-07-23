@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.11.5"
+version="0.7.11.6"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -14,7 +14,7 @@ declare -A highlight faces options charmap alias descriptions
 declare -A menulineedit diredmenu menulinedebug
 declare -A menufancy
 declare -A keys_def keys_global
-declare -a k_hex buffers_l log_buffer
+declare -a k_hex buffers_l log_buffer extensions
 declare -n buffer bf_s bf_e bf_d
 declare -i menuloc_x menuloc_y toplines bottomlines hidden ismenu comment current_count _isdone
 declare -n menucon
@@ -840,8 +840,22 @@ A short function with no documentation
 			}
 					 ((t)) && errno=1 die
 		}
+
+	defun extension
+		:: Set properites of extension
+		function = {
+			extensions+=("$1")
+			declare -Ag "${1}_ext_d"
+			declare -ng ext_d="${1}_ext_d"
+		}
+	defun version:
+		:: Set version of extension
+		function = {
+			ext_d[version]="$1"
+		}
+		
 	nufed
-	log_buffer+=('- LOADING BASH EXTENSIONS DONE -')	
+	log_buffer+=('- LOADING BASH EXTENSIONS DONE -')
 }
 ebashs-extensions
 ## rest of this garbageware
@@ -1558,6 +1572,14 @@ defun init-log
 			"    Terminal type: ${TERM}"
 			"    Locale: ${LANG}"
 			''
+			'Loaded extensions:'
+		)
+		for e in "${extensions[@]}"; {
+			local -n ext_d="${e}_ext_d"
+			bufferlog+=("    $e - ${ext_d[version]}")
+		}
+		bufferlog+=(
+			''
 			'level time function message'
 		)
 		lasttime="$(current-time '%s')"
@@ -1588,7 +1610,12 @@ defun current-time
 	}
 
 defun log
-	:: Adds message into log	
+	:: Adds message into log
+	:: '    info -- everything *should* be well'
+	:: '    warn -- something is wrong but it *should* not break entire Ebashs'
+	:: '    error -- something is wrong and anything can break, but it *can* still run(?)'
+	:: '    fatal -- something is mega wrong and only thing left to do is to die'
+	:: Is disabled when log wasn\'t initialised, see init-log for info
 	function = {
 		((log)) || return
 		local type="$1"
@@ -1596,6 +1623,13 @@ defun log
 		tooktime="$(( $(current-time '%s') - lasttime ))"
 		bufferlog+=("[$type] ${tooktime}s [${FUNCNAME[1]}] $*")
 		lasttime="$(current-time '%s')"
+	}
+
+defun log-echo
+	:: Adds message into log without any special formating	
+	function = {
+		((log)) || return
+		bufferlog+=("    $*")
 	}
 
 ## debug
@@ -3443,23 +3477,29 @@ defun load-config
 		log_buffer+=('LOADING CONFIG...')
 		local config_file
 		local f
+		f=~/.config/ebashsrc.d/init.bash ;[ -f "$f" ] && config_file="$f"
 		f=~/.config/ebashsrc ;[ -f "$f" ] && config_file="$f"
 		f=~/.ebashsrc ;[ -f "$f" ] && config_file="$f"
+		f=~/.ebashsrc.d/init.bash ;[ -f "$f" ] && config_file="$f"
 		f=.ebashsrc ;[ -f "$f" ] && config_file="$f"
+		f=.ebashsrc.d/init.bash ;[ -f "$f" ] && config_file="$f"
+		
+		f="${EBASHS_CONFIG}" ;[ -n "$f" ] && [ -f "$f" ] && config_file="$f"
+		f="${EBASHS_CONFIG_DIR}/init.bash" ;[ -n "$f" ] && [ -f "$f" ] && config_file="$f"
+		
 		[ -z "$config_file" ] && return
 		source "$config_file"
-		log_buffer+=("LOADED $f")
+		log_buffer+=("LOADED $config_file")
 	}
 
 defun init
 	:: Prepares variables and launches main function
 	function = {
-		bottomlines=0
-		toplines=0
-		log_buffer+=('- LOAD DEFAULT CONFIG -')
-		load-default-config #loads default config
 		case "$1" in
-			'--quick'|'-Q') shift;;
+			'--quick'|'-Q')
+				log_buffer+=('- LOAD DEFAULT CONFIG -')
+				load-default-config
+				shift;;
 			'--version')
 				echo "$version"
 				abort;;
@@ -3482,8 +3522,12 @@ Initialization options:
 --version,     display version information and exit
 EOF
 				abort;;
-			*) load-config
+			*)
+				log_buffer+=('- LOAD DEFAULT CONFIG -')
+				load-default-config #loads default config
+				load-config
 		esac
+		
 		((options[log])) && init-log || unset buffer_log # set up log buffer (M-x log)
 
 		log info setting traps...
@@ -3491,17 +3535,24 @@ EOF
 		trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
 		trap 'k_hex=(3 0); input-key' INT
 		trap quit SIGTERM
+
 		
 		menuloc_y=0; menuloc_x=0 # menu positions
 		log info 'Setting menu-line'
+		toplines=${toplines:-0}
 		toplines="${options[menu-line]}"
 
 		# this is reverse because the value is added to buffer redrawing size
 		log info 'Setting mode-line'
+		bottomlines=${bottomlines:-0}
 		((options[mode-line]==0)) && ((bottomlines--))
 		log info 'Setting command-line'
 		((options[command-line]==0)) && ((bottomlines--))
 		((bottomlines+=2))
+		
+		log-echo "toplines $toplines"
+		log-echo "bottomlines $bottomlines"
+		
 		log info 'Setting reset'
 		reset='\e[0;0m'
 		log info 'Setting charmap'
@@ -3531,8 +3582,9 @@ EOF
 			log info "no arg => dired"
 			dired # enter the file selector
 		fi
-		log info 'entering main loop...'
+		log info "drawing..."
 		redraw
+		log info 'entering main loop...'
 		main
 	}
 

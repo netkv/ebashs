@@ -1,6 +1,7 @@
 #!/bin/bash
 ## ebashs
-bloat_version='0.0.1'
+extension bloat
+	version: 0.1.0
 
 ## Bloat -- Floating interface for Ebashs
 
