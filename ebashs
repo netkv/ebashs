@@ -2002,8 +2002,8 @@ print-stdin <<EOF2
     $(table-item cmd_prompt "'M-x '" 'command line prompt')
     $(table-item cancelhex "'18 0' (C-x)" 'keybinding to exit debug input menu')
     $(table-item default_mode ' edit' 'what mode should be set on launch')
-    $(table-item help-message "'F10 to open menu'" 'top right help message')
-    $(table-item dired-message "'Pick a file'" 'same as above but for dired buffer')
+    $(table-item help_message "'F10 to open menu'" 'top right help message')
+    $(table-item dired_message "'Pick a file'" 'same as above but for dired buffer')
     $(table-bottom)
 EOF2
 )
@@ -2150,10 +2150,10 @@ $(table-top)
 $(table-title NAME DESCRIPTION)
 $(table-title-line)
 $(table-item buffer 'File data')
-$(table-item bf_s 'Multidimensional buffer for rendering')
-$(table-item bf_e 'Special characters filtered out')
-$(table-item bf_d 'Options of current buffer')
-$(table-item charmap 'Definitions for bf_e')
+$(table-item buffersyntax 'Multidimensional buffer for rendering')
+$(table-item bufferexpand 'Special characters filtered out')
+$(table-item bufferdata 'Options of current buffer')
+$(table-item charmap 'Definitions for bufferexpand')
 $(table-item mode 'Current mode')
 $(table-item commands 'List of M-x commands')
 $(table-bottom)
@@ -2238,7 +2238,7 @@ $(code-block bash <<EOF2
     )
     jump-to-11() {
         [[ -n "${buffer[11]}" ]] && line=11 # If line 11 exists, set current line to 11.
-        [[ "${bf_d[mode]}" = 'prefix' ]] && quit-prefix
+        [[ "${bufferdata[mode]}" = 'prefix' ]] && quit-prefix
                                     # Since the key stroke contains C-x as prefix,
                                     # quit-prefix is is required as otherwise
                                     # it would stay in 'prefix' mode.
@@ -2298,6 +2298,12 @@ $(title CREDITS)
 
 $(text '    ' <<EOF2
 Based on https://github.com/comfies/bed
+EOF2
+)
+
+$(text '    '<<EOF2
+fff by Dylan Araps https://github.com/dylanaraps/fff as base for extensions/efff
+Licensed under the MIT license see extensions/efff for details
 EOF2
 )
 

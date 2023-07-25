@@ -254,6 +254,9 @@ This readme is generated from doc/README.bml via makedoc script.
 
 Based on https://github.com/comfies/bed
 
+fff by Dylan Araps https://github.com/dylanaraps/fff as base for extensions/efff
+Licensed under the MIT license see extensions/efff for details
+
 Early versions of Ebashs/Bano can be found at
 https://github.com/aeknt/bashbox/blob/master/bin/nano
 https://github.com/aeknt/bashbox/blob/master/bin/bano

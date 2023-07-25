@@ -359,6 +359,12 @@ EOF2
 )
 
 $(text '    '<<EOF2
+fff by Dylan Araps https://github.com/dylanaraps/fff as base for extensions/efff
+Licensed under the MIT license see extensions/efff for details
+EOF2
+)
+
+$(text '    '<<EOF2
 Early versions of Ebashs/Bano can be found at
 https://github.com/aeknt/bashbox/blob/master/bin/nano
 https://github.com/aeknt/bashbox/blob/master/bin/bano
