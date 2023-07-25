@@ -27,7 +27,7 @@
 
 
 extension efff
-	version: git-ebashs-0.1
+	version: git-ebashs-0.2
 
 get_os() {
     # Figure out the current operating system to set some specific variables.
@@ -90,7 +90,7 @@ clear_screen() {
     # '\e[1;%sr':  Clearing the screen resets the scroll region(?). Re-set it.
     #              Also sets cursor to (0,0).
     printf '\e[%sH\e[9999C\e[1J%b\e[1;%sr' \
-           "$((LINES-2))" "${TMUX:+\e[2J}" "$max_items"
+           "$((bf_d[size-y]-2))" "${TMUX:+\e[2J}" "$max_items"
 }
 
 setup_options() {
@@ -120,13 +120,12 @@ setup_options() {
 }
 
 get_term_size() {
-    # Get terminal size ('stty' is POSIX and always available).
-    # This can't be done reliably across all bash versions in pure bash.
-    read -r LINES COLUMNS < <(stty size)
+    # Get buffer size (bf_d [size-x] & [size-y])
 
     # Max list items that fit in the scroll area.
-    ((max_items=LINES-3))
+    ((max_items=bf_d[size-y]-3))
 }
+
 
 get_ls_colors() {
     # Parse the LS_COLORS variable and declare each file type
@@ -202,14 +201,14 @@ status_line() {
     # '\e8':       Restore cursor position.
     #              This is more widely supported than '\e[u'.
     printf '\e7\e[%sH\e[3%s;4%sm%*s\r%s %s%s\e[m\e[%sH\e[K\e8' \
-           "$((LINES-1))" \
+           "$((bf_d[size-y]-1))" \
            "${FFF_COL5:-0}" \
            "${FFF_COL2:-1}" \
-           "$COLUMNS" "" \
+           "${bf_d[size-x]}" "" \
            "($((scroll+1))/$((list_total+1)))" \
            "${marked_files[*]:+${mark_ui}}" \
            "${1:-${PWD_escaped:-/}}" \
-           "$LINES"
+           "${bf_d[size-y]}"
 }
 
 read_dir() {
@@ -433,7 +432,7 @@ draw_img() {
     read -r img_width img_height < <("$w3m" <<< "5;${list[scroll]}")
 
     # Subtract the status_line area from the image size.
-    ((HEIGHT=HEIGHT-HEIGHT*5/LINES))
+    ((HEIGHT=HEIGHT-HEIGHT*5/bf_d[size-y]))
 
     ((img_width > WIDTH)) && {
         ((img_height=img_height*WIDTH/img_width))
@@ -660,7 +659,7 @@ cmd_line() {
     # '\e7':     Save cursor position.
     # '\e[?25h': Unhide the cursor.
     # '\e[%sH':  Move cursor to bottom (cmd_line).
-    printf '\e7\e[%sH\e[?25h' "$LINES"
+    printf '\e7\e[%sH\e[?25h' "${bf_d[size-y]}"
 
     # '\r\e[K': Redraw_Fff the read prompt on every keypress.
     #           This is mimicking what happens normally.
@@ -754,7 +753,7 @@ cmd_line() {
 
             # '\e[%sH':  Move cursor back to cmd-line.
             # '\e[?25h': Unhide the cursor.
-            printf '\e[%sH\e[?25h' "$LINES"
+            printf '\e[%sH\e[?25h' "${bf_d[size-y]}"
         }
     done
 
@@ -1101,6 +1100,28 @@ key() {
 
 fff() {
 	log info open fff
+
+	save openfile
+	
+	((current_count++))
+	set-buffer "bf_${current_count}"
+	add-to-list
+	declare -Ag "${current_buffer}_bf_d"
+	bf_d=(
+		[line]=1
+		[base]=1
+		[column]=0
+		[info]='FFF'
+		[mode]='fff'
+		[filetype]='e*fff'
+		[file]='*fff*'
+		[modified]=0
+		[menuline]='fff'
+		[raw]=1
+		[redraw-fn]=redraw_fff
+	)
+	size-full
+		
     # Handle a directory as the first argument.
     # 'cd' is a cheap way of finding the full path to a directory.
     # It updates the '$PWD' variable on successful execution.
@@ -1156,7 +1177,7 @@ fff() {
     #trap 'get_term_size; redraw_fff' WINCH
 	
     get_os
-    get_term_size
+	get_term_size
     get_w3m_path
     setup_options
     setup_terminal
@@ -1171,5 +1192,6 @@ fff() {
         # Exit if there is no longer a terminal attached.
         [[ -t 1 ]] || exit 1
 	}
-	reset_terminal	 
+	reset_terminal
+	restore openfile
 }
