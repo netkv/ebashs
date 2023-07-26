@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.11.6"
+version="0.7.11.7"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -785,6 +785,7 @@ A short function with no documentation
 	defun add-mode
 		:: Adds keybing mode
 		function = {
+			log_buffer+=("        ADD MODE $1")
 			_last_keys="$1"
 			_last_add='add-mode'
 			declare -Ag "keys_$1"
@@ -795,6 +796,7 @@ A short function with no documentation
 		:: Adds menu
 		function = {
 			# create new menu function & array
+			log_buffer+=("        ADD MENU $1")
 			eval "function menu-${1} { menu $1; }"
 			declare -ag "menu_${1}_0"
 			declare -ag "menu_${1}_1"
@@ -844,6 +846,7 @@ A short function with no documentation
 	defun extension
 		:: Set properites of extension
 		function = {
+			log_buffer+=("- LOADING EXTENSION $1 -")
 			extensions+=("$1")
 			declare -Ag "${1}_ext_d"
 			declare -ng ext_d="${1}_ext_d"
@@ -909,8 +912,8 @@ defun execute-extended-command
 				return
 			}
 		}
-		$readin
-		redraw
+		$readin			
+		((noredraw)) && noredraw=0 || redraw
 	}
 
 ### TODO: make this make sense
@@ -3214,6 +3217,10 @@ defun change-size-screen
 defun redraw
 	:: Redraw screen
 	function = {
+		[ -n "${bf_d[redraw]}" ] && {
+			"${bf_d[redraw]}" "$@"
+			return
+		}
 		printf '\e[?25l'
 
 		# the first line should be always empty 
@@ -3233,7 +3240,8 @@ defun redraw
 		
 		# Get length of line-number of lines
 		bf_d[length]="${#buffer[@]}"
-		((bf_d[length]==0)) && ((bf_d[length]++))
+		((bf_d[length]==0)) &&((bf_d[length]++))
+		
 		((options[line-number-mode])) && {
 			bf_d[number-length]=${#bf_d[length]}
 			bf_d[number-space]=1

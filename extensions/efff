@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## ebashs
 # fff - fucking fast file-manager.
-# version modified for integration withing Ebashs text editor
+# version modified for integration within Ebashs text editor
 
 # The MIT License (MIT)
 
@@ -27,7 +27,7 @@
 
 
 extension efff
-	version: git-ebashs-0.2
+	version: git-ebashs-0.3
 
 get_os() {
     # Figure out the current operating system to set some specific variables.
@@ -469,11 +469,11 @@ draw_img() {
         "$WIDTH" \
         "$HEIGHT" | "$w3m" &>/dev/null
 
-    redraw_fff
+    redraw
 }
 
-redraw_fff() {
-    # Redraw_Fff the current window.
+fff_redraw() {
+    # Redraw the current window.
     # If 'full' is passed, re-fetch the directory list.
     [[ $1 == full ]] && {
         read_dir
@@ -504,7 +504,7 @@ mark() {
             marked_files=()
         fi
 
-        redraw_fff
+        redraw
     else
         if [[ ${marked_files[$1]} == "${list[$1]}" ]]; then
             unset 'marked_files[scroll]'
@@ -615,7 +615,7 @@ open() {
         search=
         search_end_early=
         cd "${1:-/}" ||:
-        redraw_fff full
+        redraw full
 
     elif [[ -f $1 ]]; then
         # Figure out what kind of file we're working with.
@@ -636,9 +636,7 @@ open() {
                 clear_screen
                 reset_terminal
                 read-buffer "$1"
-				return 101
-                #setup_terminal
-                #redraw_fff
+				redraw
             ;;
 
             *)
@@ -661,7 +659,7 @@ cmd_line() {
     # '\e[%sH':  Move cursor to bottom (cmd_line).
     printf '\e7\e[%sH\e[?25h' "${bf_d[size-y]}"
 
-    # '\r\e[K': Redraw_Fff the read prompt on every keypress.
+    # '\r\e[K': Redraw the read prompt on every keypress.
     #           This is mimicking what happens normally.
     while IFS= read -rsn 1 -p $'\r\e[K'"${1}${cmd_reply}" read_reply; do
         case $read_reply in
@@ -749,7 +747,7 @@ cmd_line() {
 
             # Draw the search results on screen.
             scroll=0
-            redraw_fff
+            redraw
 
             # '\e[%sH':  Move cursor back to cmd-line.
             # '\e[?25h': Unhide the cursor.
@@ -766,337 +764,6 @@ cmd_line() {
     printf '\e[2K\e[?25l\e8'
 }
 
-key() {
-    # Handle special key presses.
-    [[ $1 == $'\e' ]] && {
-        read "${read_flags[@]}" -rsn 2
-
-        # Handle a normal escape key press.
-        [[ ${1}${REPLY} == $'\e\e['* ]] &&
-            read "${read_flags[@]}" -rsn 1 _
-
-        local special_key=${1}${REPLY}
-    }
-
-    case ${special_key:-$1} in
-        # Open list item.
-        # 'C' is what bash sees when the right arrow is pressed
-        # ('\e[C' or '\eOC').
-        # '' is what bash sees when the enter/return key is pressed.
-        ${FFF_KEY_CHILD1:=l}|\
-        ${FFF_KEY_CHILD2:=$'\e[C'}|\
-        ${FFF_KEY_CHILD3:=""}|\
-        ${FFF_KEY_CHILD4:=$'\eOC'})
-            open "${list[scroll]}"
-        ;;
-
-        # Go to the parent directory.
-        # 'D' is what bash sees when the left arrow is pressed
-        # ('\e[D' or '\eOD').
-        # '\177' and '\b' are what bash sometimes sees when the backspace
-        # key is pressed.
-        ${FFF_KEY_PARENT1:=h}|\
-        ${FFF_KEY_PARENT2:=$'\e[D'}|\
-        ${FFF_KEY_PARENT3:=$'\177'}|\
-        ${FFF_KEY_PARENT4:=$'\b'}|\
-        ${FFF_KEY_PARENT5:=$'\eOD'})
-            # If a search was done, clear the results and open the current dir.
-            if ((search == 1 && search_end_early != 1)); then
-                open "$PWD"
-
-            # If '$PWD' is '/', do nothing.
-            elif [[ $PWD && $PWD != / ]]; then
-                find_previous=1
-                open "${PWD%/*}"
-            fi
-        ;;
-
-        # Scroll down.
-        # 'B' is what bash sees when the down arrow is pressed
-        # ('\e[B' or '\eOB').
-        ${FFF_KEY_SCROLL_DOWN1:=j}|\
-        ${FFF_KEY_SCROLL_DOWN2:=$'\e[B'}|\
-        ${FFF_KEY_SCROLL_DOWN3:=$'\eOB'})
-            ((scroll < list_total)) && {
-                ((scroll++))
-                ((y < max_items)) && ((y++))
-
-                print_line "$((scroll-1))"
-                printf '\n'
-                print_line "$scroll"
-                status_line
-            }
-        ;;
-
-        # Scroll up.
-        # 'A' is what bash sees when the up arrow is pressed
-        # ('\e[A' or '\eOA').
-        ${FFF_KEY_SCROLL_UP1:=k}|\
-        ${FFF_KEY_SCROLL_UP2:=$'\e[A'}|\
-        ${FFF_KEY_SCROLL_UP3:=$'\eOA'})
-            # '\e[1L': Insert a line above the cursor.
-            # '\e[A':  Move cursor up a line.
-            ((scroll > 0)) && {
-                ((scroll--))
-
-                print_line "$((scroll+1))"
-
-                if ((y < 2)); then
-                    printf '\e[L'
-                else
-                    printf '\e[A'
-                    ((y--))
-                fi
-
-                print_line "$scroll"
-                status_line
-            }
-        ;;
-
-        # Go to top.
-        ${FFF_KEY_TO_TOP:=g})
-            ((scroll != 0)) && {
-                scroll=0
-                redraw_fff
-            }
-        ;;
-
-        # Go to bottom.
-        ${FFF_KEY_TO_BOTTOM:=G})
-            ((scroll != list_total)) && {
-                ((scroll=list_total))
-                redraw_fff
-            }
-        ;;
-
-        # Show hidden files.
-        ${FFF_KEY_HIDDEN:=.})
-            # 'a=a>0?0:++a': Toggle between both values of 'shopt_flags'.
-            #                This also works for '3' or more values with
-            #                some modification.
-            shopt_flags=(u s)
-            shopt -"${shopt_flags[((a=${a:=$FFF_HIDDEN}>0?0:++a))]}" dotglob
-            redraw_fff full
-        ;;
-
-        # Search.
-        ${FFF_KEY_SEARCH:=/})
-            cmd_line "/" "search"
-
-            # If the search came up empty, redraw_fff the current dir.
-            if [[ -z ${list[*]} ]]; then
-                list=("${cur_list[@]}")
-                ((list_total=${#list[@]}-1))
-                redraw_fff
-                search=
-            else
-                search=1
-            fi
-        ;;
-
-        # Spawn a shell.
-        ${FFF_KEY_SHELL:=!})
-            reset_terminal
-
-            # Make fff aware of how many times it is nested.
-            export FFF_LEVEL
-            ((FFF_LEVEL++))
-
-            cd "$PWD" && "$SHELL"
-            setup_terminal
-            redraw_fff full
-        ;;
-
-        # Mark files for operation.
-        ${FFF_KEY_YANK:=y}|\
-        ${FFF_KEY_MOVE:=m}|\
-        ${FFF_KEY_TRASH:=d}|\
-        ${FFF_KEY_LINK:=s}|\
-        ${FFF_KEY_BULK_RENAME:=b})
-            mark "$scroll" "$1"
-        ;;
-
-        # Mark all files for operation.
-        ${FFF_KEY_YANK_ALL:=Y}|\
-        ${FFF_KEY_MOVE_ALL:=M}|\
-        ${FFF_KEY_TRASH_ALL:=D}|\
-        ${FFF_KEY_LINK_ALL:=S}|\
-        ${FFF_KEY_BULK_RENAME_ALL:=B})
-            mark all "$1"
-        ;;
-
-        # Do the file operation.
-        ${FFF_KEY_PASTE:=p})
-            [[ ${marked_files[*]} ]] && {
-                [[ ! -w $PWD ]] && {
-                    cmd_line "warn: no write access to dir."
-                    return
-                }
-
-                # Clear the screen to make room for a prompt if needed.
-                clear_screen
-                reset_terminal
-
-                stty echo
-                printf '\e[1mfff\e[m: %s\n' "Running ${file_program[0]}"
-                "${file_program[@]}" "${marked_files[@]}" .
-                stty -echo
-
-                marked_files=()
-                setup_terminal
-                redraw_fff full
-            }
-        ;;
-
-        # Clear all marked files.
-        ${FFF_KEY_CLEAR:=c})
-            [[ ${marked_files[*]} ]] && {
-                marked_files=()
-                redraw_fff
-            }
-        ;;
-
-        # Rename list item.
-        ${FFF_KEY_RENAME:=r})
-            [[ ! -e ${list[scroll]} ]] &&
-                return
-
-            cmd_line "rename ${list[scroll]##*/}: "
-
-            [[ $cmd_reply ]] &&
-                if [[ -e $cmd_reply ]]; then
-                    cmd_line "warn: '$cmd_reply' already exists."
-
-                elif [[ -w ${list[scroll]} ]]; then
-                    mv "${list[scroll]}" "${PWD}/${cmd_reply}"
-                    redraw_fff full
-
-                else
-                    cmd_line "warn: no write access to file."
-                fi
-        ;;
-
-        # Create a directory.
-        ${FFF_KEY_MKDIR:=n})
-            cmd_line "mkdir: " "dirs"
-
-            [[ $cmd_reply ]] &&
-                if [[ -e $cmd_reply ]]; then
-                    cmd_line "warn: '$cmd_reply' already exists."
-
-                elif [[ -w $PWD ]]; then
-                    mkdir -p "${PWD}/${cmd_reply}"
-                    redraw_fff full
-
-                else
-                    cmd_line "warn: no write access to dir."
-                fi
-        ;;
-
-        # Create a file.
-        ${FFF_KEY_MKFILE:=f})
-            cmd_line "mkfile: "
-
-            [[ $cmd_reply ]] &&
-                if [[ -e $cmd_reply ]]; then
-                    cmd_line "warn: '$cmd_reply' already exists."
-
-                elif [[ -w $PWD ]]; then
-                    : > "$cmd_reply"
-                    redraw_fff full
-
-                else
-                    cmd_line "warn: no write access to dir."
-                fi
-        ;;
-
-        # Show file attributes.
-        ${FFF_KEY_ATTRIBUTES:=x})
-            [[ -e "${list[scroll]}" ]] && {
-                clear_screen
-                status_line "${list[scroll]}"
-                "${FFF_STAT_CMD:-stat}" "${list[scroll]}"
-                read -ern 1
-                redraw_fff
-            }
-        ;;
-
-        # Toggle executable flag.
-        ${FFF_KEY_EXECUTABLE:=X})
-            [[ -f ${list[scroll]} && -w ${list[scroll]} ]] && {
-                if [[ -x ${list[scroll]} ]]; then
-                    chmod -x "${list[scroll]}"
-                    status_line "Unset executable."
-                else
-                    chmod +x "${list[scroll]}"
-                    status_line "Set executable."
-                fi
-            }
-        ;;
-
-        # Show image in terminal.
-        ${FFF_KEY_IMAGE:=i})
-            draw_img
-        ;;
-
-        # Go to dir.
-        ${FFF_KEY_GO_DIR:=:})
-            cmd_line "go to dir: " "dirs"
-
-            # Let 'cd' know about the current directory.
-            cd "$PWD" &>/dev/null ||:
-
-            [[ $cmd_reply ]] &&
-                cd "${cmd_reply/\~/$HOME}" &>/dev/null &&
-                    open "$PWD"
-        ;;
-
-        # Go to '$HOME'.
-        ${FFF_KEY_GO_HOME:='~'})
-            open ~
-        ;;
-
-        # Go to trash.
-        ${FFF_KEY_GO_TRASH:=t})
-            get_os
-            open "$FFF_TRASH"
-        ;;
-
-        # Go to previous dir.
-        ${FFF_KEY_PREVIOUS:=-})
-            open "$OLDPWD"
-        ;;
-
-        # Refresh current dir.
-        ${FFF_KEY_REFRESH:=e})
-            open "$PWD"
-        ;;
-
-        # Directory favourites.
-        [1-9])
-            favourite="FFF_FAV${1}"
-            favourite="${!favourite}"
-
-            [[ $favourite ]] &&
-                open "$favourite"
-        ;;
-
-        # Quit and store current directory in a file for CD on exit.
-        # Don't allow user to redefine 'q' so a bad keybinding doesn't
-        # remove the option to quit.
-        q)
-            : "${FFF_CD_FILE:=${XDG_CACHE_HOME:=${HOME}/.cache}/fff/.fff_d}"
-
-            [[ -w $FFF_CD_FILE ]] &&
-                rm "$FFF_CD_FILE"
-
-            [[ ${FFF_CD_ON_EXIT:=1} == 1 ]] &&
-                printf '%s\n' "$PWD" > "$FFF_CD_FILE"
-
-            return 100
-        ;;
-    esac
-}
 
 fff() {
 	log info open fff
@@ -1118,7 +785,7 @@ fff() {
 		[modified]=0
 		[menuline]='fff'
 		[raw]=1
-		[redraw-fn]=redraw_fff
+		[redraw]=fff_redraw
 	)
 	size-full
 		
@@ -1147,7 +814,7 @@ fff() {
 
     # bash 5 and some versions of bash 4 don't allow SIGWINCH to interrupt
     # a 'read' command and instead wait for it to complete. In this case it
-    # causes the window to not redraw_fff on resize until the user has pressed
+    # causes the window to not redraw on resize until the user has pressed
     # a key (causing the read to finish). This sets a read timeout on the
     # affected versions of bash.
     # NOTE: This shouldn't affect idle performance as the loop doesn't do
@@ -1174,24 +841,306 @@ fff() {
     #trap 'reset_terminal' EXIT
 
     # Trap the window resize signal (handle window resize events).
-    #trap 'get_term_size; redraw_fff' WINCH
+    #trap 'get_term_size; redraw' WINCH
 	
     get_os
 	get_term_size
     get_w3m_path
     setup_options
     setup_terminal
-    redraw_fff full
-	
-    # Vintage infinite loop.
-    for ((;;)); {
-		read "${read_flags[@]}" -srn 1 && key "$REPLY"
-		code=$?	
-		((code==100)) && break
-		((code==101)) && return 0
-        # Exit if there is no longer a terminal attached.
-        [[ -t 1 ]] || exit 1
-	}
-	reset_terminal
-	restore openfile
+    redraw full
+	noredraw=1
 }
+
+
+## INPUT
+{
+	fff_child() {
+		open "${list[scroll]}"
+	}
+	fff_parent() {
+		# If a search was done, clear the results and open the current dir.
+		if ((search == 1 && search_end_early != 1)); then
+			open "$PWD"
+
+			# If '$PWD' is '/', do nothing.
+		elif [[ $PWD && $PWD != / ]]; then
+			find_previous=1
+			open "${PWD%/*}"
+		fi
+	}
+	fff_scroll_down() {
+		((scroll < list_total)) && {
+			((scroll++))
+			((y < max_items)) && ((y++))
+
+			print_line "$((scroll-1))"
+			printf '\n'
+			print_line "$scroll"
+			status_line
+		}
+	}
+	fff_scroll_up() {
+		# '\e[1L': Insert a line above the cursor.
+		# '\e[A':  Move cursor up a line.
+		((scroll > 0)) && {
+			((scroll--))
+
+			print_line "$((scroll+1))"
+
+			if ((y < 2)); then
+				printf '\e[L'
+			else
+				printf '\e[A'
+				((y--))
+			fi
+
+			print_line "$scroll"
+			status_line
+		}
+	}
+	fff_to_top() {
+		((scroll != 0)) && {
+			scroll=0
+			redraw
+		}
+	}
+	fff_to_bottom() {
+		((scroll != list_total)) && {
+			((scroll=list_total))
+			redraw
+		}
+	}
+	fff_hidden() {
+		# 'a=a>0?0:++a': Toggle between both values of 'shopt_flags'.
+		#                This also works for '3' or more values with
+		#                some modification.
+		shopt_flags=(u s)
+		shopt -"${shopt_flags[((a=${a:=$FFF_HIDDEN}>0?0:++a))]}" dotglob
+		redraw full
+	}
+	fff_search() {
+		cmd_line "/" "search"
+
+		# If the search came up empty, redraw the current dir.
+		if [[ -z ${list[*]} ]]; then
+			list=("${cur_list[@]}")
+			((list_total=${#list[@]}-1))
+			redraw
+			search=
+		else
+			search=1
+		fi
+	}
+	fff_shell() {
+		reset_terminal
+
+		# Make fff aware of how many times it is nested.
+		export FFF_LEVEL
+		((FFF_LEVEL++))
+
+		cd "$PWD" && "$SHELL"
+		setup_terminal
+		redraw full
+	}
+	@fn fff_yank 'mark "$scroll" y'
+	@fn fff_move 'mark "$scroll" m'
+	@fn fff_trash 'mark "$scroll" d'
+	@fn fff_link 'mark "$scroll" s'
+	@fn fff_bulk_rename 'mark "$scroll" b'
+
+	@fn fff_yank_all 'mark all Y'
+	@fn fff_move_all 'mark all M'
+	@fn fff_trash_all 'mark all D'
+	@fn fff_link_all 'mark all S'
+	@fn fff_bulk_rename_all 'mark all B'
+	fff_paste() {
+		[[ ${marked_files[*]} ]] && {
+			[[ ! -w $PWD ]] && {
+				cmd_line "warn: no write access to dir."
+				return
+			}
+
+			# Clear the screen to make room for a prompt if needed.
+			clear_screen
+			reset_terminal
+
+			stty echo
+			printf '\e[1mfff\e[m: %s\n' "Running ${file_program[0]}"
+			"${file_program[@]}" "${marked_files[@]}" .
+			stty -echo
+
+			marked_files=()
+			setup_terminal
+			redraw full
+		}
+	}
+	fff_clear() {
+		[[ ${marked_files[*]} ]] && {
+			marked_files=()
+			redraw
+		}
+	}
+	fff_rename() {
+		[[ ! -e ${list[scroll]} ]] &&
+			return
+
+		cmd_line "rename ${list[scroll]##*/}: "
+
+		[[ $cmd_reply ]] &&
+			if [[ -e $cmd_reply ]]; then
+				cmd_line "warn: '$cmd_reply' already exists."
+
+			elif [[ -w ${list[scroll]} ]]; then
+				mv "${list[scroll]}" "${PWD}/${cmd_reply}"
+				redraw full
+
+			else
+				cmd_line "warn: no write access to file."
+			fi
+	}
+	fff_mkdir() {
+		cmd_line "mkdir: " "dirs"
+
+        [[ $cmd_reply ]] &&
+            if [[ -e $cmd_reply ]]; then
+                cmd_line "warn: '$cmd_reply' already exists."
+
+            elif [[ -w $PWD ]]; then
+                mkdir -p "${PWD}/${cmd_reply}"
+                redraw full
+
+            else
+                cmd_line "warn: no write access to dir."
+            fi
+	}
+	fff_mkfile() {
+		cmd_line "mkfile: "
+		
+        [[ $cmd_reply ]] &&
+            if [[ -e $cmd_reply ]]; then
+                cmd_line "warn: '$cmd_reply' already exists."
+				
+            elif [[ -w $PWD ]]; then
+                : > "$cmd_reply"
+                redraw full
+
+            else
+                cmd_line "warn: no write access to dir."
+            fi
+	}
+	fff_attributes() {
+		[[ -e "${list[scroll]}" ]] && {
+			clear_screen
+            status_line "${list[scroll]}"
+            "${FFF_STAT_CMD:-stat}" "${list[scroll]}"
+            read -ern 1
+            redraw
+        }
+	}
+	fff_executable() {
+		[[ -f ${list[scroll]} && -w ${list[scroll]} ]] && {
+            if [[ -x ${list[scroll]} ]]; then
+                chmod -x "${list[scroll]}"
+                status_line "Unset executable."
+            else
+                chmod +x "${list[scroll]}"
+                status_line "Set executable."
+            fi
+		}
+	}
+	fff_go_dir() {
+		cmd_line "go to dir: " "dirs"
+
+        # Let 'cd' know about the current directory.
+        cd "$PWD" &>/dev/null ||:
+
+        [[ $cmd_reply ]] &&
+            cd "${cmd_reply/\~/$HOME}" &>/dev/null &&
+            open "$PWD"
+	}
+	@fn fff_go_home 'open ~'
+	@fn fff_go_trash 'get_os; open "$FFF_TRASH"'
+	@fn fff_previous 'open "$OLDPWD"'
+	@fn fff_refresh 'open "$PWD"'
+
+	fff_fav() {
+		favourite="${!favourite}"
+		
+		[[ $favourite ]] &&
+			open "$favourite"
+	}
+	@fn fff_fav_1 'favourite="FFF_FAV1"; fff_fav'
+	@fn fff_fav_2 'favourite="FFF_FAV2"; fff_fav'
+	@fn fff_fav_3 'favourite="FFF_FAV3"; fff_fav'
+	@fn fff_fav_4 'favourite="FFF_FAV4"; fff_fav'
+	@fn fff_fav_5 'favourite="FFF_FAV5"; fff_fav'
+	@fn fff_fav_6 'favourite="FFF_FAV6"; fff_fav'
+	@fn fff_fav_7 'favourite="FFF_FAV7"; fff_fav'
+	@fn fff_fav_8 'favourite="FFF_FAV8"; fff_fav'
+	@fn fff_fav_9 'favourite="FFF_FAV9"; fff_fav'
+	
+	fff_quit() {
+		: "${FFF_CD_FILE:=${XDG_CACHE_HOME:=${HOME}/.cache}/fff/.fff_d}"
+
+		[[ -w $FFF_CD_FILE ]] &&
+			rm "$FFF_CD_FILE"
+
+		[[ ${FFF_CD_ON_EXIT:=1} == 1 ]] &&
+			printf '%s\n' "$PWD" > "$FFF_CD_FILE"
+
+		reset_terminal
+		restore openfile
+		redraw
+	}
+}
+
+# suprisingly kbd is solid enough to handle all of this
+add-mode fff
+	:: '[right]' fff_child
+	:: "$(kbd l)" fff_child
+	:: 'RET' fff_child
+	:: '[left]' fff_parent
+	:: 'DEL' fff_parent
+	:: '[down]' fff_scroll_down
+	:: '[up]' fff_scroll_up
+	:: "$(kbd g)" fff_to_top
+	:: "$(kbd G)" fff_to_bottom
+	:: "$(kbd .)" fff_hidden
+	:: "$(kbd /)" fff_search
+	:: "$(kbd !)" fff_shell
+	:: "$(kbd y)" fff_yank
+	:: "$(kbd m)" fff_move
+	:: "$(kbd d)" fff_trash
+	:: "$(kbd s)" fff_link
+	:: "$(kbd b)" fff_bulk_rename
+	:: "$(kbd Y)" fff_yank_all
+	:: "$(kbd M)" fff_move_all
+	:: "$(kbd D)" fff_trash_all
+	:: "$(kbd S)" fff_link_all
+	:: "$(kbd B)" fff_bulk_rename_all
+	:: "$(kbd p)" fff_paste
+	:: "$(kbd c)" fff_clear
+	:: "$(kbd r)" fff_rename
+	:: "$(kbd n)" fff_mkdir
+	:: "$(kbd f)" fff_mkfile
+	:: "$(kbd x)" fff_attributes
+	:: "$(kbd X)" fff_executable
+	:: "$(kbd i)" draw_img
+	:: "$(kbd :)" fff_go_dir
+	:: "$(kbd '~')" fff_go_home
+	:: "$(kbd t)" fff_go_trash
+	:: "$(kbd -)" fff_previous
+	:: "$(kbd e)" fff_refresh
+	:: "$(kbd 1)" fff_fav_1
+	:: "$(kbd 2)" fff_fav_2
+	:: "$(kbd 3)" fff_fav_3
+	:: "$(kbd 4)" fff_fav_4
+	:: "$(kbd 5)" fff_fav_5
+	:: "$(kbd 6)" fff_fav_6
+	:: "$(kbd 7)" fff_fav_7
+	:: "$(kbd 8)" fff_fav_8
+	:: "$(kbd 9)" fff_fav_9
+	:: "$(kbd q)" fff_quit
+	mode-options
+		:: disable-global 1
