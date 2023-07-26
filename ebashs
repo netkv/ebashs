@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.11.7"
+version="0.7.11.7.1"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -286,7 +286,7 @@ function load-default-config {
 		:: 'faces     ' list-faces-display
 
 	set-highlight
-		:: 'shell' bash ksh dash sh mksh zsh ash oksh i\*bash
+		:: 'shell' bash ksh dash sh mksh zsh ash oksh i\*bash 'busybox sh'
 		:: 'ebashs' ebashs
 		:: 'config' conf
 		:: 'dired' i\*dired
