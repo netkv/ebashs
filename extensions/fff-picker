@@ -1,0 +1,154 @@
+#!/bin/bash
+## ebashs
+
+extension fff_picker
+	version: 0.1
+
+@fn dired 'fff_picker'
+
+add-mode fff_picker
+	:: '[right]' fff_child
+	:: "$(kbd l)" fff_child
+	:: 'RET' fff_child
+	:: '[left]' fff_parent
+	:: 'DEL' fff_parent
+	:: '[down]' fff_scroll_down
+	:: '[up]' fff_scroll_up
+	:: "$(kbd g)" fff_to_top
+	:: "$(kbd G)" fff_to_bottom
+	:: "$(kbd .)" fff_hidden
+	:: "$(kbd /)" fff_search
+	:: "$(kbd !)" fff_shell
+	:: "$(kbd y)" fff_yank
+	:: "$(kbd m)" fff_move
+	:: "$(kbd d)" fff_trash
+	:: "$(kbd s)" fff_link
+	:: "$(kbd b)" fff_bulk_rename
+	:: "$(kbd Y)" fff_yank_all
+	:: "$(kbd M)" fff_move_all
+	:: "$(kbd D)" fff_trash_all
+	:: "$(kbd S)" fff_link_all
+	:: "$(kbd B)" fff_bulk_rename_all
+	:: "$(kbd p)" fff_paste
+	:: "$(kbd c)" fff_clear
+	:: "$(kbd r)" fff_rename
+	:: "$(kbd n)" fff_mkdir
+	:: "$(kbd f)" fff_mkfile
+	:: "$(kbd x)" fff_attributes
+	:: "$(kbd X)" fff_executable
+	:: "$(kbd i)" draw_img
+	:: "$(kbd :)" fff_go_dir
+	:: "$(kbd '~')" fff_go_home
+	:: "$(kbd t)" fff_go_trash
+	:: "$(kbd -)" fff_previous
+	:: "$(kbd e)" fff_refresh
+	:: "$(kbd 1)" fff_fav_1
+	:: "$(kbd 2)" fff_fav_2
+	:: "$(kbd 3)" fff_fav_3
+	:: "$(kbd 4)" fff_fav_4
+	:: "$(kbd 5)" fff_fav_5
+	:: "$(kbd 6)" fff_fav_6
+	:: "$(kbd 7)" fff_fav_7
+	:: "$(kbd 8)" fff_fav_8
+	:: "$(kbd 9)" fff_fav_9
+	:: "$(kbd q)" fff_picker_quit
+	mode-options
+		:: disable-global 1
+
+fff_picker() {
+	log info open fff_picker
+	
+	((current_count++))
+	set-buffer "bf_${current_count}"
+	add-to-list
+	declare -Ag "${current_buffer}_bf_d"
+	bf_d=(
+		[line]=1
+		[base]=1
+		[column]=0
+		[info]='FFF'
+		[mode]='fff_picker'
+		[filetype]='e*fff'
+		[file]='*fff_picker*'
+		[modified]=0
+		[menuline]='fff'
+		[raw]=1
+		[redraw]=fff_redraw
+	)
+	size-full
+		
+    # Handle a directory as the first argument.
+    # 'cd' is a cheap way of finding the full path to a directory.
+    # It updates the '$PWD' variable on successful execution.
+    # It handles relative paths as well as '../../../'.
+    #
+    # '||:': Do nothing if 'cd' fails. We don't care.
+    cd "${2:-$1}" &>/dev/null ||:
+
+    [[ $1 == -v ]] && {
+        printf '%s\n' "fff 2.2"
+        exit
+    }
+
+    [[ $1 == -h ]] && {
+        man fff
+        exit
+    }
+
+    # Store file name in a file on open instead of using 'FFF_OPENER'.
+    # Used in 'fff.vim'.
+    [[ $1 == -p ]] &&
+        file_picker=1
+
+    # bash 5 and some versions of bash 4 don't allow SIGWINCH to interrupt
+    # a 'read' command and instead wait for it to complete. In this case it
+    # causes the window to not redraw on resize until the user has pressed
+    # a key (causing the read to finish). This sets a read timeout on the
+    # affected versions of bash.
+    # NOTE: This shouldn't affect idle performance as the loop doesn't do
+    # anything until a key is pressed.
+    # SEE: https://github.com/dylanaraps/fff/issues/48
+    ((BASH_VERSINFO[0] > 3)) &&
+        read_flags=(-t 0.05)
+
+    ((${FFF_LS_COLORS:=1} == 1)) &&
+        get_ls_colors
+
+    ((${FFF_HIDDEN:=0} == 1)) &&
+        shopt -s dotglob
+
+    # Create the trash and cache directory if they don't exist.
+    mkdir -p "${XDG_CACHE_HOME:=${HOME}/.cache}/fff" \
+             "${FFF_TRASH:=${XDG_DATA_HOME:=${HOME}/.local/share}/fff/trash}"
+
+    # 'nocaseglob': Glob case insensitively (Used for case insensitive search).
+    # 'nullglob':   Don't expand non-matching globs to themselves.
+	#shopt -s nocaseglob nullglob
+
+    # Trap the exit signal (we need to reset the terminal to a useable state.)
+    #trap 'reset_terminal' EXIT
+
+    # Trap the window resize signal (handle window resize events).
+    #trap 'get_term_size; redraw' WINCH
+	
+    get_os
+	get_term_size
+    get_w3m_path
+    setup_options
+    setup_terminal
+    redraw full
+	noredraw=1
+}
+
+fff_picker_quit() {
+	: "${FFF_CD_FILE:=${XDG_CACHE_HOME:=${HOME}/.cache}/fff/.fff_d}"
+
+	[[ -w $FFF_CD_FILE ]] &&
+		rm "$FFF_CD_FILE"
+
+	[[ ${FFF_CD_ON_EXIT:=1} == 1 ]] &&
+		printf '%s\n' "$PWD" > "$FFF_CD_FILE"
+
+	reset_terminal
+	die
+}
