@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.11.7.1"
+version="0.7.11.8"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -10,7 +10,7 @@ shopt -s extglob # Ensure advanced pattern matching is available
 shopt -s checkwinsize && (:) # Enable and then trigger a terminal size refresh
 
 declare -r DEFIFS="$IFS"
-declare -A highlight faces options charmap alias descriptions
+declare -A highlight faces faces_raw options charmap alias descriptions
 declare -A menulineedit diredmenu menulinedebug
 declare -A menufancy
 declare -A keys_def keys_global
@@ -167,7 +167,8 @@ function load-default-config {
 	#			:background & :foreground
 	#				either hex. colour, colour name, or c<index> for 256 indexed colours
 	#		See extensions/gruvboxdark for another example
-	default_faces=(
+default_faces=(
+		reset '\e[m'
 		default "$(:weight normal)"
 		TODO "$(:background magenta)"
 		NOTE "$(:background gray)"
@@ -837,6 +838,7 @@ A short function with no documentation
 					t=1
 				} || {
 					faces["$k"]="$i"
+					faces_raw["$k"]="$(printf '%b' "$i")"
 					t=0
 				}
 			}
@@ -1062,7 +1064,7 @@ defun face
 	function = {
 		IFS=' '
 		[[ "$2" =~ ${2//?/(.)} ]]
-		linearray+=("$(printf '%b' "\e[0;0m${faces[${1}]}")${BASH_REMATCH[@]:1}")
+	    linearray+=("${faces_raw[reset]}${faces_raw[${1}]}${BASH_REMATCH[@]:1}")
 		IFS=''
 	}
 	
