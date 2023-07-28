@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.12"
+version="0.7.13"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -3147,108 +3147,6 @@ defun print-line-number
 				   "$nlchar"
 	}
 
-defun-fragment redraw-buffer-raw
-	:: Redraws buffer with 'bf_d[raw]' enabled	
-	function =
-		for ((i = bf_d[base]; i - bf_d[base] < max; i++)); do
-
-			((i - bf_d[base] > max - 2)) && nlchar='' || nlchar='\n'
-			
-			print-line-number
-			((i > ${#buffer[@]})) || {
-				if ((options[line-number-mode])); then
-					printf "\e[%sG%*s\e[%sG%${bf_d[number-length]}s %b%s%b"\
-						   @ printarg\
-						   "${buffer[i]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
-						   "$nlchar"
-				else
-					printf "\e[%sG%*s\e[%sG%b%s%b"\
-						   @ printargnonl\
-						   "${buffer[i]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
-						   "$nlchar"
-				fi
-			}
-		done
-
-defun-fragment redraw-buffer
-	:: Redraw buffer
-	function =
-		for ((i = bf_d[base]; i - bf_d[base] < max; i++)); do
-
-			# if the line is last, do not add newline
-			((i - bf_d[base] > max - 2)) && nlchar='' || nlchar='\n'
-			
-			print-line-number
-
-			((i > ${#buffer[@]})) && continue
-			
-			# to improve speed syntaxing has to be "lazy" -- having to be heavily cached as ram is far less expensive to waste
-			[ -z "${bf_s[bf_d[base]+bf_d[size-y]-(bottomlines+toplines)+2]}" ] && {
-				bottomest=$((bf_d[base]+bf_d[size-y]-(bottomlines+toplines)+2))
-				make-render-area $bottomest $((bottomest+options[render-chunk]))
-			}
-			[ -z "${bf_s[i]}" ] && {
-				make-render-area $((base + i)) $((base + i + 1)) # idk why make-render-line doesnt work here
-			}
-			local -n linearray="${bf_s[i]}"
-			
-			# draw the selection area
-			((bf_d[selection])) && {
-				((i == bf_d[selection_start_y])) &&
-					((bf_d[selection_start_y] == bf_d[selection_end_y])) && {
-						((bf_d[selection_start_x] <= bf_d[selection_end_x])) && {
-							local -n sx=bf_d[selection_start_x]
-							local -n ex=bf_d[selection_end_x]
-						} || {
-							local -n sx=bf_d[selection_end_x]
-							local -n ex=bf_d[selection_start_x]
-						}
-						if ((options[line-number-mode])); then
-							printf "\e[%sG%*s\e[%sG%${bf_d[number-length]}s %b%s%b%s%b%s%b"\
-								   @ printarg\
-								   "${linearray[*]:bf_d[basecolumn]:sx}"\
-								   "\e[m${faces[region]}"\
-								   "${buffer[i]:sx:ex-sx}"\
-								   "\e[m"\
-								   "${linearray[*]:ex:bf_d[size-x]}"\
-								   "$nlchar"
-						else
-							printf '\e[%sG%*s\e[%sG%b%s%b%s%b%s%b'\
-								   @ printargnonl\
-								   "${linearray[*]:bf_d[basecolumn]:sx}"\
-								   "\e[m${faces[region]}"\
-								   "${buffer[i]:sx:ex-sx}"\
-								   "\e[m"\
-								   "${linearray[*]:ex:bf_d[size-x]}"\
-								   "$nlchar"
-						fi
-						continue
-					}
-				((i >= bf_d[selection_start_y])) && ((i <= bf_d[selection_end_y])) && {
-					selection-draw selection_start selection_end
-					continue
-				}
-				((i <= bf_d[selection_start_y])) && ((i >= bf_d[selection_end_y])) && {
-					selection-draw selection_end selection_start
-					continue
-				}
-			}
-			# due to escape codes present in bf_s,
-			# the bf_s has to be multidimensional nonsense for perfomance reasons
-
-			#I would make this less repeated, but the line has to be printed by single printf to stop flickering, so bloat has to be
-			if ((options[line-number-mode])); then
-				printf "\e[%sG%*s\e[%sG%${bf_d[number-length]}s %b%s%b"\
-					   @ printarg\
-					   "${linearray[*]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
-					   "$nlchar"
-			else
-				printf "\e[%sG%*s\e[%sG%b%s%b"\
-					   @ printargnonl\
-					   "${linearray[*]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
-					   "$nlchar"
-			fi
-		done
 
 defun-fragment selection-draw
 	:: Draw multiline region
@@ -3338,16 +3236,12 @@ defun redraw
 		((options[line-number-mode])) && {
 			bf_d[number-length]=${#bf_d[length]}
 			bf_d[number-space]=1
-		} || {
-			bf_d[number-length]=0
-			bf_d[number-space]=0
-		}
+		} || ((bf_d[number-length]=0, bf_d[number-space]=0))
 		
 		# Update selection ends to current cursor
-		((bf_d[selection]==1)) && {
-			bf_d[selection_end_y]="${bf_d[line]}"
-			bf_d[selection_end_x]="${bf_d[column]}"
-		}
+		((bf_d[selection]==1)) &&
+			((bf_d[selection_end_y]=bf_d[line], bf_d[selection_end_x]=bf_d[column]))
+		
 		# Move the buffer horizontally if needed
 		((bf_d[column] +3 < bf_d[size-x] - bf_d[number-length] - 1)) &&
 			bf_d[basecolumn]=0
@@ -3373,8 +3267,103 @@ defun redraw
 		((bf_d[raw])) &&
 			# The raw rendering is just dirty hack to get better perfomance in buffer which don't need fancy effects
 			# Will be removed once normal rendering is fast enough (or rather if it'll ever be
-			redraw-buffer-raw ||
-				redraw-buffer
+			{
+				for ((i = bf_d[base]; i - bf_d[base] < max; i++)); do
+					((i - bf_d[base] > max - 2)) && nlchar='' || nlchar='\n'
+					
+					print-line-number
+					((i > ${#buffer[@]})) || {
+						if ((options[line-number-mode])); then
+							printf "\e[%sG%*s\e[%sG%${bf_d[number-length]}s %b%s%b"\
+								   @ printarg\
+								   "${buffer[i]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
+								   "$nlchar"
+						else
+							printf "\e[%sG%*s\e[%sG%b%s%b"\
+								   @ printargnonl\
+								   "${buffer[i]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
+								   "$nlchar"
+						fi
+					}
+				done
+			} || {
+				for ((i = bf_d[base]; i - bf_d[base] < max; i++)); do
+
+					# if the line is last, do not add newline
+					((i - bf_d[base] > max - 2)) && nlchar='' || nlchar='\n'
+					
+					print-line-number
+
+					((i > ${#buffer[@]})) && continue
+					
+					# to improve speed syntaxing has to be "lazy" -- having to be heavily cached as ram is far less expensive to waste
+					[ -z "${bf_s[bf_d[base]+bf_d[size-y]-(bottomlines+toplines)+2]}" ] && {
+						bottomest=$((bf_d[base]+bf_d[size-y]-(bottomlines+toplines)+2))
+						make-render-area $bottomest $((bottomest+options[render-chunk]))
+					}
+					[ -z "${bf_s[i]}" ] && {
+						make-render-area $((base + i)) $((base + i + 1)) # idk why make-render-line doesnt work here
+					}
+					local -n linearray="${bf_s[i]}"
+					
+					# draw the selection area
+					((bf_d[selection])) && {
+						((i == bf_d[selection_start_y])) &&
+							((bf_d[selection_start_y] == bf_d[selection_end_y])) && {
+								((bf_d[selection_start_x] <= bf_d[selection_end_x])) && {
+									local -n sx=bf_d[selection_start_x]
+									local -n ex=bf_d[selection_end_x]
+								} || {
+									local -n sx=bf_d[selection_end_x]
+									local -n ex=bf_d[selection_start_x]
+								}
+								if ((options[line-number-mode])); then
+									printf "\e[%sG%*s\e[%sG%${bf_d[number-length]}s %b%s%b%s%b%s%b"\
+										   @ printarg\
+										   "${linearray[*]:bf_d[basecolumn]:sx}"\
+										   "\e[m${faces[region]}"\
+										   "${buffer[i]:sx:ex-sx}"\
+										   "\e[m"\
+										   "${linearray[*]:ex:bf_d[size-x]}"\
+										   "$nlchar"
+								else
+									printf '\e[%sG%*s\e[%sG%b%s%b%s%b%s%b'\
+										   @ printargnonl\
+										   "${linearray[*]:bf_d[basecolumn]:sx}"\
+										   "\e[m${faces[region]}"\
+										   "${buffer[i]:sx:ex-sx}"\
+										   "\e[m"\
+										   "${linearray[*]:ex:bf_d[size-x]}"\
+										   "$nlchar"
+								fi
+								continue
+							}
+						((i >= bf_d[selection_start_y])) && ((i <= bf_d[selection_end_y])) && {
+							selection-draw selection_start selection_end
+							continue
+						}
+						((i <= bf_d[selection_start_y])) && ((i >= bf_d[selection_end_y])) && {
+							selection-draw selection_end selection_start
+							continue
+						}
+					}
+					# due to escape codes present in bf_s,
+					# the bf_s has to be multidimensional nonsense for perfomance reasons
+
+					#I would make this less repeated, but the line has to be printed by single printf to stop flickering, so bloat has to be
+					if ((options[line-number-mode])); then
+						printf "\e[%sG%*s\e[%sG%${bf_d[number-length]}s %b%s%b"\
+							   @ printarg\
+							   "${linearray[*]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
+							   "$nlchar"
+					else
+						printf "\e[%sG%*s\e[%sG%b%s%b"\
+							   @ printargnonl\
+							   "${linearray[*]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
+							   "$nlchar"
+					fi
+				done
+			}
 		
 		redraw-statusline
 		redraw-commandline
@@ -3530,194 +3519,65 @@ defun handle-mouse
 			redraw
 		}
 	}
-
-defun has-options
-	:: Checks if current mode has options attached to it
-	function = ((${#key_options[@]}))
-
-defun input-key
-	:: Handle input
-	:: Either \$1 raw character input or k_hex array containing hex values of characters is used
-	function = {
-		#arg $1 is the pressed key in normal text form
-		#k_hex is pressed key in hex array ending with 0
-		
-		local -i mode_contains=0
-		local -n\
-			  modekeys="keys_${bf_d[mode]}"\
-			  key_options="key_options_${bf_d[mode]}"
-
-		# global keys
-		((key_options[disable-global])) ||
-			for str in "${!keys_global[@]}"; do
-				[ "$str" = "${k_hex[*]}" ] && {
-					"${keys_global[$str]}"
-					return
-				}
-			done
-
-		# Execute the 'always' key option
-		has-options && {
-			[ -n "${key_options[always]}" ] && "${key_options[always]}"
-		}
-
-		# Loop over current mode keybindings to match current keypress
-		for str in "${!modekeys[@]}"; do
-			[ "$str" = "${k_hex[*]}" ] && {
-				"${modekeys[$str]}"
-				mode_contains=1
-			}
-		done
-
-		# If mode keybinding doesn't contain current keypress, execute this
-		has-options && {
-			((mode_contains == 0)) && [ -n "${key_options[else]}" ] && {
-				[ "${key_options[else]}" = 'insert' ] || "${key_options[else]}"
-			}
-		}
-
-		# Do not continue if mode contains keypress to prevent control chars flooding file
-		((mode_contains == 1)) && {
-			return
-		}
-
-		# The 'insert' option allows the mode to insert chars in normal way
-		[ "${key_options[else]}" = 'insert' ] || return
-
-		# If mouse is enabled, do whatever the hell that ugly piece of code does
-		(("${options[mouse]}"==1)) && {
-			handle-mouse "$1"
-			return
-		}
-
-		# Insert the pressed character
-		[ "${key_options[else]}" = 'insert' ] || return && {
-				[[ $1 =~ [[:cntrl:]] ]] && return # If char is control char, return
-				self-insert "$1"
-				bf_d[modified]=1
-			}
-	}
-
-defun load-config
-	:: Sources custom config file
-	function = {
-		log_buffer+=('LOADING CONFIG...')
-		local config_file
-		local f
-		f=~/.config/ebashsrc.d/init.bash ;[ -f "$f" ] && config_file="$f"
-		f=~/.config/ebashsrc ;[ -f "$f" ] && config_file="$f"
-		f=~/.ebashsrc ;[ -f "$f" ] && config_file="$f"
-		f=~/.ebashsrc.d/init.bash ;[ -f "$f" ] && config_file="$f"
-		f=.ebashsrc ;[ -f "$f" ] && config_file="$f"
-		f=.ebashsrc.d/init.bash ;[ -f "$f" ] && config_file="$f"
-		
-		f="${EBASHS_CONFIG}" ;[ -n "$f" ] && [ -f "$f" ] && config_file="$f"
-		f="${EBASHS_CONFIG_DIR}/init.bash" ;[ -n "$f" ] && [ -f "$f" ] && config_file="$f"
-		
-		[ -z "$config_file" ] && return
-		source "$config_file"
-		log_buffer+=("LOADED $config_file")
-	}
-
-defun init
-	:: Prepares variables and launches main function
-	function = {
-		case "$1" in
-			'--quick'|'-Q')
-				log_buffer+=('- LOAD DEFAULT CONFIG -')
-				load-default-config
-				shift;;
-			'--version')
-				echo "$version"
-				abort;;
-			'--dump')
-			    declare -f
-				abort;;
-			'--help')
-				print-stdin <<EOF
-Usage: ebashs [OPTION-OR-FILENAME]...
-
-Run Ebashs, the extensible, customizable, maybe-real-time
-display editor.  The recommended way to start Ebashs for normal editing
-is with no options at all.
-
-Run C-h r RET inside Ebashs to read "manual".
-
-Initialization options:
---quick, -Q    don't load config
---help,        display this help and exit
---version,     display version information and exit
-EOF
-				abort;;
-			*)
-				log_buffer+=('- LOAD DEFAULT CONFIG -')
-				load-default-config #loads default config
-				load-config
-		esac
-		
-		((options[log])) && init-log || unset buffer_log # set up log buffer (M-x log)
-
-		log info setting traps...
-		trap change-size-screen WINCH ALRM # Attach WINCH and ALRM to redraw the screen
-		trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
-		trap 'k_hex=(3 0); input-key' INT
-		trap quit SIGTERM
-
-		
-		menuloc_y=0; menuloc_x=0 # menu positions
-		log info 'Setting menu-line'
-		toplines=${toplines:-0}
-		toplines="${options[menu-line]}"
-
-		# this is reverse because the value is added to buffer redrawing size
-		log info 'Setting mode-line'
-		bottomlines=${bottomlines:-0}
-		((options[mode-line]==0)) && ((bottomlines--))
-		log info 'Setting command-line'
-		((options[command-line]==0)) && ((bottomlines--))
-		((bottomlines+=2))
-		
-		log-echo "toplines $toplines"
-		log-echo "bottomlines $bottomlines"
-		
-		log info 'Setting reset'
-		reset='\e[0;0m'
-		log info 'Setting charmap'
-		charmap=(
-			#[0] is reserved for any unmapped char
-			[	]='t' # tab
-			[ ]='s' # space
-		)
-		log info 'Setting nlchar'
-		nlchar='\n'
-		printf '\e[?1049h'
-		log info 'Setting mouse'
-		(("${options[mouse]}")) && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
-
-		
-		if [[ "$1" ]]; then # If a file was provided in the terminal pre-load it
-			log info "args: $1"
-			if [ -d "$1" ]; then
-				log info "[$1] is directory => dired"
-				cd "$1" || exit
-				dired # enter the file selector in specified folder
-			else
-				log info "[$1] is file => read-buffer"
-				read-buffer "$1"
-			fi
-		else
-			log info "no arg => dired"
-			dired # enter the file selector
-		fi
-		log info "drawing..."
-		redraw
-		log info 'entering main loop...'
-		main
-	}
 nufed
+	
+@@ input-key Handles input
+:: Either \$1 raw character input or k_hex array containing hex values of characters is used
+function input-key {
+	#arg $1 is the pressed key in normal text form
+	#k_hex is pressed key in hex array ending with 0
+		
+	local -i mode_contains=0
+	local -n modekeys="keys_${bf_d[mode]}"\
+	         key_options="key_options_${bf_d[mode]}"
 
-doc main
-	:: Main keyboard loop
+	# global keys
+	((key_options[disable-global])) ||
+		for str in "${!keys_global[@]}"
+		{
+			[ "$str" = "${k_hex[*]}" ] && {
+				"${keys_global[$str]}"
+				return
+			}
+		}
+
+	# Execute the 'always' key option
+	((${#key_options[@]})) &&
+		[ -n "${key_options[always]}" ] && "${key_options[always]}"
+
+	# Loop over current mode keybindings to match current keypress
+	for str in "${!modekeys[@]}"
+	{
+		[ "$str" = "${k_hex[*]}" ] && {
+			"${modekeys[$str]}"
+			mode_contains=1
+		}
+	}
+
+	# If mode keybinding doesn't contain current keypress, execute this
+	((${#key_options[@]})) &&
+		((mode_contains == 0)) &&
+		[ -n "${key_options[else]}" ] && {
+			[ "${key_options[else]}" = 'insert' ] || {
+				"${key_options[else]}" && return
+			}
+		}
+
+	# Do not continue if mode contains keypress to prevent control chars flooding file
+	((mode_contains==1)) && return
+
+	# If mouse is enabled, do whatever the hell that ugly piece of code does
+	(("${options[mouse]}"==1)) && {
+		handle-mouse "$1"
+		return
+	}
+
+	# Insert the pressed character
+	[[ $1 =~ [[:cntrl:]] ]] && return # If char is control char, return
+	insert-word "$1"
+}
+
+@@ main Main keyboard loop
 function main
 	while :; do
 		local -a k=()
@@ -3732,9 +3592,125 @@ function main
 				((i++))
 			done
 			k_hex[$i]='0'
-			input-key "$(printf '%s' "${k[@]}")" # Handle keypress event
+			input-key "${k[@]}" # Handle keypress event
 		}
 	done
+
+
+@@ load-config Sources custom config file
+function load-config {
+	log_buffer+=('LOADING CONFIG...')
+	local config_file
+	local f
+	f=~/.config/ebashsrc.d/init.bash ;[ -f "$f" ] && config_file="$f"
+	f=~/.config/ebashsrc ;[ -f "$f" ] && config_file="$f"
+	f=~/.ebashsrc ;[ -f "$f" ] && config_file="$f"
+	f=~/.ebashsrc.d/init.bash ;[ -f "$f" ] && config_file="$f"
+	f=.ebashsrc ;[ -f "$f" ] && config_file="$f"
+	f=.ebashsrc.d/init.bash ;[ -f "$f" ] && config_file="$f"
+	
+	f="${EBASHS_CONFIG}" ;[ -n "$f" ] && [ -f "$f" ] && config_file="$f"
+	f="${EBASHS_CONFIG_DIR}/init.bash" ;[ -n "$f" ] && [ -f "$f" ] && config_file="$f"
+	
+	[ -z "$config_file" ] && return
+	source "$config_file"
+	log_buffer+=("LOADED $config_file")
+}
+	
+@@ init
+:: Prepares variables and launches main function
+function init {
+	case "$1" in
+		'--quick'|'-Q')
+			log_buffer+=('- LOAD DEFAULT CONFIG -')
+			load-default-config
+			shift;;
+		'--version')
+			echo "$version"
+			abort;;
+		'--dump')
+			declare -f
+			abort;;
+		'--help')
+			print-stdin <<EOF
+Usage: ebashs [OPTION-OR-FILENAME]...
+
+Run Ebashs, the extensible, customizable, maybe-real-time
+display editor.  The recommended way to start Ebashs for normal editing
+is with no options at all.
+
+Run C-h r RET inside Ebashs to read "manual".
+
+Initialization options:
+--quick, -Q    don't load config
+--help,        display this help and exit
+--version,     display version information and exit
+EOF
+			abort;;
+		*)
+			log_buffer+=('- LOAD DEFAULT CONFIG -')
+			load-default-config #loads default config
+			load-config
+	esac
+	((options[log])) && init-log || unset buffer_log # set up log buffer (M-x log)
+	
+	log info setting traps...
+	trap change-size-screen WINCH ALRM # Attach WINCH and ALRM to redraw the screen
+	trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
+	trap 'k_hex=(3 0); input-key' INT
+	trap quit SIGTERM
+
+	
+	menuloc_y=0; menuloc_x=0 # menu positions
+	log info 'Setting menu-line'
+	toplines=${toplines:-0}
+	toplines="${options[menu-line]}"
+
+	# this is reverse because the value is added to buffer redrawing size
+	log info 'Setting mode-line'
+	bottomlines=${bottomlines:-0}
+	((options[mode-line]==0)) && ((bottomlines--))
+	log info 'Setting command-line'
+	((options[command-line]==0)) && ((bottomlines--))
+	((bottomlines+=2))
+	
+	log-echo "toplines $toplines"
+	log-echo "bottomlines $bottomlines"
+	
+	log info 'Setting reset'
+	reset='\e[0;0m'
+	log info 'Setting charmap'
+	charmap=(
+		#[0] is reserved for any unmapped char
+		[	]='t' # tab
+		[ ]='s' # space
+	)
+	log info 'Setting nlchar'
+	nlchar='\n'
+	printf '\e[?1049h'
+	log info 'Setting mouse'
+	(("${options[mouse]}")) && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
+
+	
+	if [[ "$1" ]]; then # If a file was provided in the terminal pre-load it
+		log info "args: $1"
+		if [ -d "$1" ]; then
+			log info "[$1] is directory => dired"
+			cd "$1" || exit
+			dired # enter the file selector in specified folder
+		else
+			log info "[$1] is file => read-buffer"
+			read-buffer "$1"
+		fi
+	else
+		log info "no arg => dired"
+		dired # enter the file selector
+	fi
+	log info "drawing..."
+	redraw
+	log info 'entering main loop...'
+	main
+}
 
 log_buffer+=('INIT')
 init "$@"
