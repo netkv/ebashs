@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.13"
+version="0.7.14"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -90,23 +90,24 @@ function load-default-config {
 		:: "$(kbd C-v)" 'scroll-up'
 
 	add-mode edit
-		:: '1b 5b 31 3b 32 41 0' 'select-previous'
-		:: '1b 5b 31 3b 32 42 0' 'select-next'
-		:: '1b 5b 31 3b 32 43 0' 'select-forward'
-		:: '1b 5b 31 3b 32 44 0' 'select-backward'
-		:: '1b 20 0' 'set-mark-command' # in gnu emacs this is C-SPC but i cant get that to be detected in bash so M-SPC will suffice
-		:: '20 0' 'insert-space'
-		:: "$(kbd C-h)" 'prefix-help'
-		:: 'RET' 'newline'
-		:: "$(kbd C-l)" 'newline'
-		:: "$(kbd C-t)" 'execute'
-		:: "$(kbd C-d)" 'delete-line'
-		:: 'DEL' 'backspace'
-		:: '[deletechar]' 'delete'
-		:: "$(kbd M-g)" 'menukey'
-		:: '1b 5b 48 0' 'move-beginning-of-line'
-		:: "$(kbd C-i)" 'indent-for-tab-command'
-		:: '1b 5b 46 0' 'move-end-of-line'
+		:: '1b 5b 31 3b 32 41 0' select-previous
+		:: '1b 5b 31 3b 32 42 0' select-next
+		:: '1b 5b 31 3b 32 43 0' select-forward
+		:: '1b 5b 31 3b 32 44 0' select-backward
+		:: '1b 20 0' set-mark-command # in gnu emacs this is C-SPC but i cant get that to be detected in bash so M-SPC will suffice
+		:: '20 0' insert-space
+		:: "$(kbd C-h)" prefix-help
+		:: 'RET' newline
+		:: "$(kbd C-l)" newline
+		:: "$(kbd M-d)" duplicate-line
+		:: "$(kbd C-t)" execute
+		:: "$(kbd C-d)" delete-line
+		:: 'DEL' backspace
+		:: '[deletechar]' delete
+		:: "$(kbd M-g)" menukey
+		:: '1b 5b 48 0' move-beginning-of-line
+		:: "$(kbd C-i)" indent-for-tab-command
+		:: '1b 5b 46 0' move-end-of-line
 		mode-options
 			:: else 'insert'
 
@@ -175,14 +176,14 @@ default_faces=(
 		menu "$(:mode inverse)"
 		menu-enabled-face "$(:background black)"
 		selected "$(:foreground black :background magenta)"
-		link "$(:foreground light-blue)"
+		link "$(:slant italic :foreground light-blue)"
 		button '\e[4m\e[1m'
 		menu-selected-face "$(:foreground black :background magenta)"
 		mode-line "$(:mode inverse)"
 		file-name "$(:weight bold)"
-		line-number "$(:foreground gray)"
-		line-number-empty "$(:foreground gray)"
-		line-number-current-line "$(:foreground light-red)"
+		line-number "$(:weight dim :foreground gray)"
+		line-number-empty "$(:weight dim :foreground gray)"
+		line-number-current-line "$(:weight bold :foreground light-red)"
 		tab-face "$(:foreground gray)"
 		region "$(:weight bold :background gray)"
 		minibuffer-prompt "$(:weight normal)"
@@ -208,8 +209,9 @@ default_faces=(
 		ansi-color-white '\e[47m'
 		ansi-color-white '\e[43m'
 		# syntax highlighting
+		sh-quoted-exec "$(:foreground light-yellow)"
 		font-lock-variable-string-face "$(:foreground cyan)"
-		font-lock-comment-face "$(:slant italic :weight dim)"
+		font-lock-comment-face "$(:weight dim)"
 		font-lock-variable-name-face "$(:foreground light-cyan)"
 		font-lock-argument-face "$(:foreground light-yellow)"
 		font-lock-flow-face "$(:foreground ligth-yellow)"
@@ -1069,99 +1071,101 @@ defun-fragment make-render-area
 		done
 		IFS="$bckeIFS"
 	}
+	
 defun-fragment make-render-line
 	:: Syntax highlights single line '$1'
 	:: Defaults to currently selected line if no argument is passed
 	function = {
-		((${#1})) || local -i line=${bf_d[line]} ||
+		[ -n "$1" ] || local -i line=${bf_d[line]} ||
 			@ setrender
 		make-render-line-loop
 		IFS="$bckeIFS"
 	}
+nufed
 
-defun expand-char
-	:: Creates bf_e for handling cursor movenment
-	:: Is controled via charmap associative array
-	:: "    Tab is 't'"
-	:: "    Space is 's'"
-	:: "    Any unmaped char is '0'"
-	function = {
-		IFS=
-		while read -rsn1 char
-		do
-			[ -z "$char" ] && echo && continue
-			case "${char}" in
-				'	')
-					local -i i
-					for ((i = ${#options[tabchar]}; i > 0 ; i--)); do
-						printf '%s' "${charmap[	]}"
-					done;;
-				' ') printf '%s' "${charmap[ ]}";;
-				*)
-					printf '0';;
-			esac
-		done
-		@ifs
-	}
+@@ expand-char Creates bf_e for handling cursor movenment
+:: Is controled via charmap associative array
+:: "    Tab is 't'"
+:: "    Space is 's'"
+:: "    Any unmaped char is '0'"
+function expand-char {
+	IFS=
+	while read -rsn1 char
+	do
+		[ -z "$char" ] && echo && continue
+		case "${char}" in
+			'	')
+				local -i i
+				for ((i = ${#options[tabchar]}; i > 0 ; i--)); do
+					printf '%s' "${charmap[	]}"
+				done;;
+			' ') printf '%s' "${charmap[ ]}";;
+			*)
+				printf '0';;
+		esac
+	done
+	@ifs
+}
 
-defun make-render-line-loop
-	:: Backend for make-render-area \& make-render-line
-	function = {
-		bf_e[line]="$(expand-char <<< "${buffer[line]}")"
-		comment=0
-		local word=''
-		while read -rsn1 char
-		do
-			case "$char" in
-				' ')
-					syntax-word
-					word=''
-					face default ' ';;
-				'	')
-					syntax-word
-					word=''
-					face tab-face "${options[tabchar]}";;
-				'')
-					syntax-word
-					word=''
-					face default ' '
-					return;;
-				*) word+="${char}";;
-			esac
-		done  <<< "${buffer[line]}"
-	}
+@@ make-render-line-loop
+:: Backend for make-render-area \& make-render-line
+function make-render-line-loop {
+	bf_e[line]="$(expand-char <<< "${buffer[line]}")"
+	comment=0
+	local word=''
+	while read -rsn1 char
+	do
+		case "$char" in
+			' ')
+				syntax-word
+				word=''
+				face default ' ';;
+			'	')
+				syntax-word
+				word=''
+				face tab-face "${options[tabchar]}";;
+			'')
+				syntax-word
+				word=''
+				face default ' '
+				return;;
+			*) word+="${char}";;
+		esac
+	done  <<< "${buffer[line]}"
+}
 
-defun syntax-word
-	:: Decides what a word should highlighted as:
-	:: '    If todonote option is enabled, highlight "NOTE:" & "TODO:"'
-	:: '    If the word is supposed to be comment highlight it as it'
-	:: '    Else pass it to current syntax function'
-	function = {
-		(("${options[todonote]}"==1)) && {
-			case "$word" in
-				'NOTE:') face NOTE "${word}"; return ;;
-				'TODO:') face TODO "${word}"; return ;;
-			esac
-		}
-		((comment)) && set-face font-lock-comment-face ||
-				"${bf_d[syntax]}"
-		face "$syntax_face" "$word"
+@@ syntax-word
+:: Decides what a word should highlighted as:
+:+     'If todonote option is enabled, highlight "NOTE:" & "TODO:"'
+::     'If the word is supposed to be comment highlight it as it'
+::     'Else pass it to current syntax function'
+function syntax-word {
+	(("${options[todonote]}"==1)) && {
+		case "$word" in
+			'NOTE:') face NOTE "${word}"; return ;;
+			'TODO:') face TODO "${word}"; return ;;
+		esac
 	}
+	((comment)) && set-face font-lock-comment-face ||
+		"${bf_d[syntax]}"
+	face "$syntax_face" "$word"
+}
 
-defun face
-	:: Add highlighted word to multidimensional nonsense "'bf_s'" arry
-	function = {
-		IFS=' '
-		[[ "$2" =~ ${2//?/(.)} ]]
-	    linearray+=("${faces_raw[reset]}${faces_raw[${1}]}${BASH_REMATCH[@]:1}")
-		IFS=''
-	}
+@@ face
+:: Add highlighted word to multidimensional nonsense "'bf_s'" arry
+function face {
+	IFS=' '
+	[[ "$2" =~ ${2//?/(.)} ]]
+	linearray+=("${faces_raw[reset]}${faces_raw[${1}]}${BASH_REMATCH[@]:1}")
+	IFS=''
+}
 	
 @fn set-face 'syntax_face="$1"'
 
 defun syntax-shell
 	:: Syntax function for shell
 	:: Used faces:
+	:: '    * sh-quoted-exec'
 	:: '    * font-lock-declare-face'
 	:: '    * font-lock-variable-string-face'
 	:: '    * font-lock-comment-face & sets comment to 1 for syntax-word function'
@@ -1178,6 +1182,7 @@ defun syntax-shell
 	:: '    * font-lock-default-face'
 	function =
 		case "${word}" in
+			'$('*|'"$('*) set-face sh-quoted-exec;;
 			*'=()'|'declare'|'local'|'typeset') set-face font-lock-declare-face;;
 			'"$'*) set-face font-lock-variable-string-face;;
 			'#'*) set-face font-lock-comment-face && comment=1;;
@@ -1201,6 +1206,7 @@ defun syntax-shell
 defun syntax-ebashs
 	:: Syntax function for Ebashs files cuz it\'s too weird already
 	:: Used faces:
+	:: '    * sh-quoted-exec'
 	:: '    * font-lock-declare-face'
 	:: '    * font-lock-variable-string-face'
 	:: '    * font-lock-comment-face & sets comment to 1 for syntax-word function'
@@ -1217,6 +1223,7 @@ defun syntax-ebashs
 	:: '    * font-lock-default-face'
 	function =
 		case "${word}" in
+			'$('*|'"$('*) set-face sh-quoted-exec;;
 			*'=()'|'declare'|'local'|'typeset') set-face font-lock-declare-face;;
 			'"$'*) set-face font-lock-variable-string-face;;
 			'#'*) set-face font-lock-comment-face && comment=1;;
@@ -2501,7 +2508,19 @@ defun quit-view
 		restore openfile
 		redraw
 	}
+nufed
 
+@@ duplicate-line Copies line
+function duplicate-line {
+	newline # create new empty line
+	buffer[bf_d[line]-1]="${buffer[bf_d[line]]}" # copy current line to previous line
+	#make-render-area $((bf_d[line]-1)) $((bf_d[line]))
+	local -n lap="${current_buffer}_syntax$((bf_d[line]-1))"
+	local -n lac="${current_buffer}_syntax$((bf_d[line]))"
+	copy-array lac lap
+	redraw
+}
+	
 defun newline
 	:: Inserts newline to current buffer at current cursor position
 	function = {
@@ -2705,16 +2724,17 @@ defun quit-quit
 
 defun quit
 	:: Displays quit message and sets mode to \'quit\'
-	function =
-		if ((bf_d[modified])); then
-			[ -z "$bckmode" ] && bckmode="${bf_d[mode]}"
-			bf_d[mode]='quit'
-			redraw-statusline
-			printf '\e[%s;0H' $((bf_d[size-y] + bf_d[loc-y]))
-			printf '%s' 'Buffer modified, save before close? [y/n/c]'
-		else
+	function = {
+		[ -n "${bf_d[isfile]}" ] && ((bf_d[isfile]==0)) || ((bf_d[modified]==0)) && {
 			die
-		fi
+		}
+		
+		[ -z "$bckmode" ] && bckmode="${bf_d[mode]}"
+		bf_d[mode]='quit'
+		redraw-statusline
+		printf '\e[%s;0H' $((bf_d[size-y] + bf_d[loc-y]))
+		printf '%s' 'Buffer modified, save before close? [y/n/c]'
+	}
 
 defun die
 	:: Closes Ebashs with exit code \$errno, if errno is empty exit with 0
@@ -3616,7 +3636,42 @@ function load-config {
 	source "$config_file"
 	log_buffer+=("LOADED $config_file")
 }
-	
+
+@@ scratch
+:: Empty buffer
+function scratch {
+	log info "loading empty buffer..."
+	((current_count++))
+	set-buffer "bf_${current_count}"
+	add-to-list
+	declare -Ag "${current_buffer}_bf_d"
+	bf_d=(
+		[line]=0 # Currently selected line (0 means the buffer is empty)
+		[base]=1 # Top-most line shown
+		[column]=0 # Position of the cursor in $line
+		[mode]="${options[default_mode]}"
+		[info]="${options[help-message]}"
+		[filetype]="bash"
+		[file]="*scratch*"
+		[isfile]=0
+		[menuline]='top'
+		[current_state]=0
+	)
+	set-syntax # set bf_d[syntax]
+	size-full
+	buffer=(
+		''
+		'# This buffer is for text that is not saved, and for Bash evaluation.'
+		'# To create a file, visit it with C-x C-f and enter text in its buffer.'
+		''
+	)
+	draw-raw
+
+	message="For information about Ebashs and the BASH system, type C-h C-a."
+	bf_d[line]=1 # Indicate that we have a buffer loaded
+	bf_d[modified]=0
+}
+
 @@ init
 :: Prepares variables and launches main function
 function init {
@@ -3703,8 +3758,8 @@ EOF
 			read-buffer "$1"
 		fi
 	else
-		log info "no arg => dired"
-		dired # enter the file selector
+		log info "no arg => scratch"
+		scratch
 	fi
 	log info "drawing..."
 	redraw
