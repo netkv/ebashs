@@ -48,6 +48,7 @@ gruvbox=(
 	font-lock-assign-face "$(:foreground "#d3869b" :background "#282828")" # set
 	font-lock-function-name-face "$(:foreground "#8ec07c" :background "#282828")" # fn
 	font-lock-keyword-face "$(:foreground "#fb4934" :background "#282828")" # keyword
+	font-lock-util-face "$(:foreground "#d3869b" :background "#282828")" # keyword
 	font-lock-declare-face "$(:foreground "#cc241d" :background "#282828")" # init
 )
 load-theme gruvbox

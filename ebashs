@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.14"
+version="0.7.15"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -222,6 +222,7 @@ default_faces=(
 		font-lock-assign-face "$(:foreground light-blue)"
 		font-lock-function-name-face "$(:weight bold :foreground light-cyan)"
 		font-lock-keyword-face "$(:foreground light-red)"
+		font-lock-util-face "$(:foreground light-magenta)"
 		font-lock-declare-face "$(:foreground red)"
 	)
 	load-theme default_faces
@@ -288,10 +289,12 @@ default_faces=(
 		:: 'inputcodes' inputcodes
 		:: 'faces     ' list-faces-display
 
+	## Syntax highlighting
 	set-highlight
 		:: 'shell' bash ksh dash sh mksh zsh ash oksh i\*bash 'busybox sh'
 		:: 'ebashs' ebashs
 		:: 'config' conf
+		:: 'execline' execlineb
 		:: 'dired' i\*dired
 		:: 'unknown' unknown
 
@@ -1159,93 +1162,125 @@ function face {
 	linearray+=("${faces_raw[reset]}${faces_raw[${1}]}${BASH_REMATCH[@]:1}")
 	IFS=''
 }
-	
+
+@@ set-face Sets face for syntax highlighting
 @fn set-face 'syntax_face="$1"'
 
-defun syntax-shell
-	:: Syntax function for shell
-	:: Used faces:
-	:: '    * sh-quoted-exec'
-	:: '    * font-lock-declare-face'
-	:: '    * font-lock-variable-string-face'
-	:: '    * font-lock-comment-face & sets comment to 1 for syntax-word function'
-	:: '    * font-lock-variable-name-face'
-	:: '    * font-lock-argument-face'
-	:: '    * font-lock-function-name-face'
-	:: '    * font-lock-flow-face'
-	:: '    * font-lock-pipe-face'
-	:: '    * font-lock-bracket-face'
-	:: '    * font-lock-constant-face'
-	:: '    * font-lock-string-face'
-	:: '    * font-lock-assign-face'
-	:: '    * font-lock-keyword-face'
-	:: '    * font-lock-default-face'
-	function =
-		case "${word}" in
-			'$('*|'"$('*) set-face sh-quoted-exec;;
-			*'=()'|'declare'|'local'|'typeset') set-face font-lock-declare-face;;
-			'"$'*) set-face font-lock-variable-string-face;;
-			'#'*) set-face font-lock-comment-face && comment=1;;
-			'$'*) set-face font-lock-variable-name-face;;
-			'-'*) set-face font-lock-argument-face;;
-			*'()') set-face font-lock-function-name-face;;
-			'||'|'&&'|';'|'&') set-face font-lock-flow-face;;
-			'>'|'<'|'|'|'>>'|'<<'|'<<<') set-face font-lock-pipe-face;;
-			'('|')'|'{'|'}'|'[['|']]'|'['|']') set-face font-lock-bracket-face;;
-			'function') set-face font-lock-function-name-face;;
-			*"'"*) set-face font-lock-constant-face;;
-			*'"'*) set-face font-lock-string-face;;
-			*'='*) set-face font-lock-assign-face;;
-			'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|\
-				'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|\
-				'let'|'shopt'|'trap'|'set'|'eval'\
-					) set-face font-lock-keyword-face;;
-			*) set-face default;;
-		esac
+@@ syntax-shell
+:: Syntax function for shell
+:: Used faces:
+	:+ '* sh-quoted-exec'
+	:: '* font-lock-declare-face'
+	:: '* font-lock-variable-string-face'
+	:: '* font-lock-comment-face & sets comment to 1 for syntax-word function'
+	:: '* font-lock-variable-name-face'
+	:: '* font-lock-argument-face'
+	:: '* font-lock-function-name-face'
+	:: '* font-lock-flow-face'
+	:: '* font-lock-pipe-face'
+	:: '* font-lock-bracket-face'
+	:: '* font-lock-constant-face'
+	:: '* font-lock-string-face'
+	:: '* font-lock-assign-face'
+	:: '* font-lock-keyword-face'
+	:: '* font-lock-default-face'
+function syntax-shell
+	case "${word}" in
+		'$('*|'"$('*) set-face sh-quoted-exec;;
+		*'=()'|'declare'|'local'|'typeset') set-face font-lock-declare-face;;
+		'"$'*) set-face font-lock-variable-string-face;;
+		'#'*) set-face font-lock-comment-face && comment=1;;
+		'$'*) set-face font-lock-variable-name-face;;
+		'-'*) set-face font-lock-argument-face;;
+		*'()') set-face font-lock-function-name-face;;
+		'||'|'&&'|';'|'&') set-face font-lock-flow-face;;
+		'>'|'<'|'|'|'>>'|'<<'|'<<<') set-face font-lock-pipe-face;;
+		'('|')'|'{'|'}'|'[['|']]'|'['|']') set-face font-lock-bracket-face;;
+		'function') set-face font-lock-function-name-face;;
+		*"'"*) set-face font-lock-constant-face;;
+		*'"'*) set-face font-lock-string-face;;
+		*'='*) set-face font-lock-assign-face;;
+		'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|\
+		'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|\
+		'let'|'shopt'|'trap'|'set'|'eval'\
+			) set-face font-lock-keyword-face;;
+		*) set-face default;;
+	esac
 
-defun syntax-ebashs
-	:: Syntax function for Ebashs files cuz it\'s too weird already
-	:: Used faces:
-	:: '    * sh-quoted-exec'
-	:: '    * font-lock-declare-face'
-	:: '    * font-lock-variable-string-face'
-	:: '    * font-lock-comment-face & sets comment to 1 for syntax-word function'
-	:: '    * font-lock-variable-name-face'
-	:: '    * font-lock-argument-face'
-	:: '    * font-lock-function-name-face'
-	:: '    * font-lock-flow-face'
-	:: '    * font-lock-pipe-face'
-	:: '    * font-lock-bracket-face'
-	:: '    * font-lock-constant-face'
-	:: '    * font-lock-string-face'
-	:: '    * font-lock-assign-face'
-	:: '    * font-lock-keyword-face'
-	:: '    * font-lock-default-face'
-	function =
-		case "${word}" in
-			'$('*|'"$('*) set-face sh-quoted-exec;;
-			*'=()'|'declare'|'local'|'typeset') set-face font-lock-declare-face;;
-			'"$'*) set-face font-lock-variable-string-face;;
-			'#'*) set-face font-lock-comment-face && comment=1;;
-			'$'*|'@') set-face font-lock-variable-name-face;;
-			'-'*|'::') set-face font-lock-argument-face;;
-			*'()') set-face font-lock-function-name-face;;
-			'||'|'&&'|';'|'&') set-face font-lock-flow-face;;
-			'>'|'<'|'|'|'>>'|'<<'|'<<<') set-face font-lock-pipe-face;;
-			'('|')'|'{'|'}'|'[['|']]'|'['|']') set-face font-lock-bracket-face;;
-			'new'|'template'|'@def'|'@fn'|'@:') set-face font-lock-function-name-face;;
-			*"'"*) set-face font-lock-constant-face;;
-			*'"'*) set-face font-lock-string-face;;
-			*'='*|'function') set-face font-lock-assign-face;;
-			'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|\
-				'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|\
-				'let'|'shopt'|'trap'|'set'|'eval'\
-					) set-face font-lock-keyword-face;;
-			'set-options'|'global-set'|'define-key'|'local-set-key'|'add-mode'|'mode-options'|\
-			 	'load-theme'|'set-alias'|'add-menu'|'@ifs'|'doc'|'_'|'__'|'copy-array'|\
-				':foreground'|':background'|':mode'|'weight'|':slant'|'kbd'|'add-highlight'\
-					) set-face font-lock-keyword-face;;
-			*) set-face default;;
+@@ syntax-ebashs
+:: Syntax function for shell
+:: Used faces:
+	:+ '* sh-quoted-exec'
+	:: '* font-lock-declare-face'
+	:: '* font-lock-variable-string-face'
+	:: '* font-lock-comment-face & sets comment to 1 for syntax-word function'
+	:: '* font-lock-variable-name-face'
+	:: '* font-lock-argument-face'
+	:: '* font-lock-function-name-face'
+	:: '* font-lock-flow-face'
+	:: '* font-lock-pipe-face'
+	:: '* font-lock-bracket-face'
+	:: '* font-lock-constant-face'
+	:: '* font-lock-string-face'
+	:: '* font-lock-assign-face'
+	:: '* font-lock-keyword-face'
+	:: '* font-lock-default-face'
+function syntax-ebashs
+	case "${word}" in
+		'$('*|'"$('*) set-face sh-quoted-exec;;
+		*'=()'|'declare'|'local'|'typeset') set-face font-lock-declare-face;;
+		'"$'*) set-face font-lock-variable-string-face;;
+		'#'*) set-face font-lock-comment-face && comment=1;;
+		'$'*|'@') set-face font-lock-variable-name-face;;
+		'-'*|'::') set-face font-lock-argument-face;;
+		*'()') set-face font-lock-function-name-face;;
+		'||'|'&&'|';'|'&') set-face font-lock-flow-face;;
+		'>'|'<'|'|'|'>>'|'<<'|'<<<') set-face font-lock-pipe-face;;
+		'('|')'|'{'|'}'|'[['|']]'|'['|']') set-face font-lock-bracket-face;;
+		'new'|'template'|'@def'|'@fn'|'@:') set-face font-lock-function-name-face;;
+		*"'"*) set-face font-lock-constant-face;;
+		*'"'*) set-face font-lock-string-face;;
+		*'='*|'function') set-face font-lock-assign-face;;
+		'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|\
+		'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|\
+		'let'|'shopt'|'trap'|'set'|'eval'\
+			) set-face font-lock-keyword-face;;
+		'set-options'|'global-set'|'define-key'|'local-set-key'|'add-mode'|'mode-options'|\
+		'load-theme'|'set-alias'|'add-menu'|'@ifs'|'doc'|'_'|'__'|'copy-array'|\
+		':foreground'|':background'|':mode'|'weight'|':slant'|'kbd'|'add-highlight'\
+			) set-face font-lock-keyword-face;;
+		*) set-face default;;
+	esac
+
+@@ syntax-execline
+:: Syntax function for execline
+function syntax-execline
+	case "${word}" in
+		'"$'*) set-face font-lock-variable-string-face;;
+		'#'*) set-face font-lock-comment-face && comment=1;;
+		'$'*) set-face font-lock-variable-name-face;;
+		'-'*) set-face font-lock-argument-face;;
+		'{'|'}') set-face font-lock-bracket-face;;
+		*'"'*) set-face font-lock-string-face;;
+		'execlineb'|'execline-cd'|'posix-cd'|'cd'|'execline-umask'|'posix-umask'|'umask'|\
+		'emptyenv'|'envfile'|'export'|'unexport'|'fdclose'|'fdblock'|'fdmove'|'fdswap'|'fdreserve'|\
+		'redirfd'|'piperw'|'heredoc'|'wait'|'getcwd'|'getpid'|'exec'|'tryexec'|'exit'|'trap'|'withstdinas'|\
+		'foreground'|'background'|'case'|'if'|'ifelse'|'ifte'|'ifthenelse'|'backtick'|'pipeline'|'runblock'|\
+		'define'|'importas'|'elglob'|'elgetpositionals'|'multidefine'|'multisubstitute'|\
+		'fox'|'forstdin'|'forbacktickx'|'loopwhilex'|\
+		'elgetopt'|'shift'|'dollarat'|\
+		'eltest'|'homeof'|\
+		'execline') set-face font-lock-keyword-face;;
+		's6-basename'|'s6-cat'|'s6-chmod'|'s6-chown'|'s6-clock'|'s6-cut'|'s6-dirname'|'s6-dumpenv'|\
+		's6-echo'|'s6-env'|'s6-expr'|'s6-false'|'s6-format-filter'|'s6-grep'|'s6-head'|'s6-hiercopy'|\
+		's6-linkname'|'s6-ln'|'s6-ls'|'s6-maximumtime'|'s6-mkdir'|'s6-mkfifo'|'s6-nice'|'s6-nuke'|\
+		's6-pause'|'s6-printenv'|'s6-quote-filter'|'s6-quote'|'s6-rename'|'s6-rmrf'|'s6-seq'|\
+		's6-sleep'|'s6-sort'|'s6-sync'|'s6-tai64ndiff'|'s6-tail'|'s6-touch'|'s6-true'|'s6-uniquename'|\
+		's6-unquote-filter'|'s6-unquote'|'s6-update-symlinks'|'seekablepipe'|\
+		's6-portable-utils') set-face font-lock-util-face;;
+		'rngseed'|'s6-chroot'|'s6-freeramdisk'|'s6-hostname'|'s6-logwatch'|'s6-mount'|\
+		's6-pivotchroot'|'s6-ps'|'s6-swapoff'|'s6-swapon'|'s6-umount') set-face font-lock-util-face;;
+		*) set-face default;;
 	esac
 									 
 @fn syntax-unknown 'set-face default'
