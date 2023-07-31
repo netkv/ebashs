@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.15"
+version="0.7.16"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -306,47 +306,45 @@ default_faces=(
 }
 
 ## syntaxy sugar sugary syntax
-
-function ebashs-extensions {
-	log_buffer+=('- LOADING BASH EXTENSIONS -')
-	function @ifs { IFS="$DEFIFS"; }
+log_buffer+=('- LOADING BASH EXTENSIONS -')
+function @ifs { IFS="$DEFIFS"; }
 	
-	# Make bash not be bashy enough
-	function @doc {
-		mapfile -t "description_${desc_count}"
-		descriptions["function_${1}_description"]="description_${desc_count}"
-		((desc_count++))
-	} && @doc doc <<-'+'
+# Make bash not be bashy enough
+function @doc {
+	mapfile -t "description_${desc_count}"
+	descriptions["function_${1}_description"]="description_${desc_count}"
+	((desc_count++))
+} && @doc doc <<'+'
 Adds description to a function
 doc <function>
 Description text is supplied from stdin, so mostly heredoc.
-	+
++
 	
-	@doc load-default-config <<-'+'
+@doc load-default-config <<'+'
 Load default config included with Ebashs.
-	+
++
 
-	# reverse of defun :D
-	function nufed {
-		((_addfragment==1)) && {
-			@add '='
-			_addfragment=0
-		}
-		IFS=
-		local -a fn
-		local deffn="function $_function"$'\n'
-		mapfile fn <<<"$(declare -f '=')"
-		for ((i=1; i<${#fn[@]}; i++)) {
-			deffn+="${fn[i]}"
-		}
-		eval "$deffn"
-		_isdone=0
-	    @ifs
-		unset '='
+# reverse of defun :D
+function nufed {
+	((_addfragment==1)) && {
+		@add '='
+		_addfragment=0
 	}
+	IFS=
+	local -a fn
+	local deffn="function $_function"$'\n'
+	mapfile fn <<<"$(declare -f '=')"
+	for ((i=1; i<${#fn[@]}; i++)) {
+		deffn+="${fn[i]}"
+	}
+	eval "$deffn"
+	_isdone=0
+	@ifs
+	unset '='
+}
 	
 	
-	@doc copy-function <<'+'
+@doc copy-function <<'+'
 copies function \$1 to function \$2
 advantage of copying instead of creating wrapper alias functions should be in theory performance(?)
 
@@ -407,559 +405,599 @@ output:
 
 It seems like there's small performace gain.
 +
-	function copy-function {
-		local -a fn
-		local deffn="function $2"$'\n'
-		mapfile fn <<<"$(declare -f "$1")"
-		for ((i=1; i<${#fn[@]}; i++)) {
-			deffn+="${fn[i]}"
-		}
-		eval "$deffn"
+function copy-function {
+	local -a fn
+	local deffn="function $2"$'\n'
+	mapfile fn <<<"$(declare -f "$1")"
+	for ((i=1; i<${#fn[@]}; i++)) {
+		deffn+="${fn[i]}"
 	}
+	eval "$deffn"
+}
 
-	function defun {
-		if [ -z "$1" ]; then
-			nufed
-		else
-			((desc_count++))
-			log_buffer+=("    DEFUN: $1")
-			((_isdone)) && nufed
-			_addfragment="${_pass_addfragment}"
-			descriptions["function_${1}_description"]="description_${desc_count}"
-			_function="$1"
-			_isdone=1
-			_last_add=add-doc
-		fi
-	} && @doc defun <<+
+function defun {
+	if [ -z "$1" ]; then
+		nufed
+	else
+		((desc_count++))
+		log_buffer+=("    DEFUN: $1")
+		((_isdone)) && nufed
+		_addfragment="${_pass_addfragment}"
+		descriptions["function_${1}_description"]="description_${desc_count}"
+		_function="$1"
+		_isdone=1
+		_last_add=add-doc
+	fi
+} && @doc defun <<+
 Begins defining an function
 Function definition should be like:
 
-	defun something
-		:: some-docs
-		function = {
-			...
-		}
-	defun something-else
-		:: ...	
-		function = ...
-	defun this-nonsense
-		...
-	def.. ...
-	nufed
-+
-	function ::
-		case "$_last_add" in
-			add-menu) local-set-menu "$@";;
-			set-alias) add-alias "$@";;
-			set-highlight) add-highlight "$@";;
-			global-set) global-set-key "$@";;
-			set-options) define-option "$@";;
-			add-doc) add-doc "$@";;
-			add-mode) local-set-key "$@";;
-			mode-options) local-set-mode-option "$@"
-		esac
-		
-	function add-doc {
-		local -n cdoc="description_${desc_count}"
-		cdoc+=("${_indent}$*")
-	}
-	function doc {
-		((desc_count++))
-		descriptions["function_${1}_description"]="description_${desc_count}"
-		_function="$1"
-		_last_add=add-doc
-		_indent=''
-		shift
-		[ -n "$*" ] &&
-			:: "$*"
-	}
-	copy-function doc @@
-
-	@@ :+ Add documentation indent
-	function :+ {
-		_indent+="    "
-		:: "$*"
-	}
-	@@ :- Remove documentation indent
-	function :- {
-		_indent="${_indent:0:${#_indent}-4}"
-		:: "$*"
-	}
-	# hell
-
-	@@ defun-fragment Same as defun but includes fragments for the function
-	function defun-fragment {
-		_pass_addfragment=1
-		defun "$@"
-	}
-		
-	# fragments act basically like macros but with cooler name
-	# see redraw-buffer function for example usage
-	@@ fragment Creates a function-insertable macro
-	function fragment {
-		log_buffer+=("        FRAGMENT: $1")
-		declare -ag "_fragment_$1"
-		mapfile "_fragment_$1"
-	}
-	
-	@@ @add Adds fragment to a function
-	function @add {
-		local -a _add_fn
-		local -a _add_nfn
-		local -i _add_f
-		local -i _add_hf
-		local _add_nfnline
-		mapfile _add_fn < <(declare -f -- "$1")
-		IFS=' '
-		for _add_l in "${!_add_fn[@]}"; do
-			_add_f=0
-			_add_hf=0
-			_add_nfnline=
-			for _add_w in ${_add_fn[_add_l]}; do
-				if [ "$_add_w" = '@' ]; then
-					_add_f=1
-				elif ((_add_f)); then
-					_add_f=0
-					_add_hf=1
-					local -n _add_fragment="_fragment_${_add_w//[^[:alnum:]]/}"
-					for _add_l1 in "${!_add_fragment[@]}"; do
-						_add_nfnline+=" ${_add_fragment[_add_l1]}"
-					done
-				else
-					_add_nfnline+=" $_add_w"
-				fi
-			done
-			((_add_hf)) || _add_nfn+="${_add_fn[_add_l]}"
-			((_add_hf)) && _add_nfn+="$_add_nfnline"
-		done
-		eval "${_add_nfn[*]}"
-	}
-	
-	# templates allow creating functions with code changes with minimal code
-	# @def creates function from teplate
-	# @def <template_name> <@var 1> <@var 2>...
-	# @: creates function from last defined template
-	# @: <@var 1> <@var 2>...
-	
-	@@ template Creates a function template
-	:: Function template is turned into function with @def function
-	function template {
-		log_buffer+=("        TEMPLATE: $1")
-		_last_template="$1"
-		declare -g "_template_$1"
-		local -n tpl="_template_$1"
-		IFS=''
-		while read -r -d $'\n' tpll; do
-			tpl+="$tpll"
-		done
-		@ifs
-	}
-	
-	@@ @def Defines a function template
-	function @def {
-		local -n _tpl="_template_$1"
-		local _fn
-		local -i _n=0
-		shift
-		for _w in $_tpl; do
-			case "$_w" in
-				'@var')
-					_n=1;;
-				*)
-					((_n)) && {
-						_n=0
-						_fn+="${!_w} "
-						continue
-					}
-					_fn+="$_w "
-			esac
-		done
-		eval "$_fn"
-	}
-	
-	@@ @: Calls @def with lastest defined template as argument
-	function @: { @def "$_last_template" "$@"; }
-	
-	# unbashing bash one step at time °o°
-	
-	@@ _ Variable refernce helper
-	function _ {
-		# this function is here to simplify stuff as writing overlong variables indexed by overloong variable index...
-		# ...is quite tiring <3
-		[ -z "$1" ] && {
-			for n in "${refalias[@]}"; do
-				unset "$n"
-			done
-			unset refalias
-			return
-		}
-		declare -gn "$1"="$2"
-		refalias+=("$1")
-	}
-	
-	@@ __ Swap variable references
-	function __ {
-		# swap two references
-		local -n _swap_1="$1"
-		local _swap_copy_1="${!_swap_1}"
-		local -n _swap_2="$2"
-		local _swap_copy_2="${!_swap_2}"
-		declare -gn "$1"="${_swap_copy_2}"
-		declare -gn "$2"="${_swap_copy_1}"
-	}
-	
-	@@ @fn Shorthand for one line functions
-	function @fn {
-		[ -z "$*" ] && exit 1 # error if empty
-		local name="$1"
-		shift
-		eval "function $name { $@; }"
-	}
-
-	@@ copy-array
-	:: A univeral function to copy both normal and associative arrays
-	function copy-array {
-		local -n source="$1"
-		local -n target="$2"
-		target=()
-		for idx in "${!source[@]}"; do
-			target[idx]="${source[idx]}"
-		done
-	}
-
-	@@ append-array
-	:: Append array \$1 to \$2  
-	function append-array {
-		local -n source="$1"
-		local -n target="$2"
-		for idx in "${!source[@]}"; do
-			target+=("${source[idx]}")
-		done
-	}
-	
-	@@ setface Convert colors to escape codes
-	:: '$1' can be either one of colors:
-	:+     black
-	::     red
-	::     green
-	::     yellow
-	::     blue
-	::     magenta
-	::     cyan
-	::     ligth-gray
-	::     gray
-	::     light-red
-	::     light-green
-	::     light-yellow
-	::     light-blue
-	::     light-magenta
-	::     light-cyan
-	::     white
-	:- 'or hex. color (like "#bb2040")'
-	:: 'or indexed 256 color with "c" as prefix (like c127)'
-	:: 'for background color $mode has to be 48 and for foreground 38'
-	::
-	:: If \$TERM \(current "$TERM"\) is \'linux\' \& option tty-linuxfb is 1 try to use true color even for tty
-	:: Instead of normal '\e[$mode;r;g;bm' is used '\e]P$~1mode$Hexcode\e[$~2modem'
-	:+     '$mode 38 → $~1mode 2 & $~2mode 32'
-	::     '$mode 48 → $~1mode 1 & $~2mode 41'
-	:- Note that the linuxfb colors are very experimental and suffer from cursor implicitly overwriting them on movenment
-	function setface {
-		[ -z "$1" ] && return
-		case "$1" in
-			black)      [ "$mode" = '38' ] && printf '\\e[30m' || printf '\\e[40m';;
-			red)        [ "$mode" = '38' ] && printf '\\e[31m' || printf '\\e[41m';;
-			green)      [ "$mode" = '38' ] && printf '\\e[32m' || printf '\\e[42m';;
-			yellow)     [ "$mode" = '38' ] && printf '\\e[33m' || printf '\\e[43m';;
-			blue)       [ "$mode" = '38' ] && printf '\\e[34m' || printf '\\e[44m';;
-			magenta)    [ "$mode" = '38' ] && printf '\\e[35m' || printf '\\e[45m';;
-			cyan)       [ "$mode" = '38' ] && printf '\\e[36m' || printf '\\e[46m';;
-			light-gray) [ "$mode" = '38' ] && printf '\\e[37m' || printf '\\e[47m';;
-
-			gray)          [ "$mode" = '38' ] && printf '\\e[90m' || printf '\\e[100m';;
-			light-red)     [ "$mode" = '38' ] && printf '\\e[91m' || printf '\\e[101m';;
-			light-green)   [ "$mode" = '38' ] && printf '\\e[92m' || printf '\\e[102m';;
-			light-yellow)  [ "$mode" = '38' ] && printf '\\e[93m' || printf '\\e[103m';;
-			light-blue)    [ "$mode" = '38' ] && printf '\\e[94m' || printf '\\e[104m';;
-			light-magenta) [ "$mode" = '38' ] && printf '\\e[95m' || printf '\\e[105m';;
-			light-cyan)    [ "$mode" = '38' ] && printf '\\e[96m' || printf '\\e[106m';;
-			white)         [ "$mode" = '38' ] && printf '\\e[97m' || printf '\\e[107m';;
-			*) case "${1::1}" in
-				   '#')
-					   if [ "$TERM" = 'linux' ] && ((options[tty-linuxfb])); then # Hack for linux framebuffer tty
-						   case "$mode" in
-							   38) printf '\\e]P2%s\\e[32m' "${1:1:6}" ;;
-							   48) printf '\\e]P1%s\\e[41m' "${1:1:6}"
-						   esac
-					   else
-						   local r="${1:1:2}"
-						   local g="${1:3:2}"
-						   local b="${1:5:2}"
-						   printf '\\e[%d;2;%d;%d;%dm' "${mode}" $((16#$r)) $((16#$g)) $((16#$b))
-					   fi;;
-				   'c')
-					   printf '\\e[%d;5;%dm' "${mode}" "${1:1}"
-			   esac
-		esac
-		shift
-		[ -n "$1" ] && "$@";
-	}
-
-	@@ :foreground set foreground color
-	:: see setface for more info
-	function :foreground { mode=38; setface "$@"; }
-	
-	@@ :background set background color
-	:: see setface for more info
-	function :background { mode=48; setface "$@"; }
-
-	@@ :mode Sets text mode:
-	:: '	inverse - inverses background and foreground'
-	function :mode {
-		case "$1" in
-			inverse) printf '\\e[7m';;
-		esac
-		shift
-		[ -n "$1" ] && "$@";
-	}
-	
-	@@ :weight Sets thickness of text:
-	:+     bold
-	::     dim
-	::     normal
-	function :weight {
-		case "$1" in
-			bold) printf '\\e[1m';;
-			dim) printf '\\e[2m';;
-			normal) printf '\\e[m'
-		esac
-		shift
-		[ -n "$1" ] && "$@";
-	}
-	
-	@@ :slant Sets slant of text:
-	:+     italic
-	::     normal
-	function :slant {
-		case "$1" in
-			italic) printf '\\e[3m';;
-			normal) printf '\\e[m'
-		esac
-		shift
-		[ -n "$1" ] && "$@";
-	}
-	
-	@@ kbd Converts Emacs like key notation into hex.
-	function kbd {
-		local -i i=0
-		local out
-		local in
-		local -i ch=1
-		# Surely there is better solution...
-		case "$1" in
-			C-a) printf '1 0' ;; C-b) printf '2 0' ;;
-			C-c) printf '3 0' ;; C-d) printf '4 0' ;;
-			C-e) printf '5 0' ;; C-f) printf '6 0' ;;
-			C-g) printf '7 0' ;; C-h) printf '8 0' ;;
-			C-i) printf '9 0' ;; C-j) printf 'a 0' ;;
-			C-k) printf 'b 0' ;; C-l) printf 'c 0' ;;
-			C-m) printf 'd 0' ;; C-n) printf 'e 0' ;;
-			C-o) printf 'f 0' ;; C-p) printf '10 0';;
-			C-q) printf '11 0';; C-r) printf '12 0';;
-			C-s) printf '13 0';; C-t) printf '14 0';;
-			C-u) printf '15 0';; C-v) printf '16 0';;
-			C-w) printf '17 0';; C-x) printf '18 0';;
-			C-y) printf '19 0';; C-z) printf '1a 0';;
-			*)  ch=0
-				case "${1:0:2}" in
-					M-) in="${1:2:1}";;
-					*) in="$1"
-				esac
-		esac
-		((ch)) && return
-		echo "$in" | {
-			while read -rsn1; do
-				out+="$(printf "%x\n" "'${in:$i}") "
-				((i++))
-			done
-		}
-		out=${out::-1}
-		printf '%s' "${out}"
-	}
-
-	@@ define-key defines keybinding
-	:+     '$1' can be either:
-	::     '[function-key]'
-	::     '[arrow-key]'
-	::     '[prior | next]'
-	::     'RET'
-	::     'DEL'
-	::     '[delechar]'
-	::     'hex code ending with 0'
-	function define-key {
-		local -n keys="keys_$1"
-		case "$2" in
-			#function keys
-			'[f1]') keys[1b 4f 50 0]="$3";;
-			'[f2]') keys[1b 4f 51 0]="$3";;
-			'[f3]') keys[1b 4f 52 0]="$3";;
-			'[f4]') keys[1b 4f 53 0]="$3";;
-			'[f5]')  keys[1b 5b 31 35 7e 0]="$3";;
-			'[f6]')  keys[1b 5b 31 37 7e 0]="$3";;
-			'[f7]')  keys[1b 5b 31 38 7e 0]="$3";;
-			'[f8]')  keys[1b 5b 32 39 7e 0]="$3";;
-			'[f9]')  keys[1b 5b 32 30 7e 0]="$3";;
-			'[f10]') keys[1b 5b 32 31 7e 0]="$3";;
-			'[f11]') keys[1b 5b 32 33 7e 0]="$3";;
-			'[f12]') keys[1b 5b 32 34 7e 0]="$3";;
-			#arrow keys
-			'[left]')  keys[1b 5b 44 0]="$3";;
-			'[up]')    keys[1b 5b 41 0]="$3";;
-			'[right]') keys[1b 5b 43 0]="$3";;
-			'[down]')  keys[1b 5b 42 0]="$3";;
-			#pg up & down
-			'[prior]') keys[1b 5b 36 7e 0]="$3";;
-			'[next]')  keys[1b 5b 35 7e 0]="$3";;
-			#return
-			'RET') keys[a 0]="$3";;
-			#backspace & delete
-			'DEL') keys[7f 0]="$3";;
-			'[deletechar]') keys[1b 5b 33 7e 0]="$3";;
-			*) keys["$2"]="$3"
-		esac
-	}
-
-	@@ local-set-key
-	:: Sets keybinding of lastly defined mode
-	:: See define-key for details
-	@fn local-set-key 'define-key "$_last_keys" "$@"'
-
-	@@ global-set-key
-	:: Sets keybinding of global mode
-	:: See define-key for details
-	@fn global-set-key 'define-key global "$@"'
-
-	@@ define-mode-option
-	:: Sets option of mode '$1'
-	function define-mode-option {
-		local -n ko="key_options_$1"
-		ko["$2"]="$3"
-	}
-
-	@@ local-set-mode-option See define-mode-option
-	@fn local-set-mode-option 'define-mode-option "$_last_keys" "$@"'
-
-	@@ mode-options Brings mode-options of lastly defined mode into \"focus\"
-	@fn mode-options '_last_add="mode-options"'
-
-	
-	@@ add-alias Adds alias '$1' of command '$2...' to M-x
-	function add-alias {
-		local name="$1"
-		shift
-		alias["$name"]="$@"
-	}
-
-	@@ set-alias Brings into \"focus\" alias setting
-	@fn set-alias '_last_add=set-alias'
-
-	@@ add-highlight Sets highlighting mode '$1' for file types '$2...'
-	function add-highlight {
-		local name="$1"
-		shift
-		for i in "$@"; {
-			highlight["$i"]="$name"
-		}
-	}
-
-	@@ set-alias Brings into \"focus\" highlight setting
-	@fn set-highlight '_last_add=set-highlight'
-
-	@@ clear-screen clears screen
-	@fn clear-screen "printf '\033c'"
-
-	@@ add-mode
-	:: Adds keybing mode
-	function add-mode {
-		log_buffer+=("        ADD MODE $1")
-		_last_keys="$1"
-		_last_add='add-mode'
-		declare -Ag "keys_$1"
-		declare -Ag "key_options_$1"
-	}
-
-	@@ add-menu
-	:: Adds menu
-	function add-menu {
-		# create new menu function & array
-		log_buffer+=("        ADD MENU $1")
-		eval "function menu-${1} { menu $1; }"
-		declare -ag "menu_${1}_0"
-		declare -ag "menu_${1}_1"
-		_last_menu="$1"
-		_last_add='add-menu'
-	}
-
-	@@ local-set-menu Sets \"focused\" menu item
-	@fn local-set-menu 'define-menu "$_last_menu" "$1" "$2"'
-
-	@@ global-set Brings into \"focus\" global mode
-	@fn global-set '_last_add=global-set'
-
-	@@ define-option Defines options[] buffer
-	@fn define-option 'options["$1"]="$2"'
-
-	@@ set-options Brings into \"focus\" options setting
-	@fn set-options '_last_add=set-options'
-
-	@@ define-menu
-	:: Defines item in menu '$1' with name '$2' with command '$3'
-	:: '    If command is "menu-top" face button is used.'
-	function define-menu {
-		local -n menu_0="menu_${1}_0"
-		local -n menu_1="menu_${1}_1"
-		local item_0
-		case "$3" in
-			'menu-top') item_0="$(printf '%b' "${faces[button]}")$2";;
-			*) item_0="$2"
-		esac
-		menu_0+=("$item_0")
-		menu_1+=("$3")
-	}
-
-	@@ load-theme Loads theme from array
-	function load-theme {
-		local -i t=0
-		local k
-		local -n theme="$1"
-		for i in "${theme[@]}"; {
-			((t==0)) && {
-				k="$i"
-				t=1
-			} || {
-				faces["$k"]="$i"
-				faces_raw["$k"]="$(printf '%b' "$i")"
-				t=0
-			}
-		}
-		((t)) && errno=1 die
-	}
-
-	@@ extension Set properites of extension
-	function extension {
-		log_buffer+=("- LOADING EXTENSION $1 -")
-		extensions+=("$1")
-		declare -Ag "${1}_ext_d"
-		declare -ng ext_d="${1}_ext_d"
-	}
-	@@ version: Set version of extension
-	function version: {
-		ext_d[version]="$1"
-	}
-		
-	log_buffer+=('- LOADING BASH EXTENSIONS DONE -')
+defun something
+:: some-docs
+function = {
+	...
 }
-ebashs-extensions
+defun something-else
+:: ...	
+function = ...
+defun this-nonsense
+...
+def.. ...
+nufed
++
+
+function ::
+case "$_last_add" in
+	add-menu) local-set-menu "$@";;
+	set-alias) add-alias "$@";;
+	set-highlight) add-highlight "$@";;
+	global-set) global-set-key "$@";;
+	set-options) define-option "$@";;
+	add-doc) add-doc "$@";;
+	add-mode) local-set-key "$@";;
+	mode-options) local-set-mode-option "$@";;
+	set-buffer) local-set-buffer-data "$@"
+esac
+
+function add-doc {
+	local -n cdoc="description_${desc_count}"
+	cdoc+=("${_indent}$*")
+}
+function doc {
+	((desc_count++))
+	descriptions["function_${1}_description"]="description_${desc_count}"
+	_function="$1"
+	_last_add=add-doc
+	_indent=''
+	shift
+	[ -n "$*" ] &&
+		:: "$*"
+}
+copy-function doc @@
+
+@@ :+ Add documentation indent
+function :+ {
+	_indent+="    "
+	:: "$*"
+}
+@@ :- Remove documentation indent
+function :- {
+	_indent="${_indent:0:${#_indent}-4}"
+	:: "$*"
+}
+# hell
+
+@@ focus set magic :: function
+function focus {
+	_last_add="$1"
+}
+
+@@ declare-new-buffer Create new text buffer
+function declare-new-buffer {
+	_last_add='set-buffer'
+	((current_count++))
+	set-buffer "bf_${current_count}"
+	buffers_l+=("$current_buffer")
+	declare -Ag "${current_buffer}_bf_d"
+	bf_d=(
+		# some sane default values
+		[line]=0
+		[base]=1
+		[column]=0
+		[modified]=0
+	)
+}
+
+@@ local-set-buffer-data
+:: set bf_d[] array of currently \"focused\" buffer
+function local-set-buffer-data {
+	while [ -n "$2" ]; do
+		bf_d["$1"]="$2"
+		shift 2
+	done
+}
+
+@@ [auto] Checks bf_d[] array and set\'s needed missing values automatically
+function [auto] {
+	[ -z "${bf_d[loc-x]}" ] && bf_d[loc-x]=1
+	[ -z "${bf_d[loc-y]}" ] && bf_d[loc-y]=1
+	[ -z "${bf_d[size-x]}" ] && bf_d[size-x]=$COLUMNS
+	[ -z "${bf_d[size-y]}" ] && bf_d[size-y]=$((LINES - 1))
+	[ -z "${bf_d[syntax]}" ] && set-syntax 
+}
+
+@@ defun-fragment Same as defun but includes fragments for the function
+function defun-fragment {
+	_pass_addfragment=1
+	defun "$@"
+}
+
+# fragments act basically like macros but with cooler name
+# see redraw-buffer function for example usage
+@@ fragment Creates a function-insertable macro
+function fragment {
+	log_buffer+=("        FRAGMENT: $1")
+	declare -ag "_fragment_$1"
+	mapfile "_fragment_$1"
+}
+	
+@@ @add Adds fragment to a function
+function @add {
+	local -a _add_fn
+	local -a _add_nfn
+	local -i _add_f
+	local -i _add_hf
+	local _add_nfnline
+	mapfile _add_fn < <(declare -f -- "$1")
+	IFS=' '
+	for _add_l in "${!_add_fn[@]}"; {
+		_add_f=0
+		_add_hf=0
+		_add_nfnline=
+		for _add_w in ${_add_fn[_add_l]}; {
+			if [ "$_add_w" = '@' ]; then
+				_add_f=1
+			elif ((_add_f)); then
+				_add_f=0
+				_add_hf=1
+				local -n _add_fragment="_fragment_${_add_w//[^[:alnum:]]/}"
+				for _add_l1 in "${!_add_fragment[@]}"; {
+					_add_nfnline+=" ${_add_fragment[_add_l1]}"
+				}
+			else
+				_add_nfnline+=" $_add_w"
+			fi
+		}
+		((_add_hf)) || _add_nfn+="${_add_fn[_add_l]}"
+		((_add_hf)) && _add_nfn+="$_add_nfnline"
+	}
+	eval "${_add_nfn[*]}"
+}
+
+# templates allow creating functions with code changes with minimal code
+# @def creates function from teplate
+# @def <template_name> <@var 1> <@var 2>...
+# @: creates function from last defined template
+# @: <@var 1> <@var 2>...
+	
+@@ template Creates a function template
+:: Function template is turned into function with @def function
+function template {
+	log_buffer+=("        TEMPLATE: $1")
+	_last_template="$1"
+	declare -g "_template_$1"
+	local -n tpl="_template_$1"
+	IFS=''
+	while read -r -d $'\n' tpll; do
+		tpl+="$tpll"
+	done
+	@ifs
+}
+
+@@ @def Defines a function template
+function @def {
+	local -n _tpl="_template_$1"
+	local _fn
+	local -i _n=0
+	shift
+	for _w in $_tpl; {
+		case "$_w" in
+			'@var')
+				_n=1;;
+			*)
+				((_n)) && {
+					_n=0
+					_fn+="${!_w} "
+					continue
+				}
+				_fn+="$_w "
+		esac
+	}
+	eval "$_fn"
+}
+	
+@@ @: Calls @def with lastest defined template as argument
+function @: { @def "$_last_template" "$@"; }
+
+# unbashing bash one step at time °o°
+
+@@ _ Variable refernce helper
+function _ {
+	# this function is here to simplify stuff as writing overlong variables indexed by overloong variable index...
+	# ...is quite tiring <3
+	[ -z "$1" ] && {
+		for n in "${refalias[@]}"; do
+			unset "$n"
+		done
+		unset refalias
+		return
+	}
+	declare -gn "$1"="$2"
+	refalias+=("$1")
+}
+
+@@ __ Swap variable references
+function __ {
+	# swap two references
+	local -n _swap_1="$1"
+	local _swap_copy_1="${!_swap_1}"
+	local -n _swap_2="$2"
+	local _swap_copy_2="${!_swap_2}"
+	declare -gn "$1"="${_swap_copy_2}"
+	declare -gn "$2"="${_swap_copy_1}"
+}
+
+@@ @fn Shorthand for one line functions
+function @fn {
+	[ -z "$*" ] && exit 1 # error if empty
+	local name="$1"
+	shift
+	eval "function $name { $@; }"
+}
+
+@@ copy-array
+:: A univeral function to copy both normal and associative arrays
+function copy-array {
+	local -n source="$1"
+	local -n target="$2"
+	target=()
+	for idx in "${!source[@]}"; {
+		target[idx]="${source[idx]}"
+	}
+}
+
+@@ append-array
+:: Append array \$1 to \$2  
+function append-array {
+	local -n source="$1"
+	local -n target="$2"
+	for idx in "${!source[@]}"; {
+		target+=("${source[idx]}")
+	}
+}
+
+@@ setface Convert colors to escape codes
+:: '$1' can be either one of colors:
+:+     black
+::     red
+::     green
+::     yellow
+::     blue
+::     magenta
+::     cyan
+::     ligth-gray
+::     gray
+::     light-red
+::     light-green
+::     light-yellow
+::     light-blue
+::     light-magenta
+::     light-cyan
+::     white
+:- 'or hex. color (like "#bb2040")'
+:: 'or indexed 256 color with "c" as prefix (like c127)'
+:: 'for background color $mode has to be 48 and for foreground 38'
+::
+:: If \$TERM \(current "$TERM"\) is \'linux\' \& option tty-linuxfb is 1 try to use true color even for tty
+:: Instead of normal '\e[$mode;r;g;bm' is used '\e]P$~1mode$Hexcode\e[$~2modem'
+:+     '$mode 38 → $~1mode 2 & $~2mode 32'
+::     '$mode 48 → $~1mode 1 & $~2mode 41'
+:- Note that the linuxfb colors are very experimental and suffer from cursor implicitly overwriting them on movenment
+function setface {
+	[ -z "$1" ] && return
+	case "$1" in
+		black)      [ "$mode" = '38' ] && printf '\\e[30m' || printf '\\e[40m';;
+		red)        [ "$mode" = '38' ] && printf '\\e[31m' || printf '\\e[41m';;
+		green)      [ "$mode" = '38' ] && printf '\\e[32m' || printf '\\e[42m';;
+		yellow)     [ "$mode" = '38' ] && printf '\\e[33m' || printf '\\e[43m';;
+		blue)       [ "$mode" = '38' ] && printf '\\e[34m' || printf '\\e[44m';;
+		magenta)    [ "$mode" = '38' ] && printf '\\e[35m' || printf '\\e[45m';;
+		cyan)       [ "$mode" = '38' ] && printf '\\e[36m' || printf '\\e[46m';;
+		light-gray) [ "$mode" = '38' ] && printf '\\e[37m' || printf '\\e[47m';;
+
+		gray)          [ "$mode" = '38' ] && printf '\\e[90m' || printf '\\e[100m';;
+		light-red)     [ "$mode" = '38' ] && printf '\\e[91m' || printf '\\e[101m';;
+		light-green)   [ "$mode" = '38' ] && printf '\\e[92m' || printf '\\e[102m';;
+		light-yellow)  [ "$mode" = '38' ] && printf '\\e[93m' || printf '\\e[103m';;
+		light-blue)    [ "$mode" = '38' ] && printf '\\e[94m' || printf '\\e[104m';;
+		light-magenta) [ "$mode" = '38' ] && printf '\\e[95m' || printf '\\e[105m';;
+		light-cyan)    [ "$mode" = '38' ] && printf '\\e[96m' || printf '\\e[106m';;
+		white)         [ "$mode" = '38' ] && printf '\\e[97m' || printf '\\e[107m';;
+		*) case "${1::1}" in
+			   '#')
+				   if [ "$TERM" = 'linux' ] && ((options[tty-linuxfb])); then # Hack for linux framebuffer tty
+					   case "$mode" in
+						   38) printf '\\e]P2%s\\e[32m' "${1:1:6}" ;;
+						   48) printf '\\e]P1%s\\e[41m' "${1:1:6}"
+					   esac
+				   else
+					   local r="${1:1:2}"
+					   local g="${1:3:2}"
+					   local b="${1:5:2}"
+					   printf '\\e[%d;2;%d;%d;%dm' "${mode}" $((16#$r)) $((16#$g)) $((16#$b))
+				   fi;;
+			   'c')
+				   printf '\\e[%d;5;%dm' "${mode}" "${1:1}"
+		   esac
+	esac
+	shift
+	[ -n "$1" ] && "$@";
+}
+
+@@ :foreground set foreground color
+:: see setface for more info
+function :foreground { mode=38; setface "$@"; }
+
+@@ :background set background color
+:: see setface for more info
+function :background { mode=48; setface "$@"; }
+
+@@ :mode Sets text mode:
+:: '	inverse - inverses background and foreground'
+function :mode {
+	case "$1" in
+		inverse) printf '\\e[7m';;
+	esac
+	shift
+	[ -n "$1" ] && "$@";
+}
+	
+@@ :weight Sets thickness of text:
+:+     bold
+::     dim
+::     normal
+function :weight {
+	case "$1" in
+		bold) printf '\\e[1m';;
+		dim) printf '\\e[2m';;
+		normal) printf '\\e[m'
+	esac
+	shift
+	[ -n "$1" ] && "$@";
+}
+
+@@ :slant Sets slant of text:
+:+     italic
+::     normal
+function :slant {
+	case "$1" in
+		italic) printf '\\e[3m';;
+		normal) printf '\\e[m'
+	esac
+	shift
+	[ -n "$1" ] && "$@";
+}
+	
+@@ kbd Converts Emacs like key notation into hex.
+function kbd {
+	local -i i=0
+	local out
+	local in
+	local -i ch=1
+	# Surely there is better solution...
+	case "$1" in
+		C-a) printf '1 0' ;; C-b) printf '2 0' ;;
+		C-c) printf '3 0' ;; C-d) printf '4 0' ;;
+		C-e) printf '5 0' ;; C-f) printf '6 0' ;;
+		C-g) printf '7 0' ;; C-h) printf '8 0' ;;
+		C-i) printf '9 0' ;; C-j) printf 'a 0' ;;
+		C-k) printf 'b 0' ;; C-l) printf 'c 0' ;;
+		C-m) printf 'd 0' ;; C-n) printf 'e 0' ;;
+		C-o) printf 'f 0' ;; C-p) printf '10 0';;
+		C-q) printf '11 0';; C-r) printf '12 0';;
+		C-s) printf '13 0';; C-t) printf '14 0';;
+		C-u) printf '15 0';; C-v) printf '16 0';;
+		C-w) printf '17 0';; C-x) printf '18 0';;
+		C-y) printf '19 0';; C-z) printf '1a 0';;
+		*)  ch=0
+			case "${1:0:2}" in
+				M-) in="${1:2:1}";;
+				*) in="$1"
+			esac
+	esac
+	((ch)) && return
+	echo "$in" | {
+		while read -rsn1; do
+			out+="$(printf "%x\n" "'${in:$i}") "
+			((i++))
+		done
+	}
+	out=${out::-1}
+	printf '%s' "${out}"
+}
+
+@@ define-key defines keybinding
+:+     '$1' can be either:
+::     '[function-key]'
+::     '[arrow-key]'
+::     '[prior | next]'
+::     'RET'
+::     'DEL'
+::     '[delechar]'
+::     'hex code ending with 0'
+function define-key {
+	local -n keys="keys_$1"
+	case "$2" in
+		#function keys
+		'[f1]') keys[1b 4f 50 0]="$3";;
+		'[f2]') keys[1b 4f 51 0]="$3";;
+		'[f3]') keys[1b 4f 52 0]="$3";;
+		'[f4]') keys[1b 4f 53 0]="$3";;
+		'[f5]')  keys[1b 5b 31 35 7e 0]="$3";;
+		'[f6]')  keys[1b 5b 31 37 7e 0]="$3";;
+		'[f7]')  keys[1b 5b 31 38 7e 0]="$3";;
+		'[f8]')  keys[1b 5b 32 39 7e 0]="$3";;
+		'[f9]')  keys[1b 5b 32 30 7e 0]="$3";;
+		'[f10]') keys[1b 5b 32 31 7e 0]="$3";;
+		'[f11]') keys[1b 5b 32 33 7e 0]="$3";;
+		'[f12]') keys[1b 5b 32 34 7e 0]="$3";;
+		#arrow keys
+		'[left]')  keys[1b 5b 44 0]="$3";;
+		'[up]')    keys[1b 5b 41 0]="$3";;
+		'[right]') keys[1b 5b 43 0]="$3";;
+		'[down]')  keys[1b 5b 42 0]="$3";;
+		#pg up & down
+		'[prior]') keys[1b 5b 36 7e 0]="$3";;
+		'[next]')  keys[1b 5b 35 7e 0]="$3";;
+		#return
+		'RET') keys[a 0]="$3";;
+		#backspace & delete
+		'DEL') keys[7f 0]="$3";;
+		'[deletechar]') keys[1b 5b 33 7e 0]="$3";;
+		*) keys["$2"]="$3"
+	esac
+}
+
+@@ local-set-key
+:: Sets keybinding of lastly defined mode
+:: See define-key for details
+@fn local-set-key 'define-key "$_last_keys" "$@"'
+
+@@ global-set-key
+:: Sets keybinding of global mode
+:: See define-key for details
+@fn global-set-key 'define-key global "$@"'
+
+@@ define-mode-option
+:: Sets option of mode '$1'
+function define-mode-option {
+	local -n ko="key_options_$1"
+	ko["$2"]="$3"
+}
+
+@@ local-set-mode-option See define-mode-option
+@fn local-set-mode-option 'define-mode-option "$_last_keys" "$@"'
+
+@@ mode-options Brings mode-options of lastly defined mode into \"focus\"
+@fn mode-options '_last_add="mode-options"'
+
+
+@@ add-alias Adds alias '$1' of command '$2...' to M-x
+function add-alias {
+	local name="$1"
+	shift
+	alias["$name"]="$@"
+}
+
+@@ set-alias Brings into \"focus\" alias setting
+@fn set-alias '_last_add=set-alias'
+
+@@ add-highlight Sets highlighting mode '$1' for file types '$2...'
+function add-highlight {
+	local name="$1"
+	shift
+	for i in "$@"; {
+		highlight["$i"]="$name"
+	}
+}
+
+@@ set-alias Brings into \"focus\" highlight setting
+@fn set-highlight '_last_add=set-highlight'
+
+@@ clear-screen clears screen
+@fn clear-screen "printf '\033c'"
+
+@@ add-mode
+:: Adds keybing mode
+function add-mode {
+	log_buffer+=("        ADD MODE $1")
+	_last_keys="$1"
+	_last_add='add-mode'
+	declare -Ag "keys_$1"
+	declare -Ag "key_options_$1"
+}
+
+@@ add-menu
+:: Adds menu
+function add-menu {
+	# create new menu function & array
+	log_buffer+=("        ADD MENU $1")
+	eval "function menu-${1} { menu $1; }"
+	declare -ag "menu_${1}_0"
+	declare -ag "menu_${1}_1"
+	_last_menu="$1"
+	_last_add='add-menu'
+}
+
+@@ local-set-menu Sets \"focused\" menu item
+@fn local-set-menu 'define-menu "$_last_menu" "$1" "$2"'
+
+@@ global-set Brings into \"focus\" global mode
+@fn global-set '_last_add=global-set'
+
+@@ define-option Defines options[] buffer
+@fn define-option 'options["$1"]="$2"'
+
+@@ set-options Brings into \"focus\" options setting
+@fn set-options '_last_add=set-options'
+
+@@ define-menu
+:: Defines item in menu '$1' with name '$2' with command '$3'
+:: '    If command is "menu-top" face button is used.'
+function define-menu {
+	local -n menu_0="menu_${1}_0"
+	local -n menu_1="menu_${1}_1"
+	local item_0
+	case "$3" in
+		'menu-top') item_0="$(printf '%b' "${faces[button]}")$2";;
+		*) item_0="$2"
+	esac
+	menu_0+=("$item_0")
+	menu_1+=("$3")
+}
+
+@@ load-theme Loads theme from array
+function load-theme {
+	local -i t=0
+	local k
+	local -n theme="$1"
+	for i in "${theme[@]}"; {
+		((t==0)) && {
+			k="$i"
+			t=1
+		} || {
+			faces["$k"]="$i"
+			faces_raw["$k"]="$(printf '%b' "$i")"
+			t=0
+		}
+	}
+	((t)) && errno=1 die
+}
+
+@@ extension Set properites of extension
+function extension {
+	log_buffer+=("- LOADING EXTENSION $1 -")
+	extensions+=("$1")
+	declare -Ag "${1}_ext_d"
+	declare -ng ext_d="${1}_ext_d"
+}
+@@ version: Set version of extension
+function version: {
+	ext_d[version]="$1"
+}
+
+log_buffer+=('- LOADING BASH EXTENSIONS DONE -')
+
 ## rest of this garbageware
 
 @@ refresh Refreshes buffer
@@ -967,7 +1005,7 @@ ebashs-extensions
 function refresh {
 	clear-screen
 	bf_s=''
-	draw-raw
+	
 	message="reloaded..."
 	redraw
 }
@@ -1385,18 +1423,7 @@ defun find-file
 			redraw
 		}
 		bind 'set disable-completion on' 2>/dev/null
-
 	}
-
-
-# draw something for nice transition
-defun draw-raw
-	:: Draw the buffer without any special effects
-	:: Equivalent to setting bf_d[raw] to 1 in subshell
-	function = (
-		bf_d[raw]=1
-		redraw
-	)
 
 defun size-full
 	:: Sets size of buffer to be fullscreen
@@ -1451,20 +1478,18 @@ defun list-buffers
 		save openfile
 		set-buffer list_buffers
 		declare -Ag "${current_buffer}_bf_d"
-		bf_d=(
-			[line]=1
-			[base]=1
-			[column]=0
-			[modified]=0
-			[mode]='list_buffers'
-			[info]='Currently open buffers'
-			[filetype]='i*buffer-list'
-			[file]='*Buffer List*'
-			[raw]=1
-			[menuline]='about'
-		)
-		size-full
-		add-menu about
+		focus set-buffer
+			:: line 1
+			:: base 1
+			:: column 0
+			:: modified 0
+			:: mode 'list_buffers'
+			:: info 'Currently open buffers'
+			:: filetype 'i*buffer-list'
+			:: file '*Buffer List*'
+			:: raw 1
+			:: menuline 'about'
+			[auto]
 		buffer=('')
 		append-array buffers_l buffer
 		redraw
@@ -1534,28 +1559,23 @@ add-mode debuginput
 	local-set-key "$(kbd C-x)" 'quit-view'
 	local-set-mode-option else 'insert-debug-hex'
 	local-set-mode-option disable-global 1
+add-menu debuginput
+	local-set-key 'quit-debuginput'
 
 defun inputcodes
 	:: Opens debug input buffer
 	function = {
 		save openfile
-		((current_count++))
-		set-buffer "bf_${current_count}"
-		add-to-list # add buffer to list of active buffers
-		declare -Ag "${current_buffer}_bf_d"
-		bf_d=(
-			[line]=1
-			[base]=1
-			[column]=0
-			[mode]='debuginput'
-			[info]='C-x (18 0) to close'
-			[filetype]='i*term'
-			[file]='*debuginput*'
-			[modified]=0
-			[raw]=1
-			[menuline]='debuginput'
-		)
-		size-full
+		declare-new-buffer
+			:: mode 'debuginput'
+			:: info 'C-x (18 0) to close'
+			:: filetype 'i*term'
+			:: file '*debuginput*'
+			:: modified 0
+			:: raw 1
+			:: menuline 'debuginput'
+			[auto]
+			
 		buffer=(
 			''
 			'[ KEY DEBUGGER ]'
@@ -1565,9 +1585,6 @@ defun inputcodes
 			''
 		)
 		bf_d[line]=7
-		add-menu debuginput
-		local-set-menu quit 'quit-debuginput'
-		clear-screen
 		redraw
 	}
 
@@ -1575,26 +1592,18 @@ defun read-buffer
 	:: Reads file \$1 into new buffer
 	function = {
 		log info "reading $* ..."
-		((current_count++))
-		set-buffer "bf_${current_count}"
-		add-to-list
-		declare -Ag "${current_buffer}_bf_d"
-		bf_d=(
-			[line]=0 # Currently selected line (0 means the buffer is empty)
-			[base]=1 # Top-most line shown
-			[column]=0 # Position of the cursor in $line
-			[mode]="${options[default_mode]}"
-			[info]="${options[help-message]}"
-			[filetype]="$(filetype "$1")"
-			[file]="$1"
-			[menuline]='top'
-			[current_state]=0
-		)
-		set-syntax # set bf_d[syntax]
-		size-full
+		declare-new-buffer
+			:: mode "${options[default_mode]}"
+			:: info "${options[help-message]}"
+			:: filetype "$(filetype "$1")"
+			:: file "$1"
+			:: menuline 'top'
+			:: current_state 0
+			[auto]
+			
 		[ -f "${bf_d[file]}" ] && mapfile -t -O 1 "${current_buffer}_buffer" <"${bf_d[file]}" # Read file into an array
-		draw-raw
-
+		
+		
 		# Ensure that something was actually read into the file
 		[[ -n "${buffer[*]}" ]] && {
 			message="Read ${#buffer[@]} lines from '${bf_d[file]}'"
@@ -1624,23 +1633,14 @@ defun toggle_hidden
 defun dired
 	:: Open file manager in current working directory
 	function = {
-		((current_count++))
-		set-buffer "bf_${current_count}"
-		add-to-list
-		declare -Ag "${current_buffer}_bf_d"
-		bf_d=(
-			[line]=1
-			[base]=1
-			[column]=0
-			[info]='Dired'
-			[mode]='dired'
-			[filetype]='i*dired'
-			[file]='*dired*'
-			[modified]=0
-			[menuline]='dired'
-		)
-		set-syntax
-		size-full
+		declare-new-buffer
+			:: info 'Dired'
+			:: mode 'dired'
+			:: filetype 'i*dired'
+			:: file '*dired*'
+			:: menuline 'dired'
+			[auto]
+			
 		mapfile -t -O 1 buffer <<< "$(list-directory)"
 		make-render
 		if [[ "${buffer[1]}" ]]; then # Ensure that something was actually read into the file
@@ -1682,20 +1682,22 @@ defun init-log
 		log=1
 		declare -Ag "log_bf_d"
 		declare -ng bufferlog="log_buffer"
-		log_bf_d=(
-			[base]=1
-			[column]=0
-			[info]='LOG'
-			[mode]='view'
-			[help-message]='LOG'
-			[filetype]='i*view'
-			[file]='*log*'
-			[modified]=0
-			[raw]=1
-			[menuline]='menulog'
-		)
+		declare -ng bf_d="log_bf_d"
+		focus set-buffer
+			:: base 1
+			:: column 0
+			:: info 'LOG'
+			:: mode 'view'
+			:: help-message 'LOG'
+			:: filetype 'i*view'
+			:: file '*log*'
+			:: modified 0
+			:: raw 1
+			:: menuline 'menulog'
 		add-menu
 			:: 'quit' 'quit-view'
+
+		size-full
 
 		bufferlog+=(
 			''
@@ -1730,13 +1732,9 @@ defun view-log
 		}
 		save openfile
 		set-buffer log
-		size-full
 		copy-array buffer bf_e
 		clear-screen
 		redraw
-		for ae in "${!bf_d[@]}"; do
-			printf '%s: %s\n' "$ae" "${bf_d[$ae]}" >> d
-		done
 	}
 
 defun current-time
@@ -1788,22 +1786,15 @@ defun buffer-dialog
 	:: Helper functions for creating simple popup buffers
 	function = {
 		save openfile
-		((current_count++))
-		set-buffer "bf_${current_count}"
-		add-to-list
-		declare -Ag "${current_buffer}_bf_d"
-		bf_d=(
-			[line]=1
-			[base]=1
-			[column]=0
-			[info]="$1"
-			[mode]=view
-			[filetype]='i*view'
-			[file]="$2"
-			[modified]=0
-			[raw]=1
-			[menuline]='dialog'
-		)
+		declare-new-buffer
+			:: line 1
+			:: info "$1"
+			:: mode view
+			:: filetype 'i*view'
+			:: file "$2"
+			:: modified 0
+			:: raw 1
+			:: menuline 'dialog'
 		size-full
 	}
 
@@ -3676,32 +3667,24 @@ function load-config {
 :: Empty buffer
 function scratch {
 	log info "loading empty buffer..."
-	((current_count++))
-	set-buffer "bf_${current_count}"
-	add-to-list
-	declare -Ag "${current_buffer}_bf_d"
-	bf_d=(
-		[line]=0 # Currently selected line (0 means the buffer is empty)
-		[base]=1 # Top-most line shown
-		[column]=0 # Position of the cursor in $line
-		[mode]="${options[default_mode]}"
-		[info]="${options[help-message]}"
-		[filetype]="bash"
-		[file]="*scratch*"
-		[isfile]=0
-		[menuline]='top'
-		[current_state]=0
-	)
-	set-syntax # set bf_d[syntax]
+	declare-new-buffer
+		:: mode "${options[default_mode]}"
+		:: info "${options[help-message]}"
+		:: filetype "bash"
+		:: file "*scratch*"
+		:: isfile 0
+		:: menuline top
+		:: current_state 0
+	set-syntax
 	size-full
+
 	buffer=(
 		''
 		'# This buffer is for text that is not saved, and for Bash evaluation.'
 		'# To create a file, visit it with C-x C-f and enter text in its buffer.'
 		''
 	)
-	draw-raw
-
+		
 	message="For information about Ebashs and the BASH system, type C-h C-a."
 	bf_d[line]=1 # Indicate that we have a buffer loaded
 	bf_d[modified]=0
