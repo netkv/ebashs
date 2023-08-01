@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.18"
+version="0.7.18.1"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -2806,7 +2806,17 @@ defun-fragment move-next-line
 		@ end
 }
 
-template move <<<'function @var 1 { @var 2 @var 3 ; redraw-statusline; redraw-cursor; }'
+template move <<'+'
+	function @var 1 {
+		@var 2 @var 3 ;
+		redraw-statusline;
+		if ((bf_d[selection])); then
+			redraw ;
+		else
+			redraw-cursor ;
+		fi ;
+	}
++
 	@: previous-line move-previous-line '$@'
 	@: next-line move-next-line '$@'
 	@: scroll-down move-previous-line '$((bf_d[size-y] - 3))'
