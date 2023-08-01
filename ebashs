@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.18.1"
+version="0.7.19"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -123,9 +123,9 @@ function load-default-config {
 		:: "$(kbd C-c)" 'quit-doc'
 	
 	add-mode list_buffers
-		:: RET 'quit-view'
+		:: RET 'buffer-select'
 		mode-options
-			:: else 'quit-view'
+			:: else 'true'
 	
 	add-mode prefix
 		:: "$(kbd C-c)" 'quit'
@@ -180,6 +180,7 @@ default_faces=(
 		button '\e[4m\e[1m'
 		menu-selected-face "$(:foreground black :background magenta)"
 		mode-line "$(:mode inverse)"
+		hint-line "$(:foreground light-yellow)"
 		file-name "$(:weight bold)"
 		line-number "$(:weight dim :foreground gray)"
 		line-number-empty "$(:weight dim :foreground gray)"
@@ -1187,7 +1188,7 @@ function syntax-word {
 	}
 	((comment)) && set-face font-lock-comment-face ||
 		"${bf_d[syntax]}"
-	face "$syntax_face" "$word"
+	((bf_d[syntax-exec])) || face "$syntax_face" "$word" # s_ex controls syntax extended
 }
 
 @@ face
@@ -1323,6 +1324,20 @@ function syntax-execline
 :: Sets everything to default face
 @fn syntax-unknown 'set-face default'
 
+@@ syntax-list-buffers
+:: Syntax function for list-buffers
+function syntax-list-buffers {
+	((syntaxline==2)) && {
+		face hint-line "$word"
+		return
+	}
+	local -n cbf_d="${word}_bf_d"
+	face link "$(printf '%*s' -6 "$word")"
+	face file-name "$(printf '%*s' -16 "${cbf_d[file]}")"
+	face default "$(printf '%*s' -10 "${cbf_d[mode]}")"
+	face font-lock-comment-face "${cbf_d[modified]} "
+}
+
 @@ syntax-dired
 :: Highlighting for dired buffers
 :+     '* Directories → link'
@@ -1454,50 +1469,56 @@ function set-buffer {
 	declare -ng bf_d="${current_buffer}_bf_d"
 }
 
-defun switch-to-buffer
-	:: Interactive wrapper for set-buffer
-	function = {
-		redraw
-		read-command "Switch to buffer: " readin
-		set-buffer "$readin"
-		redraw
-	}
-defun add-to-list
-	:: Adds a buffer into currently active buffer list
-	function = {
-		log info "added into buffer list: $current_buffer"
-		buffers_l+=("$current_buffer")
-	}
-defun list-buffers
-	:: Displays currently active buffers
-	function = {
-		save openfile
-		set-buffer list_buffers
-		declare -Ag "${current_buffer}_bf_d"
-		focus set-buffer
-			:: line 1
-			:: base 1
-			:: column 0
-			:: modified 0
-			:: mode 'list_buffers'
-			:: info 'Currently open buffers'
-			:: filetype 'i*buffer-list'
-			:: file '*Buffer List*'
-			:: syntax syntax-unknown
-			:: menuline 'about'
-			[auto]
-		buffer=('')
-		append-array buffers_l buffer
-		redraw
+@@ switch-to-buffer
+:: Interactive wrapper for set-buffer
+function switch-to-buffer {
+	redraw
+	read-command "Switch to buffer: " readin
+	set-buffer "$readin"
+	redraw
+}
+@@ add-to-list
+:: Adds a buffer into currently active buffer list
+function add-to-list {
+	log info "added into buffer list: $current_buffer"
+	buffers_l+=("$current_buffer")
+}
+@@ list-buffers
+:: Displays currently active buffers
+function list-buffers {
+	save openfile
+	set-buffer list_buffers
+	declare -Ag "${current_buffer}_bf_d"
+	focus set-buffer
+		:: line 1
+		:: base 1
+		:: column 0
+		:: modified 0
+		:: mode 'list_buffers'
+		:: info 'Currently open buffers'
+		:: filetype 'i*buffer-list'
+		:: file '*Buffer List*'
+		:: syntax syntax-list-buffers
+		:: syntax-exec 1
+		:: menuline 'about'
+	[auto]
+	buffer=(
+		''
+		'ID    FILENAME        MODE      MODIFIED'
+	)
+	bf_s=('')
+	append-array buffers_l buffer
+	redraw
 	}
 	
-defun buffer-select
-	:: Is ran on RET inside list_buffers buffer
-	function = {
-		set-buffer "${buffer[bf_d[line]]}"
-		[ "${bf_d[mode]}" = 'prefix' ] && bf_d[mode]="$bckmode"
-		redraw
-	}
+@@ buffer-select
+:: Is ran on RET inside list_buffers buffer
+function buffer-select {
+	((bf_d[line]==1)) && return
+	set-buffer "${buffer[bf_d[line]]}"
+	[ "${bf_d[mode]}" = 'prefix' ] && bf_d[mode]="$bckmode"
+	redraw
+}
 
 
 add-mode term
