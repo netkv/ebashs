@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.16"
+version="0.7.17"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -1083,13 +1083,11 @@ function set-syntax
 
 @@ make-render Creates syntax highlighting for currently visible lines
 function make-render {
-	((bf_d[raw])) ||
-		make-render-area "${bf_d[base]}" $((bf_d[base] + bf_d[size-y] + bf_d[loc-y]))
+	make-render-area "${bf_d[base]}" $((bf_d[base] + bf_d[size-y] + bf_d[loc-y]))
 }
 
 fragment setrender <<'+'
 	line="$1"
-	((bf_d[raw])) && return
 	local -i syntaxline=$line
 	local -n linearray="${current_buffer}_syntax${syntaxline}"
 	linearray=()
@@ -1487,7 +1485,7 @@ defun list-buffers
 			:: info 'Currently open buffers'
 			:: filetype 'i*buffer-list'
 			:: file '*Buffer List*'
-			:: raw 1
+			:: syntax syntax-unknown
 			:: menuline 'about'
 			[auto]
 		buffer=('')
@@ -1544,7 +1542,6 @@ defun term
 			[filetype]='i*bash'
 			[file]='*term*'
 			[modified]=0
-			[raw]=0
 			[menuline]='about'
 		)
 		set-syntax
@@ -1572,7 +1569,7 @@ defun inputcodes
 			:: filetype 'i*term'
 			:: file '*debuginput*'
 			:: modified 0
-			:: raw 1
+			:: syntax syntax-unknown
 			:: menuline 'debuginput'
 			[auto]
 			
@@ -1692,7 +1689,7 @@ defun init-log
 			:: filetype 'i*view'
 			:: file '*log*'
 			:: modified 0
-			:: raw 1
+			:: syntax syntax-unknown
 			:: menuline 'menulog'
 		add-menu
 			:: 'quit' 'quit-view'
@@ -1793,8 +1790,7 @@ defun buffer-dialog
 			:: filetype 'i*view'
 			:: file "$2"
 			:: modified 0
-			:: raw 1
-			:: menuline 'dialog'
+			:: syntax syntax-unknown
 		size-full
 	}
 
@@ -2458,23 +2454,18 @@ defun describe
 	:: Displays help and info of all functions
 	function = {
 	    save openfiledoc
-		((current_count++))
-		set-buffer "bf_${current_count}"
-		add-to-list
-		declare -Ag "${current_buffer}_bf_d"
-		bf_d=(
-			[line]=1
-			[base]=1
-			[column]=0
-			[info]="Documentation"
-			[mode]=doc
-			[filetype]='i*doc'
-			[file]="Functions"
-			[modified]=0
-			[raw]=1
-			[menuline]='dialog'
-		)
-		size-full
+		declare-new-buffer
+			:: line 1
+			:: base 1
+			:: column 0
+			:: info "Documentation"
+			:: mode doc
+			:: filetype 'i*doc'
+			:: file "Functions"
+			:: modified 0
+			:: syntax syntax-unknown
+			:: menuline 'dialog'
+			size-full
 		local buffertmp=$'\n'
 		while read -r fn;  do
 			#buffertmp+="$(get-description "${fn:11}")"$'\n'
@@ -3310,117 +3301,86 @@ defun redraw
 		
 		# Iterate over shown lines
 		local -i max=$((bf_d[size-y] - (toplines + bottomlines) + 1))
-		((bf_d[raw])) &&
-			# The raw rendering is just dirty hack to get better perfomance in buffer which don't need fancy effects
-			# Will be removed once normal rendering is fast enough (or rather if it'll ever be
-			{
-				for ((i = bf_d[base]; i - bf_d[base] < max; i++)); do
-					((i - bf_d[base] > max - 2)) && nlchar='' || nlchar='\n'
-					
-					print-line-number
-					((i > ${#buffer[@]})) || {
+		for ((i = bf_d[base]; i - bf_d[base] < max; i++)); do
+			# if the line is last, do not add newline
+			((i - bf_d[base] > max - 2)) && nlchar='' || nlchar='\n'
+			print-line-number
+			((i > ${#buffer[@]})) && continue
+			# to improve speed syntaxing has to be "lazy" -- having to be heavily cached as ram is far less expensive to waste
+			[ -z "${bf_s[bf_d[base]+bf_d[size-y]-(bottomlines+toplines)+2]}" ] && {
+				bottomest=$((bf_d[base]+bf_d[size-y]-(bottomlines+toplines)+2))
+				make-render-area $bottomest $((bottomest+options[render-chunk]))
+			}
+			[ -z "${bf_s[i]}" ] && {
+				make-render-area $((base + i)) $((base + i + 1)) # idk why make-render-line doesnt work here
+			}
+			local -n linearray="${bf_s[i]}"
+			
+			# draw the selection area
+			((bf_d[selection])) && {
+				((i == bf_d[selection_start_y])) &&
+					((bf_d[selection_start_y] == bf_d[selection_end_y])) && {
+						((bf_d[selection_start_x] <= bf_d[selection_end_x])) && {
+							local -n sx=bf_d[selection_start_x]
+							local -n ex=bf_d[selection_end_x]
+						} || {
+							local -n sx=bf_d[selection_end_x]
+							local -n ex=bf_d[selection_start_x]
+						}
 						if ((options[line-number-mode])); then
-							printf "\e[%sG%*s\e[%sG%${bf_d[number-length]}s %b%s%b"\
+							printf "\e[%sG%*s\e[%sG%${bf_d[number-length]}s %b%s%b%s%b%s%b"\
 								   @ printarg\
-								   "${buffer[i]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
+								   "${linearray[*]:bf_d[basecolumn]:sx}"\
+								   "\e[m${faces[region]}"\
+								   "${buffer[i]:sx:ex-sx}"\
+								   "\e[m"\
+								   "${linearray[*]:ex:bf_d[size-x]}"\
 								   "$nlchar"
 						else
-							printf "\e[%sG%*s\e[%sG%b%s%b"\
+							printf '\e[%sG%*s\e[%sG%b%s%b%s%b%s%b'\
 								   @ printargnonl\
-								   "${buffer[i]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
+								   "${linearray[*]:bf_d[basecolumn]:sx}"\
+								   "\e[m${faces[region]}"\
+								   "${buffer[i]:sx:ex-sx}"\
+								   "\e[m"\
+								   "${linearray[*]:ex:bf_d[size-x]}"\
 								   "$nlchar"
 						fi
+						continue
 					}
-				done
-			} || {
-				for ((i = bf_d[base]; i - bf_d[base] < max; i++)); do
-
-					# if the line is last, do not add newline
-					((i - bf_d[base] > max - 2)) && nlchar='' || nlchar='\n'
-					
-					print-line-number
-
-					((i > ${#buffer[@]})) && continue
-					
-					# to improve speed syntaxing has to be "lazy" -- having to be heavily cached as ram is far less expensive to waste
-					[ -z "${bf_s[bf_d[base]+bf_d[size-y]-(bottomlines+toplines)+2]}" ] && {
-						bottomest=$((bf_d[base]+bf_d[size-y]-(bottomlines+toplines)+2))
-						make-render-area $bottomest $((bottomest+options[render-chunk]))
-					}
-					[ -z "${bf_s[i]}" ] && {
-						make-render-area $((base + i)) $((base + i + 1)) # idk why make-render-line doesnt work here
-					}
-					local -n linearray="${bf_s[i]}"
-					
-					# draw the selection area
-					((bf_d[selection])) && {
-						((i == bf_d[selection_start_y])) &&
-							((bf_d[selection_start_y] == bf_d[selection_end_y])) && {
-								((bf_d[selection_start_x] <= bf_d[selection_end_x])) && {
-									local -n sx=bf_d[selection_start_x]
-									local -n ex=bf_d[selection_end_x]
-								} || {
-									local -n sx=bf_d[selection_end_x]
-									local -n ex=bf_d[selection_start_x]
-								}
-								if ((options[line-number-mode])); then
-									printf "\e[%sG%*s\e[%sG%${bf_d[number-length]}s %b%s%b%s%b%s%b"\
-										   @ printarg\
-										   "${linearray[*]:bf_d[basecolumn]:sx}"\
-										   "\e[m${faces[region]}"\
-										   "${buffer[i]:sx:ex-sx}"\
-										   "\e[m"\
-										   "${linearray[*]:ex:bf_d[size-x]}"\
-										   "$nlchar"
-								else
-									printf '\e[%sG%*s\e[%sG%b%s%b%s%b%s%b'\
-										   @ printargnonl\
-										   "${linearray[*]:bf_d[basecolumn]:sx}"\
-										   "\e[m${faces[region]}"\
-										   "${buffer[i]:sx:ex-sx}"\
-										   "\e[m"\
-										   "${linearray[*]:ex:bf_d[size-x]}"\
-										   "$nlchar"
-								fi
-								continue
-							}
-						((i >= bf_d[selection_start_y])) && ((i <= bf_d[selection_end_y])) && {
-							selection-draw selection_start selection_end
-							continue
-						}
-						((i <= bf_d[selection_start_y])) && ((i >= bf_d[selection_end_y])) && {
-							selection-draw selection_end selection_start
-							continue
-						}
-					}
-					# due to escape codes present in bf_s,
-					# the bf_s has to be multidimensional nonsense for perfomance reasons
-
-					#I would make this less repeated, but the line has to be printed by single printf to stop flickering, so bloat has to be
-					if ((options[line-number-mode])); then
-						printf "\e[%sG%*s\e[%sG%${bf_d[number-length]}s %b%s%b"\
-							   @ printarg\
-							   "${linearray[*]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
-							   "$nlchar"
-					else
-						printf "\e[%sG%*s\e[%sG%b%s%b"\
-							   @ printargnonl\
-							   "${linearray[*]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
-							   "$nlchar"
-					fi
-				done
+				((i >= bf_d[selection_start_y])) && ((i <= bf_d[selection_end_y])) && {
+					selection-draw selection_start selection_end
+					continue
+				}
+				((i <= bf_d[selection_start_y])) && ((i >= bf_d[selection_end_y])) && {
+					selection-draw selection_end selection_start
+					continue
+				}
 			}
-		
+			# due to escape codes present in bf_s,
+			# the bf_s has to be multidimensional nonsense for perfomance reasons
+			
+			#I would make this less repeated, but the line has to be printed by single printf to stop flickering, so bloat has to be
+			if ((options[line-number-mode])); then
+				printf "\e[%sG%*s\e[%sG%${bf_d[number-length]}s %b%s%b"\
+					   @ printarg\
+					   "${linearray[*]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
+					   "$nlchar"
+			else
+				printf "\e[%sG%*s\e[%sG%b%s%b"\
+					   @ printargnonl\
+					   "${linearray[*]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
+					   "$nlchar"
+			fi
+		done
 		redraw-statusline
 		redraw-commandline
-		((no_cursor)) || redraw-cursor
-		
-		@ifs
-		
+		((no_cursor)) || redraw-cursor		
+		@ifs		
 		# redraw menu if open
 		[ "${bf_d[mode]}" = 'menu' ] && redraw-menu
 	}
-
+		 
 defun redraw-cursor-line
 	:: Draw cursor on the line
 	function = {
@@ -3509,9 +3469,9 @@ defun-fragment insert-word
 	function = {
 		save-state
 		@ getrlr
-		buffer[bf_d[line]]="${buffer[${bf_d[line]}]:0:${rlr}}$1${buffer[${bf_d[line]}]:${rlr}}"\
-			  #add at cursor position - amount of tabs * tab size
-			  ((bf_d[raw])) || make-render-line
+		buffer[bf_d[line]]="${buffer[${bf_d[line]}]:0:${rlr}}$1${buffer[${bf_d[line]}]:${rlr}}"
+		#add at cursor position - amount of tabs * tab size
+		make-render-line
 		forward-char "${#1}"
 		bf_d[selection]=0
 		redraw
