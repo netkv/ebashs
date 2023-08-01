@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.17"
+version="0.7.18"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -1318,143 +1318,141 @@ function syntax-execline
 		's6-pivotchroot'|'s6-ps'|'s6-swapoff'|'s6-swapon'|'s6-umount') set-face font-lock-util-face;;
 		*) set-face default;;
 	esac
-									 
+	
+@@ syntax-unknown Default syntax function
+:: Sets everything to default face
 @fn syntax-unknown 'set-face default'
-	@doc syntax-unknown <<-'+'
-Default syntax function
-Sets everything to default face
-	+
 
-defun syntax-dired
-	:: Highlighting for dired buffers
-	:: '    * Directories → link'
-	:: '    * Files → default'
-	function = {
-		[ -d "$word" ] && set-face link
-		[ -f "$word" ] && set-face default
-	}
-
-defun syntax-config
-	:: Basic syntax function for config files
-	:: Used faces:
-	:: '    * default'
-	:: '    * font-lock-comment-face & sets comment to 1 for syntax-word function'	
-	function =
-		case "${word}" in
-			'#'*) set-face font-lock-comment-face && comment=1;;
-			*) set-face default;;
-		esac
-
-defun base-name
-	:: Basically equivalent to the "'basename'" coreutil		
-	function =
-		for file in "$@"; {
-			file="${file%/}"
-			printf '%s\n' "${file##*/}"
-		}
-
-defun filetype
-	:: Detect type of file '$1':					
-	:: "    * If file doesn't exist → unknown"
-	:: "    * If is COMMIT_EDITMSG → conf"
-	:: "    * If is ebashs → ebashs"
-	:: "    * Extension →"
-	:: "    * Shebang →"
-	:: "    * Special shebang #@ →"
-	:: "    * unknown →"
-	function = {
-		[ ! -f "$1" ] && {
-			echo unknown
-			return
-		}
-		#very ugly, TODO: redo this
-		local filename shebang extension
-		local -a filenamesplit shebangsplit
-		[ $# = 0 ] && return
-		[ "${1:0:1}" = '.' ] || {
-			IFS='.'
-			filename="${1%/}"
-			filename="${filename##*/}"
-			[ "$filename" = 'COMMIT_EDITMSG' ] && echo conf && return
-			[ "$filename" = 'ebashs' ] && echo ebashs && return
-			filenamesplit=($filename)
-			extension="${filenamesplit[-1]}"
-			[ "${#filenamesplit[@]}" -gt 1 ] && echo "$extension" && return
-		}
-		mapfile -n 1 file_data < "$1"
-		shebang="$(echo -n "${file_data[@]}")"
-		case "${shebang:0:2}" in
-			'#!')
-				shebang="${shebang%/}"
-				IFS=' '
-				shebangsplit=("${shebang##*/}")
-				local shebangss=(${shebangsplit[-1]})
-				case "${shebangss[0]}" in
-					env)
-						printf '%s\n' "${shebangss[1]}";;
-					*)
-						printf '%s\n' "${shebangsplit[-1]}";;
-				esac
-				;;
-			'! ')
-				mapfile -d ' ' -t split <<< "${shebang}"
-				printf '%s\n' "${split[1]}"
-				;;
-			'##')
-				mapfile -d ' ' -t split <<< "${shebang}"
-				printf '%s\n' "${split[1]}"
-				;;
-			*) echo unknown
-		esac
-		@ifs
-	}
-
-defun find-file
-	:: Asks for file and opens it
-	function = {
-		printf '\e[%s;0H' $((bf_d[size-y] + bf_d[loc-y]))
-		printf '\e[?25h'
-		bind 'set disable-completion off' 2>/dev/null # Enable completion
-		read -re -p "${options[file-prompt]}" command && {
-			read-buffer "$command"
-			[ -n "$bckmode" ] && bf_d[mode]="$bckmode" || bf_d[mode]=edit
-			redraw
-		}
-		bind 'set disable-completion on' 2>/dev/null
-	}
-
-defun size-full
-	:: Sets size of buffer to be fullscreen
-	function = {
-		bf_d+=(
-			[loc-x]=1
-			[loc-y]=1
-			[size-x]=$COLUMNS
-			[size-y]=$((LINES - 1))
-		)
-	}
-
-defun insert-debug-hex
-	:: Adds hex code of keypress into buffer
-	function = {
-		buffer+=(
-			"${k_hex[*]}"
-		)
-		next-line
-		make-render-line
-		redraw
+@@ syntax-dired
+:: Highlighting for dired buffers
+:+     '* Directories → link'
+::     '* Files → default'
+function syntax-dired {
+	[ -d "$word" ] && set-face link
+	[ -f "$word" ] && set-face default
 }
 
-defun set-buffer
-	:: Switch to buffer \$1 
-	function = {
-		log info "switch to buffer [$1]"
-		current_buffer="$1"
-		declare -ng buffer="${current_buffer}_buffer"
-		declare -ng bf_s="${current_buffer}_bf_s"
-		declare -ng bf_e="${current_buffer}_bf_e"
-		declare -ng bf_d="${current_buffer}_bf_d"
+@@ syntax-config
+:: Basic syntax function for config files
+:: Used faces:
+:+     '* default'
+::     '* font-lock-comment-face & sets comment to 1 for syntax-word function'	
+function syntax-config
+	case "${word}" in
+		'#'*) set-face font-lock-comment-face && comment=1;;
+		*) set-face default;;
+	esac
+
+@@ base-name
+:: Basically equivalent to the "'basename'" coreutil		
+function base-name
+	for file in "$@"; {
+		file="${file%/}"
+		printf '%s\n' "${file##*/}"
 	}
+
+@@ filetype
+:: Detect type of file '$1':					
+:+     "* If file doesn't exist → unknown"
+::     "* If is COMMIT_EDITMSG → conf"
+::     "* If is ebashs → ebashs"
+::     "* Extension →"
+::     "* Shebang →"
+::     "* Special shebang #@ →"
+::     "* unknown →"
+function filetype {
+	[ ! -f "$1" ] && {
+		echo unknown
+		return
+	}
+	#very ugly, TODO: redo this
+	local filename shebang extension
+	local -a filenamesplit shebangsplit
+	[ $# = 0 ] && return
+	[ "${1:0:1}" = '.' ] || {
+		IFS='.'
+		filename="${1%/}"
+		filename="${filename##*/}"
+		[ "$filename" = 'COMMIT_EDITMSG' ] && echo conf && return
+		[ "$filename" = 'ebashs' ] && echo ebashs && return
+		filenamesplit=($filename)
+		extension="${filenamesplit[-1]}"
+		[ "${#filenamesplit[@]}" -gt 1 ] && echo "$extension" && return
+	}
+	mapfile -n 1 file_data < "$1"
+	shebang="$(echo -n "${file_data[@]}")"
+	case "${shebang:0:2}" in
+		'#!')
+			shebang="${shebang%/}"
+			IFS=' '
+			shebangsplit=("${shebang##*/}")
+			local shebangss=(${shebangsplit[-1]})
+			case "${shebangss[0]}" in
+				env)
+					printf '%s\n' "${shebangss[1]}";;
+				*)
+					printf '%s\n' "${shebangsplit[-1]}";;
+			esac
+			;;
+		'! ')
+			mapfile -d ' ' -t split <<< "${shebang}"
+			printf '%s\n' "${split[1]}"
+			;;
+		'##')
+			mapfile -d ' ' -t split <<< "${shebang}"
+			printf '%s\n' "${split[1]}"
+			;;
+		*) echo unknown
+	esac
+	@ifs
+}
+
+@@ find-file
+:: Asks for file and opens it
+function find-file {
+	printf '\e[%s;0H' $((bf_d[size-y] + bf_d[loc-y]))
+	printf '\e[?25h'
+	bind 'set disable-completion off' 2>/dev/null # Enable completion
+	read -re -p "${options[file-prompt]}" command && {
+		read-buffer "$command"
+		[ -n "$bckmode" ] && bf_d[mode]="$bckmode" || bf_d[mode]=edit
+		redraw
+	}
+	bind 'set disable-completion on' 2>/dev/null
+}
+
+@@ size-full
+:: Sets size of buffer to be fullscreen
+function size-full {
+	bf_d+=(
+		[loc-x]=1
+		[loc-y]=1
+		[size-x]=$COLUMNS
+		[size-y]=$((LINES - 1))
+	)
+}
+
+@@ insert-debug-hex
+:: Adds hex code of keypress into buffer
+function insert-debug-hex {
+	buffer+=(
+		"${k_hex[*]}"
+	)
+	next-line
+	make-render-line
+	redraw
+}
+
+@@ set-buffer
+:: Switch to buffer \$1 
+function set-buffer {
+	log info "switch to buffer [$1]"
+	current_buffer="$1"
+	declare -ng buffer="${current_buffer}_buffer"
+	declare -ng bf_s="${current_buffer}_bf_s"
+	declare -ng bf_e="${current_buffer}_bf_e"
+	declare -ng bf_d="${current_buffer}_bf_d"
+}
 
 defun switch-to-buffer
 	:: Interactive wrapper for set-buffer
@@ -3146,92 +3144,42 @@ defun delete-buffer
 		current_buffer="${buffers_l[index-1]}"
 		redraw
 	}
-
-fragment printarg <<'+'
-	"${bf_d[loc-x]}"\
-	"${bf_d[size-x]}"\
-	''\
-	"${bf_d[loc-x]}"\
-	"$i"\
-	"${faces[default]}"\
-+
-
-fragment printargnonl <<'+'
-	"${bf_d[loc-x]}"\
-	"${bf_d[size-x]}"\
-	''\
-	"${bf_d[loc-x]}"\
-	"${faces[default]}"\
-+
-
-defun print-line-number
-	:: Print line number of line \$i
-	function = {
-		((options[line-number-mode])) && {
-			printf '%b' "${faces[line-number]}"
-			((i == bf_d[line])) &&
-				printf '%b' "${faces[line-number-current-line]}" # Highlight line line-number if selected
-		}
-		((i > ${#buffer[@]})) &&
-			printf '\e[%sG%b%*s%s%b%*s%b'\
-				   "${bf_d[loc-x]}"\
-				   "${faces[line-number-empty]}"\
-				   $((bf_d[number-length]/2)) ''\
-				   "${options[empty-line-char]}"\
-				   "${faces[default]}"\
-				   $((bf_d[size-x] - bf_d[number-length]))\
-				   ''\
-				   "$nlchar"
-	}
-
-
-defun-fragment selection-draw
+						
+defun selection-draw
 	:: Draw multiline region
 	function =
-		if ((options[line-number-mode])); then
-			if ((i == bf_d["${1}_y"])); then
-				printf "\e[%sG%*s\e[%sG%${bf_d[number-length]}s %b%s%b%s%b%b"\
-					   @ printarg\
-					   "${linearray[*]:bf_d[basecolumn]:bf_d[${1}_x]}"\
-					   "\e[m${faces[region]}"\
-					   "${buffer[i]:bf_d[${1}_x]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
-					   "${faces[default]}" "$nlchar"
-			elif ((i == bf_d["${2}_y"])); then
-				printf "\e[%sG%*s\e[%sG%${bf_d[number-length]}s %b%b%s%b%s%b%b"\
-					   @ printarg\
-					   "${faces[region]}"\
-					   "${buffer[i]:bf_d[basecolumn]:bf_d[${2}_x]}"\
-					   "\e[m"\
-					   "${linearray[*]:bf_d[${2}_x]:bf_d[size-x]}"\
-					   "${faces[default]}" "$nlchar"
-			else
-				printf "\e[%sG%*s\e[%sG%${bf_d[number-length]}s %b%b%s%b%b"\
-					   @ printarg\
-					   "${faces[region]}" "${buffer[i]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
-					   "${faces[default]}" "$nlchar"
-			fi
+		if ((i == bf_d["${1}_y"])); then
+			printf "${ln}%*s\e[%sG%b%s%b%s%b%b"\
+				   ${lnargs[@]}\
+				   $((bf_d[size-x] - bf_d[number-length]))\
+				   ''\
+				   $((bf_d[loc-x] + bf_d[number-length] + space))\
+				   "${faces[default]}"\
+				   "${linearray[*]:bf_d[basecolumn]:bf_d[${1}_x]}"\
+				   "\e[m${faces[region]}"\
+				   "${buffer[i]:bf_d[${1}_x]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
+				   "${faces[default]}" "$nlchar"
+		elif ((i == bf_d["${2}_y"])); then
+			printf "${ln}%*s\e[%sG%b%b%s%b%s%b%b"\
+				   ${lnargs[@]}\
+				   $((bf_d[size-x] - bf_d[number-length]))\
+				   ''\
+				   $((bf_d[loc-x] + bf_d[number-length] + space))\
+				   "${faces[default]}"\
+				   "${faces[region]}"\
+				   "${buffer[i]:bf_d[basecolumn]:bf_d[${2}_x]}"\
+				   "\e[m"\
+				   "${linearray[*]:bf_d[${2}_x]:bf_d[size-x]}"\
+				   "${faces[default]}" "$nlchar"
 		else
-			if ((i == bf_d["${1}_y"])); then
-				printf "\e[%sG%*s\e[%sG%b%s%b%s%b%b"\
-					   @ printargnonl\
-					   "${linearray[*]:bf_d[basecolumn]:bf_d[${1}_x]}"\
-					   "\e[m${faces[region]}"\
-					   "${buffer[i]:bf_d[${1}_x]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
-					   "${faces[default]}" "$nlchar"
-			elif ((i == bf_d["${2}_y"])); then
-				printf "\e[%sG%*s\e[%sG%b%b%s%b%s%b%b"\
-					   @ printargnonl
-					   "${faces[region]}"\
-					   "${buffer[i]:bf_d[basecolumn]:bf_d[${2}_x]}"\
-					   "\e[m"\
-					   "${linearray[*]:bf_d[${2}_x]:bf_d[size-x]}"\
-					   "${faces[default]}" "$nlchar"
-			else
-				printf "\e[%sG%*s\e[%sG%b%b%s%b%b"\
-					   @ printargnonl\
-					   "${faces[region]}" "${buffer[i]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
-					   "${faces[default]}" "$nlchar"
-			fi
+			printf "${ln}%*s\e[%sG%b%b%s%b%b"\
+				   ${lnargs[@]}\
+				   $((bf_d[size-x] - bf_d[number-length]))\
+				   ''\
+				   $((bf_d[loc-x] + bf_d[number-length] + space))\
+				   "${faces[default]}"\
+				   "${faces[region]}" "${buffer[i]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
+				   "${faces[default]}" "$nlchar"
 		fi
 
 defun change-size-screen
@@ -3298,14 +3246,46 @@ defun redraw
 
 		# IFS has to be empty in order to bufferarray multiarray be printed as words instead of chars
 		IFS=''
-		
+
+		# Handle line number displaying
+		# the resulting line has to be printed in one go to prevent flicker
+		# space stores if the position of actuall text should be offset by +1
+		# ln stores printf print line
+		# args stores printf arguments
+		local -i space
+		local ln
+		local -a lnargs
+					
 		# Iterate over shown lines
 		local -i max=$((bf_d[size-y] - (toplines + bottomlines) + 1))
 		for ((i = bf_d[base]; i - bf_d[base] < max; i++)); do
 			# if the line is last, do not add newline
+
+			if ((options[line-number-mode])); then
+				space=1
+				ln="\e[%dG%b%*s"
+				lnargs=(
+					"${bf_d[loc-x]}"
+					"${faces[line-number]}"
+					"${bf_d[number-length]}"
+					"$i"
+				)
+				((i == bf_d[line])) && lnargs[1]="${faces[line-number-current-line]}"
+			fi
+			
 			((i - bf_d[base] > max - 2)) && nlchar='' || nlchar='\n'
-			print-line-number
-			((i > ${#buffer[@]})) && continue
+
+			((i > ${#buffer[@]})) &&
+				printf '\e[%sG%b%*s%s%b%*s%b'\
+				       "${bf_d[loc-x]}"\
+				       "${faces[line-number-empty]}"\
+				       $((bf_d[number-length]/2)) ''\
+				       "${options[empty-line-char]}"\
+				       "${faces[default]}"\
+				       $((bf_d[size-x] - bf_d[number-length]))\
+				       ''\
+				       "$nlchar" &&
+				continue
 			# to improve speed syntaxing has to be "lazy" -- having to be heavily cached as ram is far less expensive to waste
 			[ -z "${bf_s[bf_d[base]+bf_d[size-y]-(bottomlines+toplines)+2]}" ] && {
 				bottomest=$((bf_d[base]+bf_d[size-y]-(bottomlines+toplines)+2))
@@ -3327,25 +3307,18 @@ defun redraw
 							local -n sx=bf_d[selection_end_x]
 							local -n ex=bf_d[selection_start_x]
 						}
-						if ((options[line-number-mode])); then
-							printf "\e[%sG%*s\e[%sG%${bf_d[number-length]}s %b%s%b%s%b%s%b"\
-								   @ printarg\
-								   "${linearray[*]:bf_d[basecolumn]:sx}"\
-								   "\e[m${faces[region]}"\
-								   "${buffer[i]:sx:ex-sx}"\
-								   "\e[m"\
-								   "${linearray[*]:ex:bf_d[size-x]}"\
-								   "$nlchar"
-						else
-							printf '\e[%sG%*s\e[%sG%b%s%b%s%b%s%b'\
-								   @ printargnonl\
-								   "${linearray[*]:bf_d[basecolumn]:sx}"\
-								   "\e[m${faces[region]}"\
-								   "${buffer[i]:sx:ex-sx}"\
-								   "\e[m"\
-								   "${linearray[*]:ex:bf_d[size-x]}"\
-								   "$nlchar"
-						fi
+						printf "${ln}%*s\e[%sG%b%s%b%s%b%s%b"\
+							   ${lnargs[@]}\
+							   $((bf_d[size-x] - bf_d[number-length]))\
+							   ''\
+							   $((bf_d[loc-x] + bf_d[number-length] + space))\
+							   "${faces[default]}"\
+							   "${linearray[*]:bf_d[basecolumn]:sx}"\
+							   "\e[m${faces[region]}"\
+							   "${buffer[i]:sx:ex-sx}"\
+							   "\e[m"\
+							   "${linearray[*]:ex:bf_d[size-x]}"\
+							   "$nlchar"
 						continue
 					}
 				((i >= bf_d[selection_start_y])) && ((i <= bf_d[selection_end_y])) && {
@@ -3359,19 +3332,14 @@ defun redraw
 			}
 			# due to escape codes present in bf_s,
 			# the bf_s has to be multidimensional nonsense for perfomance reasons
-			
-			#I would make this less repeated, but the line has to be printed by single printf to stop flickering, so bloat has to be
-			if ((options[line-number-mode])); then
-				printf "\e[%sG%*s\e[%sG%${bf_d[number-length]}s %b%s%b"\
-					   @ printarg\
-					   "${linearray[*]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
-					   "$nlchar"
-			else
-				printf "\e[%sG%*s\e[%sG%b%s%b"\
-					   @ printargnonl\
-					   "${linearray[*]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
-					   "$nlchar"
-			fi
+			printf "${ln}%*s\e[%sG%b%s%b"\
+				   ${lnargs[@]}\
+				   $((bf_d[size-x] - bf_d[number-length]))\
+				   ''\
+				   $((bf_d[loc-x] + bf_d[number-length] + space))\
+				   "${faces[default]}"\
+				   "${linearray[*]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
+				   "$nlchar"
 		done
 		redraw-statusline
 		redraw-commandline
@@ -3380,7 +3348,8 @@ defun redraw
 		# redraw menu if open
 		[ "${bf_d[mode]}" = 'menu' ] && redraw-menu
 	}
-		 
+
+
 defun redraw-cursor-line
 	:: Draw cursor on the line
 	function = {
