@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.20"
+version="0.7.21"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -3723,6 +3723,24 @@ function main
 		# Check for ready input
 		read -rsN1 k[0] && {
 			k_hex[0]="$(printf "%x\n" "'${k[0]}")"
+
+			# Hack to try preventing arrow codes being split into multiple and inserting garbage to buffer
+			[ "${k_hex[0]}" = '1b' ] && {
+				read -rsN1 k[1]
+				k_hex[1]="$(printf "%x\n" "'${k[1]}")"
+				[ "${k_hex[1]}" = '5b' ] && {
+					read -rsN1 k[2]
+					k_hex[2]="$(printf "%x\n" "'${k[2]}")"
+					case "${k_hex[2]}" in
+						'41'|'42'|'43'|'44')
+							k_hex[3]='0'
+							input-key "${k[@]}"
+							continue
+					esac
+					i=2
+				}
+				((i++))
+			}
 			# Multibyte hack
 			while read -rsN1 -t0.0001 k[$i]; do
 				k_hex[$i]="$(printf "%x\n" "'${k[$i]}")"
@@ -3817,7 +3835,8 @@ EOF
 			load-config
 	esac
 	((options[log])) && init-log || unset buffer_log # set up log buffer (M-x log)
-	
+
+
 	log info setting traps...
 	trap change-size-screen WINCH ALRM # Attach WINCH and ALRM to redraw the screen
 	trap die EXIT HUP USR1 # Attach most exit codes to cleanup and exit
