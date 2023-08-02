@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.19"
+version="0.7.20"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -177,10 +177,11 @@ default_faces=(
 		menu-enabled-face "$(:background black)"
 		selected "$(:foreground black :background magenta)"
 		link "$(:slant italic :foreground light-blue)"
+		title "$(:weight bold)"
 		button '\e[4m\e[1m'
 		menu-selected-face "$(:foreground black :background magenta)"
 		mode-line "$(:mode inverse)"
-		hint-line "$(:foreground light-yellow)"
+		hint "$(:foreground light-yellow)"
 		file-name "$(:weight bold)"
 		line-number "$(:weight dim :foreground gray)"
 		line-number-empty "$(:weight dim :foreground gray)"
@@ -194,12 +195,12 @@ default_faces=(
 		ansi-color-bold '\e[1m'
 		ansi-color-bright-black '\e[100m'
 		ansi-color-bright-blue '\e[104m'
-		ansi-color-bright-blue '\e[106m'
-		ansi-color-bright-blue '\e[102m'
-		ansi-color-bright-blue '\e[105m'
-		ansi-color-bright-blue '\e[101m'
-		ansi-color-bright-blue '\e[107m'
-		ansi-color-bright-blue '\e[103m'
+		ansi-color-bright-cyan '\e[106m'
+		ansi-color-bright-green '\e[102m'
+		ansi-color-bright-magenta '\e[105m'
+		ansi-color-bright-red '\e[101m'
+		ansi-color-bright-white '\e[107m'
+		ansi-color-bright-yellow '\e[103m'
 		ansi-color-cyan '\e[46m'
 		ansi-color-green '\e[42m'
 		ansi-color-inverse '\e[7m'
@@ -208,7 +209,16 @@ default_faces=(
 		ansi-color-red '\e[41m'
 		ansi-color-underline '\e[4m'
 		ansi-color-white '\e[47m'
-		ansi-color-white '\e[43m'
+		ansi-color-yellow '\e[43m'
+		# common colors for format stuff
+		black      '\e[30m' gray          '\e[90m'
+		red        '\e[31m' light-red     '\e[91m'
+		green      '\e[32m' light-green   '\e[92m'
+		yellow     '\e[33m' light-yellow  '\e[93m'
+		blue       '\e[34m' light-blue    '\e[94m'
+		magenta    '\e[35m' light-magenta '\e[95m'
+		cyan       '\e[36m' light-cyan    '\e[96m'
+		light-gray '\e[37m' white         '\e[97m'
 		# syntax highlighting
 		sh-quoted-exec "$(:foreground light-yellow)"
 		font-lock-variable-string-face "$(:foreground cyan)"
@@ -983,6 +993,43 @@ function load-theme {
 		}
 	}
 	((t)) && errno=1 die
+	# aliases for nicer formating
+	faces+=(
+		[bl]="${faces[black]}"
+		[dr]="${faces[red]}"
+		[dg]="${faces[green]}"
+		[dy]="${faces[yellow]}"
+		[db]="${faces[blue]}"
+		[dm]="${faces[magenta]}"
+		[dc]="${faces[cyan]}"
+		[dw]="${faces[light-gray]}"
+		[gr]="${faces[gray]}"
+		[lr]="${faces[light-red]}"
+		[lg]="${faces[light-green]}"
+		[ly]="${faces[light-yellow]}"
+		[lb]="${faces[light-blue]}"
+		[lm]="${faces[light-magenta]}"
+		[lc]="${faces[light-cyan]}"
+		[lw]="${faces[light-white]}"
+	)
+	faces_raw+=(
+		[bl]="${faces_raw[black]}"
+		[dr]="${faces_raw[red]}"
+		[dg]="${faces_raw[green]}"
+		[dy]="${faces_raw[yellow]}"
+		[db]="${faces_raw[blue]}"
+		[dm]="${faces_raw[magenta]}"
+		[dc]="${faces_raw[cyan]}"
+		[dw]="${faces_raw[light-gray]}"
+		[gr]="${faces_raw[gray]}"
+		[lr]="${faces_raw[light-red]}"
+		[lg]="${faces_raw[light-green]}"
+		[ly]="${faces_raw[light-yellow]}"
+		[lb]="${faces_raw[light-blue]}"
+		[lm]="${faces_raw[light-magenta]}"
+		[lc]="${faces_raw[light-cyan]}"
+		[lw]="${faces_raw[light-white]}"
+	)
 }
 
 @@ extension Set properites of extension
@@ -1123,53 +1170,43 @@ defun-fragment make-render-line
 	}
 nufed
 
-@@ expand-char Creates bf_e for handling cursor movenment
-:: Is controled via charmap associative array
-:: "    Tab is 't'"
-:: "    Space is 's'"
-:: "    Any unmaped char is '0'"
-function expand-char {
-	IFS=
-	while read -rsn1 char
-	do
-		[ -z "$char" ] && echo && continue
-		case "${char}" in
-			'	')
-				local -i i
-				for ((i = ${#options[tabchar]}; i > 0 ; i--)); do
-					printf '%s' "${charmap[	]}"
-				done;;
-			' ') printf '%s' "${charmap[ ]}";;
-			*)
-				printf '0';;
-		esac
-	done
-	@ifs
-}
 
 @@ make-render-line-loop
 :: Backend for make-render-area \& make-render-line
+:: Also creates bf_e charmap for movenment
+:+     "Tab is 't'"
+::     "Space is 's'"
+::     "Any unmaped char is '0'"
 function make-render-line-loop {
-	bf_e[line]="$(expand-char <<< "${buffer[line]}")"
-	comment=0
+	local -i comment=0
+	local -i skip_next_space=0
 	local word=''
+	bf_e[line]=''
 	while read -rsn1 char
 	do
 		case "$char" in
 			' ')
 				syntax-word
 				word=''
-				face default ' ';;
+				((skip_next_space==1)) && skip_next_space=0 && continue
+				bf_e[line]+='s'
+				face-no-expand default ' ';;
 			'	')
 				syntax-word
 				word=''
-				face tab-face "${options[tabchar]}";;
+				local -i i
+				for ((i = ${#options[tabchar]}; i > 0 ; i--)); do
+					bf_e[line]+="${charmap[	]}"
+				done
+				face-no-expand tab-face "${options[tabchar]}";;
 			'')
 				syntax-word
 				word=''
-				face default ' '
+				skip_next_space=0
+				face-no-expand default ' '
 				return;;
-			*) word+="${char}";;
+			*)
+				word+="${char}"
 		esac
 	done  <<< "${buffer[line]}"
 }
@@ -1194,6 +1231,18 @@ function syntax-word {
 @@ face
 :: Add highlighted word to multidimensional nonsense "'bf_s'" arry
 function face {
+	IFS=' '
+	[[ "$2" =~ ${2//?/(.)} ]]
+	linearray+=("${faces_raw[reset]}${faces_raw[${1}]}${BASH_REMATCH[@]:1}")
+	IFS=''
+	for ((iw=0; iw < ${#2}; iw++)); do
+		bf_e[line]+='0'
+	done
+}
+
+@@ face-no-expand
+:: Add highlighted word to multidimensional nonsense "'bf_s'" arry without adding anything to bf_e[] array
+function face-no-expand {
 	IFS=' '
 	[[ "$2" =~ ${2//?/(.)} ]]
 	linearray+=("${faces_raw[reset]}${faces_raw[${1}]}${BASH_REMATCH[@]:1}")
@@ -1328,7 +1377,7 @@ function syntax-execline
 :: Syntax function for list-buffers
 function syntax-list-buffers {
 	((syntaxline==2)) && {
-		face hint-line "$word"
+		face hint "$word"
 		return
 	}
 	local -n cbf_d="${word}_bf_d"
@@ -1816,7 +1865,6 @@ defun buffer-dialog
 defun buffer-dialog-draw
 	:: Draws buffer created by buffer-dialog
 	function = {
-		copy-array buffer bf_e
 		clear-screen
 		redraw
 	}
@@ -1824,53 +1872,63 @@ defun buffer-dialog-draw
 defun about
 	:: Shows about information	
 	function = {
-		buffer-dialog 'About' '*about*'
+		save openfile
+		declare-new-buffer
+			:: line 1
+			:: info "About"
+			:: mode view
+			:: filetype 'i*format'
+			:: file "*about*"
+			:: modified 0
+			:: syntax syntax-format
+			:: syntax-exec 1
+		size-full
 		mapfile -t -O 1 buffer <<EOF
-Ebashs $version
-Copyrightn't(č) 2022-2023 Aeknt. 
-(bed: Copyrightn't(č) 2020 Comfies.) 
+<f> title Ebashs $version </f>
+Copyright(č)ˇ 2022-2023 <f> title Aeknt </f-> .
+( <-f> title bed </f-> : Copyright(č)ˇ 2020 <f> title Comfies </f-> .)
 
 This is Ebashs, one component of the Bash/Bash operating system.
 
 An editor written in pure bash via nonsense sphagetti code trying copying emacs.
 
-Repo                     https://github.com/aeknt/spis
-                         Ebashs comes with ABSOLUTELY NO WARRANTY
+Repo                    <f> link https://github.com/aeknt/spis </f>
+                        Ebashs comes with ABSOLUTELY NO WARRANTY
 
 
 
 
-Based on                 https://github.com/comfies/bed
+Based on                <f> link https://github.com/comfies/bed </f>
 
                                                                                 
-                                                                                
-                               ..............                                   
-                            @***%@@@@@@@@@@@@...                                
-                     ** .*@@@@@@@@@@@@@@@@@@@@@..                               
-                     .       @@&....,,#@@@@@@@@                                 
-                      ....,@@@@@@@@@@@@@@@@@@                                   
-                  /@@@@@@@@@@@@@@@@@@@@@@.                                      
-                @@@@@@@,,...@@@&..                                              
-              .@@@@@@@@@@@,,@@@&.                                               
-              ..@@@@@@@@@@@@@@@&..                                              
-                .../@@@@@@@@@@@@@@.....                                         
-                   ....@@@@@@@@@@@@@@@&....                                     
-                   ..(#@@@@@@@@@@@@@@@@@@@                                      
-              ./@@@@@@@@@@@@@@@@%......                                         
-          .@@@@@@@@@@@@@@@@.@@@&.                                               
-        @@@@@@@@@@@@@@..   .@@@&.                                               
-       .@@@@@@@@@@@@.      .@@@&.                                               
-      ..@@@@@@@@@@@@/.......@@@&.                                               
-       ...,@@@@@@@@@@@@@@@@@@@@&.................                               
-           ...@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@..                           
-               ....../@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#                            
-                        ..,,,,*##@@@@@@@@@@@@@@@.      .###################.    
-                      @@@@@@@@@@@@@@@@@@@@..        @@@@@@@@@@@@@@@@@@@@@@      
-                   /@@@@@@@/........              @@@@@@@@@@@@@@@@@@@@.         
+
+<f> dr                               .............. </f>
+<f> lr                            @***%@@@@@@@@@@@@... </f>
+<f> dr                     ** .*@@@@@@@@@@@@@@@@@@@@@.. </f>
+<f> dy                     .       @@&....,,#@@@@@@@@ </f>
+<f> ly                      ....,@@@@@@@@@@@@@@@@@@ </f>
+<f> dy                  /@@@@@@@@@@@@@@@@@@@@@@. </f>
+<f> dg                @@@@@@@,,...@@@&.. </f>
+<f> lg              .@@@@@@@@@@@,,@@@&. </f>
+<f> dg              ..@@@@@@@@@@@@@@@&.. </f>
+<f> dc                .../@@@@@@@@@@@@@@..... </f>
+<f> lc                   ....@@@@@@@@@@@@@@@&.... </f>
+<f> dc                   ..(#@@@@@@@@@@@@@@@@@@@ </f>                                    
+<f> db              ./@@@@@@@@@@@@@@@@%...... </f>
+<f> lb          .@@@@@@@@@@@@@@@@.@@@&. </f>
+<f> db        @@@@@@@@@@@@@@..   .@@@&. </f>
+<f> dm       .@@@@@@@@@@@@.      .@@@&. </f>
+<f> lm      ..@@@@@@@@@@@@/.......@@@&. </f>
+<f> dm       ...,@@@@@@@@@@@@@@@@@@@@&................. </f>
+<f> gr           ...@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.. </f>
+<f> dw               ....../@@@@@@@@@@@@@@@@@@@@@@@@@@@@@# </f>
+<f> lw                        ..,,,,*##@@@@@@@@@@@@@@@.      .###################. </f>
+<f> dw                      @@@@@@@@@@@@@@@@@@@@..        @@@@@@@@@@@@@@@@@@@@@@ </f>
+<f> gr                   /@@@@@@@/........              @@@@@@@@@@@@@@@@@@@@. </f>
                                                                                 
                                                                                 
 
-  ─[bsd0]─────────────────────────────────────────────────────────────────────────────────────
+  <f> hint ─[ </f> <-f> light-cyan bsd0 </f-> <f> hint ]───────────────────────────────────────────────────────────────────────────────────── </f->
   Permission to use, copy, modify, and/or distribute this software for any purpose
   with or without fee is hereby granted.
 
@@ -1880,11 +1938,57 @@ Based on                 https://github.com/comfies/bed
   DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
   WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
   OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-  ────────────────────────────────────────────────────────────────────────────────────────────
+  <f> hint ──────────────────────────────────────────────────────────────────────────────────────────── </f->
 
 EOF
-		buffer-dialog-draw
+    	clear-screen
+		redraw
 	}
+defun
+
+@@ syntax-format
+:: Syntax function for formated text
+function syntax-format {
+	[ "$word" = '</f>' ] && {
+		unset linearray[-1]
+		bf_e[line]=${bf_e[line]::-1}
+		faceesc=0
+		return
+	}
+	[ "$word" = '</f->' ] && {
+		unset linearray[-1]
+		bf_e[line]=${bf_e[line]::-1}
+		skip_next_space=1
+		faceesc=0
+		return
+	}
+	((facedef==1)) && {
+		skip_next_space=1
+		facedef=0
+		facename="$word"
+		return
+	}
+	((faceesc==1)) && {
+		face "$facename" "$word"
+		return
+	}
+	[ "$word" = '<f>' ] && {
+		skip_next_space=1
+		faceesc=1
+		facedef=1
+		return
+	}
+	[ "$word" = '<-f>' ] && {
+		unset linearray[-1]
+		bf_e[line]=${bf_e[line]::-1}
+		faceesc=0
+		skip_next_space=1
+		faceesc=1
+		facedef=1
+		return
+	}
+	face unknown "$word"
+}
 
 defun list-faces-display
 	:: Displays list of fases
@@ -1958,7 +2062,7 @@ defun table-char
 defun table-top
 	:: Prints top line of bml table
 	function = {
-		printf '%s' "${table_char[2]}"
+		printf '%s' "<f> hint ${table_char[2]}"
 		for ((i=0; i<table_columns; i++)); do
 			local -n n="table_column_$i"
 			for ((ii=1; ii-1<n; ii++)); do
@@ -1967,13 +2071,13 @@ defun table-top
 			((i==table_columns-1)) || printf '%s' "${table_char[3]}"
 			((i==table_columns-1)) && printf '%s' "${table_char[4]}"
 		done
-		printf '\n'
+		printf '%s\n' ' </f->'
 	}
 
 defun table-title-line
 	:: Prints bml table title divider
 	function = {
-		printf '%s' "${table_char[5]}"
+		printf '%s' "<f> hint ${table_char[5]}"
 		for ((i=0; i<table_columns; i++)); do
 			local -n n="table_column_$i"
 			for ((ii=1; ii-1<n; ii++)); do
@@ -1982,14 +2086,14 @@ defun table-title-line
 			((i==table_columns-1)) || printf '%s' "${table_char[6]}"
 			((i==table_columns-1)) && printf '%s' "${table_char[7]}"
 		done
-		printf '\n'
+		printf '%s\n' ' </f->'
 	}
 @fn table-divider 'table-title-line "$@"'
 
 defun table-bottom
 	:: Prints bottom line of bml table
 	function = {
-		printf '%s' "${table_char[8]}"
+		printf '%s' "<f> hint ${table_char[8]}"
 		for ((i=0; i<table_columns; i++)); do
 			local -n n="table_column_$i"
 			for ((ii=1; ii-1<n; ii++)); do
@@ -1998,7 +2102,7 @@ defun table-bottom
 			((i==table_columns-1)) || printf '%s' "${table_char[9]}"
 			((i==table_columns-1)) && printf '%s' "${table_char[10]}"
 		done
-		printf '\n'
+		printf '%s\n' ' </f->'
 	}
 
 defun table-item
@@ -2007,13 +2111,13 @@ defun table-item
 		local -i i=0
 		for item in "$@"; do
 			local -n n="table_column_$i"
-			printf '%s' "${table_char[1]}"
+			printf '%s' "<f> hint ${table_char[1]} </f-> "
 			printf '%s' "$item"
 			printf '%*s' $(( n - ${#item} )) ''
 			((i++))
 		done
-		printf '%s' "${table_char[1]}"
-		printf '\n'
+		printf '%s' "<f> hint ${table_char[1]}"
+		printf '%s\n' ' </f->'
 	}
 
 defun table-title
@@ -2022,23 +2126,23 @@ defun table-title
 		local -i i=0
 		for title in "$@"; do
 			local -n n="table_column_$i"
-			printf '%s' "${table_char[1]}"
+			printf '<f> hint %s' "${table_char[1]} </f->"
 			printf '%*s' $(( n / 2 - ( ${#title} / 2 ) )) ''
-			printf '%s' "$title"
+			printf '%s' " <-f> title $title </f-> "
 			if ((${#title}%2==0)) && ((n%2==1)); then
-				printf '%*s' $(( ( n / 2 - ( ${#title} / 2 ) ) + 1 )) ''
+				printf ' %*s' $(( ( n / 2 - ( ${#title} / 2 ) ) + 1 )) ''
 			else
-				printf '%*s' $(( n / 2 - ( ${#title} / 2 ) )) ''
+				printf ' %*s' $(( n / 2 - ( ${#title} / 2 ) )) ''
 			fi
 			((i++))
 		done
-		printf '%s' "${table_char[1]}"
-		printf '\n'
+		printf '%s' "<f> hint ${table_char[1]}"
+		printf '%s\n' ' </f->'
 	}
 
 defun code-block
 	:: Prints code in bml document
-	function = while read -r; do echo "$REPLY"; done
+	function = while read -r; do echo " <-f> light-cyan $REPLY </f-> "; done
 
 defun print-stdin
 	:: Basically like coreutil "'cat'"
@@ -2054,8 +2158,8 @@ defun text
 			done
 		done
 
-@fn title 'printf "[ %s ]" "$@"'
-@fn code 'printf "%s" "$@"'
+@fn title 'printf "[ <f> title %s </f> ]" "$@"'
+@fn code 'printf "$@"'
 
 defun header
 	:: Prints header of bml document
@@ -2073,9 +2177,19 @@ defun header
 defun manual
 	:: 'Displays C-h r manual buffer'
 	function = {
-		buffer-dialog 'Manual' '*manual*'
+		save openfile
+		declare-new-buffer
+			:: line 1
+			:: info "About"
+			:: mode view
+			:: filetype 'i*format'
+			:: file "*about*"
+			:: modified 0
+			:: syntax syntax-format
+			:: syntax-exec 1
+		size-full
 		get-manual
-		buffer-dialog-draw
+		redraw
 	}
 
 defun get-manual
@@ -2464,9 +2578,18 @@ defun describe-function
 	function = {
 		redraw
 		read-command 'Describe function: ' function || return 1
-		buffer-dialog 'Describe' '*describe*'
+	    save openfile
+		declare-new-buffer
+			:: line 1
+			:: info "Describe"
+			:: mode view
+			:: filetype 'i*view'
+			:: file "*describe*"
+			:: modified 0
+			:: syntax syntax-unknown
+		size-full
 		mapfile -t -O 1 buffer <<< "$(get-description "$function")"
-		buffer-dialog-draw
+		redraw
 	}
 
 defun describe
@@ -2498,7 +2621,15 @@ defun doc-select
 	:: Select documentation item
 	function = {
 		local function="${buffer[bf_d[line]]}"
-	   	buffer-dialog 'Describe' '*describe*'
+	    save openfile
+		declare-new-buffer
+			:: line 1
+			:: info "Describe"
+			:: mode view
+			:: filetype 'i*view'
+			:: file "*describe*"
+			:: modified 0
+			:: syntax syntax-unknown
 		mapfile -t -O 1 buffer <<< "$(get-description "$function")"
 		buffer-dialog-draw
 	}
