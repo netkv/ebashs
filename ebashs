@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.21"
+version="0.7.22"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -48,7 +48,6 @@ function load-default-config {
 		:: keep-message 0
 		:: help-message "Ebashs $version"
 		:: dired-message 'Pick a file'
-		:: render-chunk 8
 		:: log 0
 		:: log-functions 0
 		:: tty-linuxfb 1 # enable truecolor support for framebuffer
@@ -178,6 +177,8 @@ default_faces=(
 		selected "$(:foreground black :background magenta)"
 		link "$(:slant italic :foreground light-blue)"
 		title "$(:weight bold)"
+		highlight "$(:weight bold :foreground light-red)"
+		name "$(:foreground light-green)"
 		button '\e[4m\e[1m'
 		menu-selected-face "$(:foreground black :background magenta)"
 		mode-line "$(:mode inverse)"
@@ -1569,57 +1570,6 @@ function buffer-select {
 	redraw
 }
 
-
-add-mode term
-	local-set-key "$(kbd C-x)" 'quit-view'
-	local-set-key 'RET' 'term-exec'
-	local-set-key 'DEL' 'backspace'
-	local-set-key '[deletechar]' 'delete'
-	local-set-mode-option else 'insert'
-
-defun term-exec
-	:: Executes and displays command in term buffers
-	function = {
-		IFS=$'\n'
-		local -i li=$((bf_d[line] + 1))
-		while read -r comli; do
-			buffer[li]="$comli"
-			((li++))
-		done <<< "$(${buffer[bf_d[line]]})"
-		bf_d[line]=$li
-		next-line
-		make-render-line
-		redraw
-		@ifs
-	}
-
-defun term
-	:: Opens a terminal buffer
-	function = {
-		save openfile
-		((current_count++))
-		set-buffer "term_${current_count}"
-		add-to-list # add buffer to list of active buffers
-		declare -Ag "${current_buffer}_bf_d"
-		bf_d=(
-			[line]=1
-			[base]=1
-			[column]=0
-			[mode]='term'
-			[info]='Terminal'
-			[filetype]='i*bash'
-			[file]='*term*'
-			[modified]=0
-			[menuline]='about'
-		)
-		set-syntax
-		make-render
-		size-full
-		buffer=('')
-		clear-screen
-		redraw
-	}
-
 add-mode debuginput
 	local-set-key "$(kbd C-x)" 'quit-view'
 	local-set-mode-option else 'insert-debug-hex'
@@ -1757,7 +1707,8 @@ defun init-log
 			:: filetype 'i*view'
 			:: file '*log*'
 			:: modified 0
-			:: syntax syntax-unknown
+			:: syntax syntax-format
+			:: syntax-exec 1
 			:: menuline 'menulog'
 		add-menu
 			:: 'quit' 'quit-view'
@@ -1766,16 +1717,16 @@ defun init-log
 
 		bufferlog+=(
 			''
-			"Ebashs version $version"
-			"    [ LOG START ]"
+			"<f> title Ebashs version $version </f>"
+			"    <f> highlight [ LOG START ] </f>"
 			''
-			'System info:'
-			"    Bash version: ${BASH_VERSION}"
-			"    System: ${OSTYPE}"
+			'<f> title System info: </f>'
+			"    Bash version:  ${BASH_VERSION}"
+			"    System:        ${OSTYPE}"
 			"    Terminal type: ${TERM}"
-			"    Locale: ${LANG}"
+			"    Locale:        ${LANG}"
 			''
-			'Loaded extensions:'
+			'<f> title Loaded extensions: </f>'
 		)
 		for e in "${extensions[@]}"; {
 			local -n ext_d="${e}_ext_d"
@@ -1783,7 +1734,7 @@ defun init-log
 		}
 		bufferlog+=(
 			''
-			'level time function message'
+			'<f> hint level time function message </f>'
 		)
 		lasttime="$(current-time '%s')"
 	}
@@ -1820,7 +1771,7 @@ defun log
 		local type="$1"
 		shift
 		tooktime="$(( $(current-time '%s') - lasttime ))"
-		bufferlog+=("[$type] ${tooktime}s [${FUNCNAME[1]}] $*")
+		bufferlog+=("<f> title [$type] </f> <f> font-lock-comment-face ${tooktime}s </f> <f> name [${FUNCNAME[1]}] </f> $*")
 		lasttime="$(current-time '%s')"
 	}
 
@@ -1828,7 +1779,7 @@ defun log-echo
 	:: Adds message into log without any special formating	
 	function = {
 		((log)) || return
-		bufferlog+=("    $*")
+		bufferlog+=("<f> font-lock-comment-face > </f>    $*")
 	}
 
 ## debug
@@ -1987,19 +1938,45 @@ function syntax-format {
 		facedef=1
 		return
 	}
+	((sethighlight==2)) && {
+		sethighlight=1
+		skip_next_space=1
+		tmp_sex="$word"
+		return
+	}
+	((sethighlight==1)) && {
+		sethighlight=0
+		skip_next_space=1
+		bf_d[syntax-exec]="$tmp_sex"
+		bf_d[syntax]="syntax-$word"
+		return
+	}
+	[ "$word" = '<h>' ] && {
+		skip_next_space=1
+		sethighlight=2
+		return
+	}
 	face unknown "$word"
 }
 
 defun list-faces-display
 	:: Displays list of fases
 	function = {
-		buffer-dialog 'faces' '*list-faces-display*'
+		save openfile
+		declare-new-buffer
+			:: line 1
+			:: info "$1"
+			:: mode view
+			:: filetype 'i*view'
+			:: file '*format*'
+			:: modified 0
+			:: syntax syntax-format
+			:: syntax-exec 1
+		size-full
 		buffer=('')
 		for face in "${!faces[@]}"; do
 			buffer+=(
-				"$(
-				printf '%*s%b%s%b' -40 "${face}" "${faces[$face]}" "abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ" "${faces[default]}"
-			)"
+				"$(printf '%*s' -40 "${face}") <f> ${face} abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ </f>"
 			)
 		done
 		buffer-dialog-draw
@@ -2586,7 +2563,8 @@ defun describe-function
 			:: filetype 'i*view'
 			:: file "*describe*"
 			:: modified 0
-			:: syntax syntax-unknown
+			:: syntax syntax-format
+			:: syntax-exec 1
 		size-full
 		mapfile -t -O 1 buffer <<< "$(get-description "$function")"
 		redraw
@@ -2607,7 +2585,7 @@ defun describe
 			:: modified 0
 			:: syntax syntax-unknown
 			:: menuline 'dialog'
-			size-full
+		size-full
 		local buffertmp=$'\n'
 		while read -r fn;  do
 			#buffertmp+="$(get-description "${fn:11}")"$'\n'
@@ -2629,7 +2607,9 @@ defun doc-select
 			:: filetype 'i*view'
 			:: file "*describe*"
 			:: modified 0
-			:: syntax syntax-unknown
+			:: syntax syntax-format
+			:: syntax-exec 1
+			size-full
 		mapfile -t -O 1 buffer <<< "$(get-description "$function")"
 		buffer-dialog-draw
 	}
@@ -2646,10 +2626,10 @@ defun get-description
 	:: Prints desciption of function \$1
 	function = {
 		is-function "$1" || {
-			echo "$1 is not a Ebashs function"
+			echo "<f> highlight $1 is not a Ebashs function </f>"
 			return
 		}
-		printf "[ $1 ]\n"
+		printf "%s\n" "<f> title [ $1 ] </f>"
 		[ -z "${descriptions[function_${1}_description]}" ] && {
 			echo 'Function has no documentation'
 			return
@@ -2660,10 +2640,10 @@ defun get-description
 			for l in "${fn_desc[@]}"; {
 				printf "%s\n" "$l"
 			}
-			for i in {0..25}; {
+			for i in {0..8}; {
 				printf '\n'
 			}
-			printf '[ Source ]\n\n'
+			printf '<f> title [ Source ] </f>\n <h> 0 shell\n'		 
 			declare -f "$1"
 		}
 	}
@@ -3449,10 +3429,6 @@ defun redraw
 				       "$nlchar" &&
 				continue
 			# to improve speed syntaxing has to be "lazy" -- having to be heavily cached as ram is far less expensive to waste
-			[ -z "${bf_s[bf_d[base]+bf_d[size-y]-(bottomlines+toplines)+2]}" ] && {
-				bottomest=$((bf_d[base]+bf_d[size-y]-(bottomlines+toplines)+2))
-				make-render-area $bottomest $((bottomest+options[render-chunk]))
-			}
 			[ -z "${bf_s[i]}" ] && {
 				make-render-area $((base + i)) $((base + i + 1)) # idk why make-render-line doesnt work here
 			}
