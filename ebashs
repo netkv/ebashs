@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.23"
+version="0.7.23.1"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -3378,13 +3378,7 @@ defun redraw
 
 		# Draw top menuline
 		(("${options[menu-line]}"==1)) && {
-			local -n top_0="menu_${bf_d[menuline]}_0"
-			printf "\e[0m\e[%s;%sH${faces[menu]}\e[?25l%*s\r%s"\
-				   "${bf_d[loc-y]}"\
-				   "${bf_d[loc-x]}"\
-				   "${bf_d[size-x]}"\
-				   "${bf_d[info]}"
-			printf '\e[%sG%s\e[0m\n' "${bf_d[loc-x]}" "${top_0[*]}"
+			redraw-menuline
 		} || printf "\e[%s;%sH" "${bf_d[loc-y]}" "${bf_d[loc-x]}"
 
 		# IFS has to be empty in order to bufferarray multiarray be printed as words instead of chars
@@ -3487,7 +3481,18 @@ defun redraw
 		# redraw menu if open
 		[ "${bf_d[mode]}" = 'menu' ] && redraw-menu
 	}
+nufed
 
+@@ redraw-menuline Redraws top menu line
+function redraw-menuline {
+	local -n top_0="menu_${bf_d[menuline]}_0"
+	printf "\e[0m\e[%s;%sH${faces[menu]}\e[?25l%*s\r%s"\
+		   "${bf_d[loc-y]}"\
+		   "${bf_d[loc-x]}"\
+		   "${bf_d[size-x]}"\
+		   "${bf_d[info]}"
+	printf '\e[%sG%s\e[0m\n' "${bf_d[loc-x]}" "${top_0[*]}"
+}
 
 defun redraw-cursor-line
 	:: Draw cursor on the line
@@ -3836,7 +3841,7 @@ EOF
 	menuloc_y=0; menuloc_x=0 # menu positions
 	log info 'Setting menu-line'
 	toplines=${toplines:-0}
-	toplines="${options[menu-line]}"
+	((toplines=toplines + options[menu-line]))
 
 	# this is reverse because the value is added to buffer redrawing size
 	log info 'Setting mode-line'
@@ -3862,7 +3867,6 @@ EOF
 	printf '\e[?1049h'
 	log info 'Setting mouse'
 	(("${options[mouse]}")) && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
-
 	
 	if [[ "$1" ]]; then # If a file was provided in the terminal pre-load it
 		log info "args: $1"

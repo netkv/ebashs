@@ -1,0 +1,39 @@
+#!/bin/bash
+## ebashs
+
+extension tabline
+	version: 0.1
+
+if ((options[tab-line-menu])); then
+	function redraw-menuline {
+		local nicebfs
+		for b in "${buffers_l[@]}"; {
+			local -n tbf_d="${b}_bf_d"
+			nicebfs+=" ${b}[${tbf_d[file]}]"
+		}
+
+		bf_d[info]="${nicebfs}"
+		local -n top_0="menu_${bf_d[menuline]}_0"
+		printf "\e[0m\e[%s;%sH${faces[menu]}\e[?25l%*s\r%s"\
+			   "${bf_d[loc-y]}"\
+			   "${bf_d[loc-x]}"\
+			   "${bf_d[size-x]}"\
+			   "${bf_d[info]}"
+		printf '\e[%sG%s\e[0m\n' "${bf_d[loc-x]}" "${top_0[*]}"
+	}
+else
+	function redraw-menuline {
+		local nicebfs
+		for b in "${buffers_l[@]}"; {
+			local -n tbf_d="${b}_bf_d"
+			nicebfs+="${b}[${tbf_d[file]}] "
+		}
+				 
+		printf "\e[0m\e[%s;%sH${faces[menu]}\e[?25l%*s\r%s"\
+			   "${bf_d[loc-y]}"\
+			   "${bf_d[loc-x]}"\
+			   "${bf_d[size-x]}"\
+			   "${bf_d[info]}"
+		printf '\e[%sG%s\e[0m\n' "${bf_d[loc-x]}" "${nicebfs}"
+	}
+fi
