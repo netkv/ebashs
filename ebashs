@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.22"
+version="0.7.23"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -510,6 +510,7 @@ function declare-new-buffer {
 	((current_count++))
 	set-buffer "bf_${current_count}"
 	buffers_l+=("$current_buffer")
+	last_line=1
 	declare -Ag "${current_buffer}_bf_d"
 	bf_d=(
 		# some sane default values
@@ -3491,8 +3492,20 @@ defun redraw
 defun redraw-cursor-line
 	:: Draw cursor on the line
 	function = {
-		printf '\e[%sG\e[?25h'\
-			   $((bf_d[column] - bf_d[basecolumn] + bf_d[number-length] + bf_d[loc-x] + bf_d[number-space]))
+		((options[full-redraw]==0)) && {
+			# redraw if buffer needs to be moved horizontally
+			((bf_d[column] > bf_d[size-x] - bf_d[number-lenght] - space)) && {
+				redraw
+				return
+			}
+			((bf_d[basecolumn]==0)) || {
+				redraw
+				return
+			}
+			printf '\e[%sG\e[?25h'\
+				   $((bf_d[column] - bf_d[basecolumn] + bf_d[number-length] + bf_d[loc-x] + bf_d[number-space])) ||
+				redraw
+		}
 	}
 	
 defun redraw-cursor
