@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.23.1"
+version="0.7.24"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -307,6 +307,7 @@ default_faces=(
 		:: 'ebashs' ebashs
 		:: 'config' conf
 		:: 'execline' execlineb
+		:: 'format-edit' format
 		:: 'dired' i\*dired
 		:: 'unknown' unknown
 
@@ -1206,6 +1207,7 @@ function make-render-line-loop {
 				word=''
 				skip_next_space=0
 				face-no-expand default ' '
+				newline=1 # tell syntax functions that the previous char was newline # used for format thing
 				return;;
 			*)
 				word+="${char}"
@@ -1370,7 +1372,15 @@ function syntax-execline
 		's6-pivotchroot'|'s6-ps'|'s6-swapoff'|'s6-swapon'|'s6-umount') set-face font-lock-util-face;;
 		*) set-face default;;
 	esac
-	
+
+@@ syntax-format-edit
+:: Syntax function for ebashs\'s formatter
+function syntax-format-edit
+	case "${word}" in
+		'<f>'|'<-f>'|'</f>'|'</f->'|'<u>'|'</u>'|'<tab>'|'<i>'|'</i>'|'<i-tab>'|'<h>'|'<s>'\
+			)set-face font-lock-keyword-face;;
+		*) set-face default;;
+	esac
 @@ syntax-unknown Default syntax function
 :: Sets everything to default face
 @fn syntax-unknown 'set-face default'
@@ -1482,6 +1492,23 @@ function find-file {
 	read -re -p "${options[file-prompt]}" command && {
 		read-buffer "$command"
 		[ -n "$bckmode" ] && bf_d[mode]="$bckmode" || bf_d[mode]=edit
+		redraw
+	}
+	bind 'set disable-completion on' 2>/dev/null
+}
+
+@@ view-format
+:: Open file as formated document
+function view-format {
+	save openfile
+	printf '\e[%s;0H' $((bf_d[size-y] + bf_d[loc-y]))
+	printf '\e[?25h'
+	bind 'set disable-completion off' 2>/dev/null # Enable completion
+	read -re -p "${options[file-prompt]}" command && {
+		read-buffer "$command"
+		bf_d[syntax]=syntax-format
+		bf_d[syntax-exec]=1
+		[ -n "$bckmode" ] && bf_d[mode]="$bckmode" || bf_d[mode]=view
 		redraw
 	}
 	bind 'set disable-completion on' 2>/dev/null
@@ -1615,7 +1642,13 @@ defun read-buffer
 			:: file "$1"
 			:: menuline 'top'
 			:: current_state 0
-			[auto]
+		[auto]
+		((options[view])) &&	
+			[ "${bf_d[filetype]}" = 'format' ] && {
+				:: mode view
+				:: syntax syntax-format
+				:: syntax-exec 1
+			}
 			
 		[ -f "${bf_d[file]}" ] && mapfile -t -O 1 "${current_buffer}_buffer" <"${bf_d[file]}" # Read file into an array
 		
@@ -1719,13 +1752,13 @@ defun init-log
 		bufferlog+=(
 			''
 			"<f> title Ebashs version $version </f>"
-			"    <f> highlight [ LOG START ] </f>"
+			"<tab> <f> highlight [ LOG START ] </f>"
 			''
-			'<f> title System info: </f>'
-			"    Bash version:  ${BASH_VERSION}"
-			"    System:        ${OSTYPE}"
-			"    Terminal type: ${TERM}"
-			"    Locale:        ${LANG}"
+			'<f> title System info: </f> <i-tab>'
+			"Bash version:  ${BASH_VERSION}"
+			"System:        ${OSTYPE}"
+			"Terminal type: ${TERM}"
+			"Locale:        ${LANG} </i>" 
 			''
 			'<f> title Loaded extensions: </f>'
 		)
@@ -1837,60 +1870,62 @@ defun about
 		size-full
 		mapfile -t -O 1 buffer <<EOF
 <f> title Ebashs $version </f>
-Copyright(č)ˇ 2022-2023 <f> title Aeknt </f-> .
+Copyright(č)ˇ 2022-2023 <f> title Netkv </f-> .
 ( <-f> title bed </f-> : Copyright(č)ˇ 2020 <f> title Comfies </f-> .)
 
 This is Ebashs, one component of the Bash/Bash operating system.
 
 An editor written in pure bash via nonsense sphagetti code trying copying emacs.
 
-Repo                    <f> link https://github.com/aeknt/spis </f>
-                        Ebashs comes with ABSOLUTELY NO WARRANTY
+Repo <s> 19 <f> link https://github.com/aeknt/spis </f>
+<s> 24 Ebashs comes with ABSOLUTELY NO WARRANTY
 
 
 
 
-Based on                <f> link https://github.com/comfies/bed </f>
+Based on <s> 15 <f> link https://github.com/comfies/bed </f>
 
+
+<tab> <f> hint For more information about usage of Ebashs, press <f> light-gray C-h C-r </f> to view manual </f>
+
+<i> 5
+<f> dr                          .............. </f>
+<f> lr                       @***%@@@@@@@@@@@@... </f>
+<f> dr                ** .*@@@@@@@@@@@@@@@@@@@@@.. </f>
+<f> dy                .       @@&....,,#@@@@@@@@ </f>
+<f> ly                 ....,@@@@@@@@@@@@@@@@@@ </f>
+<f> dy             /@@@@@@@@@@@@@@@@@@@@@@. </f>
+<f> dg           @@@@@@@,,...@@@&.. </f>
+<f> lg         .@@@@@@@@@@@,,@@@&. </f>
+<f> dg         ..@@@@@@@@@@@@@@@&.. </f>
+<f> dc           .../@@@@@@@@@@@@@@..... </f>
+<f> lc              ....@@@@@@@@@@@@@@@&.... </f>
+<f> dc              ..(#@@@@@@@@@@@@@@@@@@@ </f>                                    
+<f> db         ./@@@@@@@@@@@@@@@@%...... </f>
+<f> lb     .@@@@@@@@@@@@@@@@.@@@&. </f>
+<f> db   @@@@@@@@@@@@@@..   .@@@&. </f>
+<f> dm  .@@@@@@@@@@@@.      .@@@&. </f>
+<f> lm ..@@@@@@@@@@@@/.......@@@&. </f>
+<f> dm  ...,@@@@@@@@@@@@@@@@@@@@&................. </f>
+<f> gr      ...@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.. </f>
+<f> dw          ....../@@@@@@@@@@@@@@@@@@@@@@@@@@@@@# </f>
+<f> lw                   ..,,,,*##@@@@@@@@@@@@@@@.      .###################. </f>
+<f> dw                 @@@@@@@@@@@@@@@@@@@@..        @@@@@@@@@@@@@@@@@@@@@@ </f>
+<f> gr              /@@@@@@@/........              @@@@@@@@@@@@@@@@@@@@. </f>
+</i>                                                                              
                                                                                 
 
-<f> dr                               .............. </f>
-<f> lr                            @***%@@@@@@@@@@@@... </f>
-<f> dr                     ** .*@@@@@@@@@@@@@@@@@@@@@.. </f>
-<f> dy                     .       @@&....,,#@@@@@@@@ </f>
-<f> ly                      ....,@@@@@@@@@@@@@@@@@@ </f>
-<f> dy                  /@@@@@@@@@@@@@@@@@@@@@@. </f>
-<f> dg                @@@@@@@,,...@@@&.. </f>
-<f> lg              .@@@@@@@@@@@,,@@@&. </f>
-<f> dg              ..@@@@@@@@@@@@@@@&.. </f>
-<f> dc                .../@@@@@@@@@@@@@@..... </f>
-<f> lc                   ....@@@@@@@@@@@@@@@&.... </f>
-<f> dc                   ..(#@@@@@@@@@@@@@@@@@@@ </f>                                    
-<f> db              ./@@@@@@@@@@@@@@@@%...... </f>
-<f> lb          .@@@@@@@@@@@@@@@@.@@@&. </f>
-<f> db        @@@@@@@@@@@@@@..   .@@@&. </f>
-<f> dm       .@@@@@@@@@@@@.      .@@@&. </f>
-<f> lm      ..@@@@@@@@@@@@/.......@@@&. </f>
-<f> dm       ...,@@@@@@@@@@@@@@@@@@@@&................. </f>
-<f> gr           ...@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.. </f>
-<f> dw               ....../@@@@@@@@@@@@@@@@@@@@@@@@@@@@@# </f>
-<f> lw                        ..,,,,*##@@@@@@@@@@@@@@@.      .###################. </f>
-<f> dw                      @@@@@@@@@@@@@@@@@@@@..        @@@@@@@@@@@@@@@@@@@@@@ </f>
-<f> gr                   /@@@@@@@/........              @@@@@@@@@@@@@@@@@@@@. </f>
-                                                                                
-                                                                                
+<i> 2 <f> hint ─[ <-f> light-cyan bsd0 </f-> ]───────────────────────────────────────────────────────────────────────────────────── </f->
+Permission to use, copy, modify, and/or distribute this software for any purpose
+with or without fee is hereby granted.
 
-  <f> hint ─[ </f> <-f> light-cyan bsd0 </f-> <f> hint ]───────────────────────────────────────────────────────────────────────────────────── </f->
-  Permission to use, copy, modify, and/or distribute this software for any purpose
-  with or without fee is hereby granted.
-
-  THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD
-  TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.
-  IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
-  DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
-  WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-  <f> hint ──────────────────────────────────────────────────────────────────────────────────────────── </f->
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD
+TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.
+IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+<f> hint ──────────────────────────────────────────────────────────────────────────────────────────── </f> </i>
 
 EOF
     	clear-screen
@@ -1901,10 +1936,34 @@ defun
 @@ syntax-format
 :: Syntax function for formated text
 function syntax-format {
+	((newline==1)) && {
+		ichar="${indent_spaces}"
+	}
+	((newline==0)) && {
+		ichar=
+	}
+	[ "$word" = '</u>' ] && {
+		upper=0
+		skip_next_space=1
+		return
+	}
+	((upper==1)) && {
+		word="${word^^}"
+	}
+	[ "$word" = '<u>' ] && {
+		upper=1
+		skip_next_space=1
+		return
+	}
 	[ "$word" = '</f>' ] && {
 		unset linearray[-1]
 		bf_e[line]=${bf_e[line]::-1}
 		faceesc=0
+		[ -n "$bckfacename" ] && {
+ 			faceesc=1
+			facename="$bckfacename"
+			unset bckfacename
+		}
 		return
 	}
 	[ "$word" = '</f->' ] && {
@@ -1912,6 +1971,11 @@ function syntax-format {
 		bf_e[line]=${bf_e[line]::-1}
 		skip_next_space=1
 		faceesc=0
+		[ -n "$bckfacename" ] && {
+ 			faceesc=1
+			facename="$bckfacename"
+			unset bckfacename
+		}
 		return
 	}
 	((facedef==1)) && {
@@ -1921,8 +1985,13 @@ function syntax-format {
 		return
 	}
 	((faceesc==1)) && {
-		face "$facename" "$word"
-		return
+		case "$word" in
+			'<f>'|'<-f>') bckfacename="$facename";;
+			*)
+				((newline==1)) && newline=0
+				face "$facename" "${ichar}$word"
+				return
+		esac
 	}
 	[ "$word" = '<f>' ] && {
 		skip_next_space=1
@@ -1957,7 +2026,60 @@ function syntax-format {
 		sethighlight=2
 		return
 	}
-	face unknown "$word"
+	((space_next==1)) && {
+		space_next=0
+		skip_next_space=1
+		for ((if=0; if< word; if++)) {
+			linearray+=(' ')
+			bf_e[line]+='s'
+		}
+		return
+	}
+	[ "$word" = '<s>' ] && {
+		space_next=1
+		skip_next_space=1
+		return
+	}
+	[ "$word" = '<tab>' ] && {
+		skip_next_space=1
+		for ((if=0; if< format_tab; if++)) {
+			linearray+=(' ')
+			bf_e[line]+='s'
+		}
+		return
+	}
+	[ "$word" = '</i>' ] && {
+		indent_spaces=
+		return
+	}
+	((indent==1)) && {
+		indent=0
+		skip_next_space=1
+		indent_spaces=
+		indent_spaces_e=
+		for ((if=0; if< word; if++)) {
+			indent_spaces+=' '
+			indent_spaces_e+='s'
+		}
+		return
+	}
+	[ "$word" = '<i>' ] && {
+		indent=1
+		skip_next_space=1
+		return
+	}
+	[ "$word" = '<i-tab>' ] && {
+		skip_next_space=1
+		indent_spaces=
+		indent_spaces_e=
+		for ((if=0; if< format_tab; if++)) {
+			indent_spaces+=' '
+			indent_spaces_e+='s'
+		}
+		return
+	}
+	((newline==1)) && newline=0
+	face unknown "${ichar}$word"
 }
 
 defun list-faces-display
@@ -3821,8 +3943,15 @@ Initialization options:
 --quick, -Q    don't load config
 --help,        display this help and exit
 --version,     display version information and exit
+--view, -v     open file for viewing if possible
 EOF
 			abort;;
+		'--view'|'-v')
+			log_buffer+=('- LOAD DEFAULT CONFIG -')
+			options[view]=1
+			load-default-config #loads default config
+			load-config
+			shift;;
 		*)
 			log_buffer+=('- LOAD DEFAULT CONFIG -')
 			load-default-config #loads default config
@@ -3837,7 +3966,8 @@ EOF
 	trap 'k_hex=(3 0); input-key' INT
 	trap quit SIGTERM
 
-	
+	format_tab=4
+
 	menuloc_y=0; menuloc_x=0 # menu positions
 	log info 'Setting menu-line'
 	toplines=${toplines:-0}

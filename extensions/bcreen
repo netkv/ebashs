@@ -52,11 +52,11 @@ defun-fragment tile-buffers
 		redraw_tiled=1
 		case "${options[tile-mode]}" in
 			vertical)
-				target_x=$(( COLUMNS / ${#listbuffers[@]} ))
+				target_x=$(( COLUMNS / ${#buffers_l[@]} ))
 				@ targetoff
 				target_y=$((LINES - 1));;
 			horizontal)
-				target_y=$(( LINES / ${#listbuffers[@]} ))
+				target_y=$(( LINES / ${#buffers_l[@]} ))
 				@ targetoff
 				target_x=$COLUMNS;;
 			single)
@@ -65,12 +65,12 @@ defun-fragment tile-buffers
 				target_x=$COLUMNS
 				redraw_tiled=0;;
 		esac
-		for b in "${listbuffers[@]}"; do
+		for b in "${buffers_l[@]}"; do
 			set-buffer "$b"
 			bf_d[size-x]=$target_x
-			bf_d[pos-x]=$target_x_offset
+			bf_d[loc-x]=$target_x_offset
 			bf_d[size-y]=$target_y
-			bf_d[pos-y]=$target_y_offset
+			bf_d[loc-y]=$target_y_offset
 			case "${options[tile-mode]}" in
 				vertical)
 					target_x_offset=$((target_x_offset + target_x));;
@@ -102,8 +102,8 @@ defun tile-single
 		options[tile-mode]='single'
 		bf_d[size-x]=$COLUMNS
 		bf_d[size-y]=$((LINES - 1))
-		bf_d[pos-x]=1
-		bf_d[pos-y]=1
+		bf_d[loc-x]=1
+		bf_d[loc-y]=1
 		redraw_tiled=0
 		redraw
 	}
