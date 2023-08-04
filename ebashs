@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.7.24"
+version="0.8"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -1185,6 +1185,7 @@ function make-render-line-loop {
 	local -i skip_next_space=0
 	local word=''
 	bf_e[line]=''
+	column=0
 	while read -rsn1 char
 	do
 		case "$char" in
@@ -1193,7 +1194,8 @@ function make-render-line-loop {
 				word=''
 				((skip_next_space==1)) && skip_next_space=0 && continue
 				bf_e[line]+='s'
-				face-no-expand default ' ';;
+				face-no-expand default ' '
+				((column++));;
 			'	')
 				syntax-word
 				word=''
@@ -1201,7 +1203,8 @@ function make-render-line-loop {
 				for ((i = ${#options[tabchar]}; i > 0 ; i--)); do
 					bf_e[line]+="${charmap[	]}"
 				done
-				face-no-expand tab-face "${options[tabchar]}";;
+				face-no-expand tab-face "${options[tabchar]}"
+				((column+=${#options[tabchar]}));;
 			'')
 				syntax-word
 				word=''
@@ -1545,6 +1548,7 @@ function set-buffer {
 	declare -ng bf_s="${current_buffer}_bf_s"
 	declare -ng bf_e="${current_buffer}_bf_e"
 	declare -ng bf_d="${current_buffer}_bf_d"
+	declare -ng bf_c="${current_buffer}_bf_c"
 }
 
 @@ switch-to-buffer
@@ -1645,7 +1649,7 @@ defun read-buffer
 		[auto]
 		((options[view])) &&	
 			[ "${bf_d[filetype]}" = 'format' ] && {
-				:: mode view
+				:: mode format
 				:: syntax syntax-format
 				:: syntax-exec 1
 			}
@@ -1861,7 +1865,7 @@ defun about
 		declare-new-buffer
 			:: line 1
 			:: info "About"
-			:: mode view
+			:: mode format
 			:: filetype 'i*format'
 			:: file "*about*"
 			:: modified 0
@@ -1869,6 +1873,8 @@ defun about
 			:: syntax-exec 1
 		size-full
 		mapfile -t -O 1 buffer <<EOF
+<a> about : <f> link About </f> </a> <a> manual : <f> link Manual </f> </a> <a> describe : <f> link Functions </f> </a>
+
 <f> title Ebashs $version </f>
 Copyright(č)ˇ 2022-2023 <f> title Netkv </f-> .
 ( <-f> title bed </f-> : Copyright(č)ˇ 2020 <f> title Comfies </f-> .)
@@ -1958,6 +1964,7 @@ function syntax-format {
 	[ "$word" = '</f>' ] && {
 		unset linearray[-1]
 		bf_e[line]=${bf_e[line]::-1}
+		((column--))
 		faceesc=0
 		[ -n "$bckfacename" ] && {
  			faceesc=1
@@ -1969,6 +1976,7 @@ function syntax-format {
 	[ "$word" = '</f->' ] && {
 		unset linearray[-1]
 		bf_e[line]=${bf_e[line]::-1}
+		((column--))
 		skip_next_space=1
 		faceesc=0
 		[ -n "$bckfacename" ] && {
@@ -1989,6 +1997,7 @@ function syntax-format {
 			'<f>'|'<-f>') bckfacename="$facename";;
 			*)
 				((newline==1)) && newline=0
+				((column+=${#ichar} + ${#word}))
 				face "$facename" "${ichar}$word"
 				return
 		esac
@@ -2002,6 +2011,7 @@ function syntax-format {
 	[ "$word" = '<-f>' ] && {
 		unset linearray[-1]
 		bf_e[line]=${bf_e[line]::-1}
+		((column--))
 		faceesc=0
 		skip_next_space=1
 		faceesc=1
@@ -2032,6 +2042,7 @@ function syntax-format {
 		for ((if=0; if< word; if++)) {
 			linearray+=(' ')
 			bf_e[line]+='s'
+			((column++))
 		}
 		return
 	}
@@ -2045,6 +2056,7 @@ function syntax-format {
 		for ((if=0; if< format_tab; if++)) {
 			linearray+=(' ')
 			bf_e[line]+='s'
+			((column++))
 		}
 		return
 	}
@@ -2078,9 +2090,69 @@ function syntax-format {
 		}
 		return
 	}
+	((link==2)) && {
+		[ "$word" = ':' ] && {
+			((
+				skip_next_space=1,
+				link=1
+			))
+			return
+		}
+		skip_next_space=1
+		linkfn+="$word "
+		return
+	}
+	[ "$word" = '</a>' ] && {
+		((lc++))
+		((column--))
+		link=0
+		unset linearray[-1]
+		bf_e[line]=${bf_e[line]::-1}
+		bf_c[line]+="bf_c_${lc}_${current_buffer} "
+		declare -Ag "bf_c_${lc}_${current_buffer}"
+		local -n bf_c_line="bf_c_${lc}_${current_buffer}"
+		bf_c_line=(
+			[start]="$lsx"
+			[end]=$((column - 1))
+			[exec]="$linkfn"
+		)
+		return
+	}
+	[ "$word" = '<a>' ] && {
+		((
+			link=2,
+			lsx=column,
+			skip_next_space=1
+		))
+		linkfn=
+		return
+	}
 	((newline==1)) && newline=0
+	((column+=${#ichar} + ${#word}))
 	face unknown "${ichar}$word"
 }
+
+@@ link-enter
+:: Open link
+function link-enter {
+	for link in ${bf_c[bf_d[line]]}; {
+		local -n bf_c_line="$link"
+		#echo "    $link" >> d
+		#echo "${bf_c_line[start]}" >> d
+		#echo "${bf_c_line[end]}" >> d
+		#echo "${bf_c_line[exec]}" >> d
+		
+		((bf_d[column] >= bf_c_line[start])) &&
+			((bf_d[column] <= bf_c_line[end])) &&
+			${bf_c_line[exec]}
+	}
+}
+
+add-mode format
+	:: 'RET' link-enter
+	:: "$(kbd C-c)" quit-view
+	mode-options
+		:: else :
 
 defun list-faces-display
 	:: Displays list of fases
