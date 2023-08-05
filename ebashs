@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.8.1"
+version="0.8.2"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -52,6 +52,7 @@ function load-default-config {
 		:: log-functions 0
 		:: tty-linuxfb 1 # enable truecolor support for framebuffer
 		:: full-redraw 0 # redraws whole buffer, can fix artifacting in linuxfb at cost of performance
+		:: welcome-buffer 1 # show welcome message instead of scratch
 		
 	## Key bindings configuration
 	#		A keybinding is defined via either
@@ -172,22 +173,21 @@ default_faces=(
 		default "$(:weight normal)"
 		TODO "$(:background magenta)"
 		NOTE "$(:background gray)"
-		menu "$(:mode inverse)"
-		menu-enabled-face "$(:background black)"
-		selected "$(:foreground black :background magenta)"
-		link "$(:slant italic :foreground light-blue)"
+		menu "$(:background yellow :foreground black)"
+		menu-enabled-face "$(:background yellow :foreground black)"
+		button '\e[4m\e[1m'
+		menu-selected-face "$(:foreground light-yellow :background black)"
+		link "$(:foreground light-cyan)"
 		title "$(:weight bold)"
 		highlight "$(:weight bold :foreground light-red)"
 		name "$(:foreground light-green)"
-		button '\e[4m\e[1m'
-		menu-selected-face "$(:foreground black :background magenta)"
-		mode-line "$(:mode inverse)"
+		mode-line '\e[m'
 		hint "$(:foreground light-yellow)"
 		file-name "$(:weight bold)"
-		line-number "$(:weight dim :foreground gray)"
+		line-number "$(:foreground gray)"
 		line-number-empty "$(:weight dim :foreground gray)"
 		line-number-current-line "$(:weight bold :foreground light-red)"
-		tab-face "$(:foreground gray)"
+		tab-face "$(:weight dim :foreground gray)"
 		region "$(:weight bold :background gray)"
 		minibuffer-prompt "$(:weight normal)"
 		# ansi colors # currently just for reference
@@ -4000,6 +4000,44 @@ function scratch {
 	bf_d[modified]=0
 }
 
+@@ welcome-buffer
+:: Show welcome message
+function welcome-buffer {
+	log info "loading welcome buffer..."
+	declare-new-buffer
+		:: mode format
+		:: info "${options[help-message]}"
+		:: filetype "format"
+		:: file "*welcome*"
+		:: isfile 0
+		:: menuline top
+		:: current_state 0
+		:: syntax syntax-format
+		:: syntax-exec 1
+	size-full
+
+	buffer=(
+		''
+		'<f> title <u> Ebashs </u> </f>'
+		'<i-tab>'
+		' Welcome to Ebashs the editor of pure Bash.'
+		'</i>'
+		'<f> title <u> Actions </u> </f>'
+		'<tab> <a> find-file : <f> link Open file </f> </a>'
+		'<tab> <a> dired : <f> link Browse files </f> </a>'
+		'<tab> <a> manual : <f> link View manual </f> </a>'
+		'<tab> <a> describe : <f> link View documentation </f> </a>'
+		'<tab> <a> about : <f> link About Ebashs </f> </a>'
+		'<tab> <a> inputcodes : <f> link Input debugging </f> </a>'
+		'<tab> <a> list-faces-display : <f> link Faces </f> </a>'
+		''
+	)
+		
+	message="For information about Ebashs and the BASH system, type C-h C-a."
+	bf_d[line]=1 # Indicate that we have a buffer loaded
+	bf_d[modified]=0
+}
+
 @@ init
 :: Prepares variables and launches main function
 function init {
@@ -4095,7 +4133,11 @@ EOF
 		fi
 	else
 		log info "no arg => scratch"
-		scratch
+		if ((options[welcome-buffer])); then
+			welcome-buffer
+		else
+			scratch
+		fi
 	fi
 	log info "drawing..."
 	redraw
