@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.8"
+version="0.8.1"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -2143,9 +2143,15 @@ function link-enter {
 		#echo "${bf_c_line[exec]}" >> d
 		
 		((bf_d[column] >= bf_c_line[start])) &&
-			((bf_d[column] <= bf_c_line[end])) &&
-			${bf_c_line[exec]}
+			((bf_d[column] <= bf_c_line[end])) && {
+				has=1
+				${bf_c_line[exec]}
+			}
 	}
+	((has==0)) && {
+		${bf_d[format-else]}
+	}
+	has=0
 }
 
 add-mode format
@@ -2750,19 +2756,7 @@ defun describe-function
 	function = {
 		redraw
 		read-command 'Describe function: ' function || return 1
-	    save openfile
-		declare-new-buffer
-			:: line 1
-			:: info "Describe"
-			:: mode view
-			:: filetype 'i*view'
-			:: file "*describe*"
-			:: modified 0
-			:: syntax syntax-format
-			:: syntax-exec 1
-		size-full
-		mapfile -t -O 1 buffer <<< "$(get-description "$function")"
-		redraw
+	    doc-select "$function"
 	}
 
 defun describe
@@ -2770,43 +2764,62 @@ defun describe
 	function = {
 	    save openfiledoc
 		declare-new-buffer
-			:: line 1
+			:: line 9
 			:: base 1
 			:: column 0
 			:: info "Documentation"
-			:: mode doc
-			:: filetype 'i*doc'
-			:: file "Functions"
+			:: mode format
+			:: filetype 'format'
+			:: file "*functions*"
 			:: modified 0
-			:: syntax syntax-unknown
+			:: syntax syntax-format
+			:: syntax-exec 1
 			:: menuline 'dialog'
 		size-full
-		local buffertmp=$'\n'
+		buffer=(
+			''
+			'<a> about : <f> link About </f> </a> <a> manual : <f> link Manual </f> </a> <a> describe : <f> link Functions </f> </a>'
+			''
+			'<f> title <u> Functions </u> </f>'
+			'<i-tab>'
+			'Documentation of these function is defined via internal pseudo-comments.'
+			'It consists of the description and the source code. The source code is formated automatically'
+			'by Bash and differs greatly from the formating of real source code.'
+			'</i>'
+)
 		while read -r fn;  do
-			#buffertmp+="$(get-description "${fn:11}")"$'\n'
-			buffertmp+="${fn:11}"$'\n'
+			buffer+=("<a> doc-select ${fn:11} : <f> link ${fn:11} </f> </a>")
 		done <<< "$(declare -F)"
-		mapfile -t buffer <<< "$buffertmp"
-		buffer-dialog-draw
+		buffer+=(
+			''
+			"<tab> <f> font-lock-comment-face Ebashs $version </f>"
+		)
+		redraw
 }
 
 defun doc-select	
 	:: Select documentation item
 	function = {
-		local function="${buffer[bf_d[line]]}"
+		local function="$@"
 	    save openfile
 		declare-new-buffer
-			:: line 1
+			:: line 5
 			:: info "Describe"
-			:: mode view
-			:: filetype 'i*view'
+			:: mode format
+			:: format-else quit-view
+			:: filetype 'format'
 			:: file "*describe*"
 			:: modified 0
 			:: syntax syntax-format
 			:: syntax-exec 1
 			size-full
-		mapfile -t -O 1 buffer <<< "$(get-description "$function")"
-		buffer-dialog-draw
+		buffer=(
+			''
+			'<a> about : <f> link About </f> </a> <a> manual : <f> link Manual </f> </a> <a> describe : <f> link Functions </f> </a>'
+			''
+		)
+		mapfile -t -O 3 buffer <<< "$(get-description "$function")"
+	    redraw
 	}
 
 defun quit-doc
@@ -2839,7 +2852,7 @@ defun get-description
 				printf '\n'
 			}
 			printf '<f> title [ Source ] </f>\n <h> 0 shell\n'		 
-			declare -f "$1"
+			declare -f -- "$1"
 		}
 	}
 
