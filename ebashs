@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.8.3"
+version="0.8.3.1"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -170,7 +170,7 @@ function load-default-config {
 		:: "$(kbd d)" view-page
 		:: "$(kbd a)" about
 		:: "$(kbd i)" inputcodes
-		:: "$(kbd c)" faces
+		:: "$(kbd c)" list-faces-display
 		:: "$(kbd l)" view-log
 		:: "$(kbd C-c)" quit-view
 		mode-options
@@ -4175,7 +4175,7 @@ function welcome-buffer {
 		'<tab> <a> view-page : <f> cyan View <f> title d </f-> ocumentation </f> </a>'
 		'<tab> <a> about : <f> blue <f> title A </f-> bout Ebashs </f> </a>'
 		'<tab> <a> inputcodes : <f> magenta <f> title I </f-> nput debugging </f> </a>'
-		'<tab> <a> list-faces-display : <f> red Fa <-f> title f </f-> es </f> </a>'
+		'<tab> <a> list-faces-display : <f> red Fa <-f> title c </f-> es </f> </a>'
 	)
 	((log)) && buffer+=(
 		'<tab> <a> view-log : <f> yellow <f> title L </f-> og </f> </a>'
