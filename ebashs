@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.8.2"
+version="0.8.3"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -86,7 +86,7 @@ function load-default-config {
 		:: "$(kbd M-f)" 'forward-word'
 		:: "$(kbd C-b)" 'backward-char'
 		:: "$(kbd M-b)" 'backward-word'
-		:: "$(kbd C-p)" 'scroll-down'
+		:: "$(kbd M-v)" 'scroll-down'
 		:: "$(kbd C-v)" 'scroll-up'
 
 	add-mode edit
@@ -155,7 +155,27 @@ function load-default-config {
 		mode-options
 			:: else 'menuleave'
 			:: disable-global 1
-	
+
+	add-mode format
+		:: 'RET' link-enter
+		:: "$(kbd C-c)" quit-view
+		mode-options
+			:: else :
+
+	add-mode welcome
+		:: 'RET' link-enter
+		:: "$(kbd f)" find-file
+		:: "$(kbd b)" dired
+		:: "$(kbd m)" manual
+		:: "$(kbd d)" view-page
+		:: "$(kbd a)" about
+		:: "$(kbd i)" inputcodes
+		:: "$(kbd c)" faces
+		:: "$(kbd l)" view-log
+		:: "$(kbd C-c)" quit-view
+		mode-options
+			:: else :
+		
 	## Faces
 	#		Defined in escape codes
 	#		Helper functions:
@@ -316,7 +336,43 @@ default_faces=(
 
 	add-menu dialog
 		:: quit 'quit-view'
+
+	add-menu welcome
+		:: about 'about'
+		:: manual 'manual'
+		:: docs 'view-page'
+		:: quit 'quit-view'
+	
+	# Navigation used in some inbuild buffers
+	format_nav="<a> about : <f> link About </f> </a> "
+	format_nav+="<a> manual : <f> link Manual </f> </a> "
+	format_nav+="<a> view-page : <f> link Documentation </f> </a>"
 }
+
+## Documentation
+
+mapfile -t -O 1 top_doc <<'EOF'
+<f> title <u> Documentation </u> </f>
+
+<tab> <a> goto doc_control : <f> link Controls </f> </a>
+<tab> <a> describe : <f> link Functions </f> </a>
+EOF
+
+mapfile -t -O 1 doc_control <<'EOF'
+<f> title <u> Controls </u> </f>
+
+By default Ebashs copies Emacs controls
+<i-tab>
+<f> highlight C-f </f> move forward by char <s> 9 <dse> keys_global[$(kbd C-f)] </dse> <a> doc-select <vs> : <f> font-lock-function-name-face <vs> </f> </a>
+<f> highlight C-b </f> move backward by char <s> 8 <dse> keys_global[$(kbd C-b)] </dse> <a> doc-select <vs> : <f> font-lock-function-name-face <vs> </f> </a>
+<f> highlight C-n </f> move down by line <s> 12 <dse> keys_global[$(kbd C-n)] </dse> <a> doc-select <single> : <f> font-lock-function-name-face <vs> </f> </a>
+<f> highlight C-p </f> move up by line <s> 14 <dse> keys_global[$(kbd C-p)] </dse> <a> doc-select <single> : <f> font-lock-function-name-face <vs> </f> </a>
+<f> highlight C-v </f> move down by size of screen <s> 2 <dse> keys_global[$(kbd C-v)] </dse> <a> doc-select <single> : <f> font-lock-function-name-face <vs> </f> </a>
+<f> highlight M-v </f> move up by size of screen <s> 4 <dse> keys_global[$(kbd M-v)] </dse> <a> doc-select <single> : <f> font-lock-function-name-face <vs> </f> </a>
+<f> highlight M-f </f> move forward by word <s> 9 <dse> keys_global[$(kbd M-f)] </dse> <a> doc-select <single> : <f> font-lock-function-name-face <vs> </f> </a>
+<f> highlight M-b </f> move backward by word <s> 8 <dse> keys_global[$(kbd M-b)] </dse> <a> doc-select <single> : <f> font-lock-function-name-face <vs> </f> </a>
+</i>
+EOF
 
 ## syntaxy sugar sugary syntax
 log_buffer+=('- LOADING BASH EXTENSIONS -')
@@ -1671,9 +1727,15 @@ defun clear-buffer
 	:: Empties buffer bf_s bf_e \& bf_d
 	function = {
 		buffer=()
+		for l in "${bf_s[@]}"; {
+			unset "$l"
+		}
 		bf_s=()
 		bf_e=()
-		bf_d=()
+		for l in "${bf_c[@]}"; {
+			unset "$l"
+		}
+		bf_c=()
 	}
 
 defun toggle_hidden
@@ -1857,23 +1919,24 @@ defun buffer-dialog-draw
 		clear-screen
 		redraw
 	}
-
-defun about
-	:: Shows about information	
-	function = {
-		save openfile
-		declare-new-buffer
-			:: line 1
-			:: info "About"
-			:: mode format
-			:: filetype 'i*format'
-			:: file "*about*"
-			:: modified 0
-			:: syntax syntax-format
-			:: syntax-exec 1
-		size-full
-		mapfile -t -O 1 buffer <<EOF
-<a> about : <f> link About </f> </a> <a> manual : <f> link Manual </f> </a> <a> describe : <f> link Functions </f> </a>
+defun
+	
+@@ about
+:: Shows about information	
+function about {
+	save openfile
+	declare-new-buffer
+		:: line 1
+		:: info "About"
+		:: mode format
+		:: filetype 'i*format'
+		:: file "*about*"
+		:: modified 0
+		:: syntax syntax-format
+		:: syntax-exec 1
+	size-full
+	mapfile -t -O 1 buffer <<EOF
+$format_nav
 
 <f> title Ebashs $version </f>
 Copyright(č)ˇ 2022-2023 <f> title Netkv </f-> .
@@ -1934,10 +1997,34 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 <f> hint ──────────────────────────────────────────────────────────────────────────────────────────── </f> </i>
 
 EOF
-    	clear-screen
-		redraw
-	}
-defun
+	redraw
+}
+
+@@ view-page
+:: Display formated text nicely	
+function view-page {
+	save openfile
+	declare-new-buffer
+		:: line 1
+		:: info "view"
+		:: mode format
+		:: filetype 'format'
+		:: file "*view*"
+		:: modified 0
+		:: isfile 0
+		:: syntax syntax-format
+		:: syntax-exec 1
+	size-full
+	goto top_doc
+}
+
+@@ goto Load array into buffer
+function goto {
+	clear-buffer
+	bf_d[line]=1
+	copy-array "$1" buffer
+	redraw
+}
 
 @@ syntax-format
 :: Syntax function for formated text
@@ -1948,6 +2035,71 @@ function syntax-format {
 	((newline==0)) && {
 		ichar=
 	}
+	
+	[ "$word" = '</v>' ] && {
+		variable=0
+		word="${!varname}"
+		varname=
+	}
+	((variable==1)) && {
+		varname+="$word "
+		skip_next_space=1
+		return
+	}
+	[ "$word" = '<v>' ] && {
+		variable=1
+		varname=
+		skip_next_space=1
+		return
+	}
+	
+	[ "$word" = '</ve>' ] && {
+		evariable=0
+		varname="$(eval echo "$varname")"
+		word="${!varname}"
+		varname=
+	}
+	((evariable==1)) && {
+		varname+="$word "
+		skip_next_space=1
+		return
+	}
+	[ "$word" = '<ve>' ] && {
+		evariable=1
+		varname=
+		skip_next_space=1
+		return
+	}
+	
+	[ "$word" = '</ds>' ] && {
+		decsingle=0
+		var_single="${varvalue}"
+		varvalue=
+		return
+	}
+	[ "$word" = '</dse>' ] && {
+		decsingle=0
+		var_single="$(eval echo $varvalue)"
+		var_single="${!var_single}"
+		skip_next_space=1
+		varvalue=
+		return
+	}
+	((decsingle==1)) && {
+		varvalue+="$word "
+		skip_next_space=1
+		return
+	}
+	[ "$word" = '<ds>' ] || [ "$word" = '<dse>' ] && {
+		decsingle=1
+		varvalue=
+		skip_next_space=1
+		return
+	}
+	[ "$word" = '<vs>' ] && {
+		word="$var_single"
+	}
+	
 	[ "$word" = '</u>' ] && {
 		upper=0
 		skip_next_space=1
@@ -2153,12 +2305,6 @@ function link-enter {
 	}
 	has=0
 }
-
-add-mode format
-	:: 'RET' link-enter
-	:: "$(kbd C-c)" quit-view
-	mode-options
-		:: else :
 
 defun list-faces-display
 	:: Displays list of fases
@@ -2778,7 +2924,7 @@ defun describe
 		size-full
 		buffer=(
 			''
-			'<a> about : <f> link About </f> </a> <a> manual : <f> link Manual </f> </a> <a> describe : <f> link Functions </f> </a>'
+		    "$format_nav"
 			''
 			'<f> title <u> Functions </u> </f>'
 			'<i-tab>'
@@ -2815,7 +2961,7 @@ defun doc-select
 			size-full
 		buffer=(
 			''
-			'<a> about : <f> link About </f> </a> <a> manual : <f> link Manual </f> </a> <a> describe : <f> link Functions </f> </a>'
+			"$format_nav"
 			''
 		)
 		mapfile -t -O 3 buffer <<< "$(get-description "$function")"
@@ -3983,7 +4129,7 @@ function scratch {
 		:: filetype "bash"
 		:: file "*scratch*"
 		:: isfile 0
-		:: menuline top
+		:: menuline welcome
 		:: current_state 0
 	set-syntax
 	size-full
@@ -4005,12 +4151,12 @@ function scratch {
 function welcome-buffer {
 	log info "loading welcome buffer..."
 	declare-new-buffer
-		:: mode format
+		:: mode welcome
 		:: info "${options[help-message]}"
 		:: filetype "format"
 		:: file "*welcome*"
 		:: isfile 0
-		:: menuline top
+		:: menuline welcome
 		:: current_state 0
 		:: syntax syntax-format
 		:: syntax-exec 1
@@ -4023,14 +4169,16 @@ function welcome-buffer {
 		' Welcome to Ebashs the editor of pure Bash.'
 		'</i>'
 		'<f> title <u> Actions </u> </f>'
-		'<tab> <a> find-file : <f> link Open file </f> </a>'
-		'<tab> <a> dired : <f> link Browse files </f> </a>'
-		'<tab> <a> manual : <f> link View manual </f> </a>'
-		'<tab> <a> describe : <f> link View documentation </f> </a>'
-		'<tab> <a> about : <f> link About Ebashs </f> </a>'
-		'<tab> <a> inputcodes : <f> link Input debugging </f> </a>'
-		'<tab> <a> list-faces-display : <f> link Faces </f> </a>'
-		''
+		'<tab> <a> find-file : <f> red Open <f> title f </f-> ile </f> </a>'
+		'<tab> <a> dired : <f> yellow <f> title B </f-> rowse files </f> </a>'
+		'<tab> <a> manual : <f> green View <f> title m </f-> anual </f> </a>'
+		'<tab> <a> view-page : <f> cyan View <f> title d </f-> ocumentation </f> </a>'
+		'<tab> <a> about : <f> blue <f> title A </f-> bout Ebashs </f> </a>'
+		'<tab> <a> inputcodes : <f> magenta <f> title I </f-> nput debugging </f> </a>'
+		'<tab> <a> list-faces-display : <f> red Fa <-f> title f </f-> es </f> </a>'
+	)
+	((log)) && buffer+=(
+		'<tab> <a> view-log : <f> yellow <f> title L </f-> og </f> </a>'
 	)
 		
 	message="For information about Ebashs and the BASH system, type C-h C-a."
