@@ -16,85 +16,76 @@ add-mode bcreen
 	:: "$(kbd h)" 'tile-horizontal'
 	:: "$(kbd k)" 'delete-buffer'
 
-defun bcreen-prefix
-	:: Handles Bcreen keybindings
-	function = {
-		switch-mode bcreen
-	}
+@@ bcreen-prefix
+:: Handles Bcreen keybindings
+function bcreen-prefix {
+	switch-mode bcreen
+}
 
-defun bcreen
-	:: Bcreen extension "$bcreen_version"
-	:: Main Bcreen function 
-	::
-	:: C-r r redraw tiling
-	:: C-r v split vertically
-	:: C-r h split horizontally
-	:: C-r k delete buffer
-	function = {
-		tile-buffers
-	}
+@@ bcreen
+:: Bcreen extension "$bcreen_version"
+:: Main Bcreen function 
+::
+:: C-r r redraw tiling
+:: C-r v split vertically
+:: C-r h split horizontally
+:: C-r k delete buffer
+function bcreen {
+	tile-buffers
+}
 
-fragment targetoff <<'+'
-	target_x_offset=1
- 	target_y_offset=1
-+
-
-defun-fragment tile-buffers
-	:: Tile active buffers:
-		:: '    * vertical - split buffers vertically'
-		:: '    * horizontal - split buffers horizontally'
-		:: '    * single - make currently selected buffer fullscreen'
-	# TODO: do this in far more extensible way
-	# Perhaps being able to split every buffer into two would be easiest to manage (sort of like very regular tree)
-	function = {	
-		log info "tile redraw-set ${options[tile-mode]}"
-		bck_current_buffer="$current_buffer"
-		redraw_tiled=1
+function tile-buffers {	
+	log info "tile redraw-set ${options[tile-mode]}"
+	bck_current_buffer="$current_buffer"
+	redraw_tiled=1
+	case "${options[tile-mode]}" in
+		vertical)
+			target_x=$(( COLUMNS / ${#buffers_l[@]} ))
+			target_x_offset=1
+ 			target_y_offset=1
+			target_y=$((LINES - 1));;
+		horizontal)
+			target_y=$(( LINES / ${#buffers_l[@]} ))
+			target_x_offset=1
+ 			target_y_offset=1
+			target_x=$COLUMNS;;
+		single)
+			target_y=$LINES
+			target_x_offset=1
+ 			target_y_offset=1
+			target_x=$COLUMNS
+			redraw_tiled=0;;
+	esac
+	for b in "${buffers_l[@]}"; do
+		set-buffer "$b"
+		bf_d[size-x]=$target_x
+		bf_d[loc-x]=$target_x_offset
+		bf_d[size-y]=$target_y
+		bf_d[loc-y]=$target_y_offset
 		case "${options[tile-mode]}" in
 			vertical)
-				target_x=$(( COLUMNS / ${#buffers_l[@]} ))
-				@ targetoff
-				target_y=$((LINES - 1));;
+				target_x_offset=$((target_x_offset + target_x));;
 			horizontal)
-				target_y=$(( LINES / ${#buffers_l[@]} ))
-				@ targetoff
-				target_x=$COLUMNS;;
-			single)
-				target_y=$LINES
-				@ targetoff
-				target_x=$COLUMNS
-				redraw_tiled=0;;
+				target_y_offset=$((target_y_offset + target_y))
 		esac
-		for b in "${buffers_l[@]}"; do
-			set-buffer "$b"
-			bf_d[size-x]=$target_x
-			bf_d[loc-x]=$target_x_offset
-			bf_d[size-y]=$target_y
-			bf_d[loc-y]=$target_y_offset
-			case "${options[tile-mode]}" in
-				vertical)
-					target_x_offset=$((target_x_offset + target_x));;
-				horizontal)
-					target_y_offset=$((target_y_offset + target_y))
-			esac
-			redraw
-		done
-		set-buffer "$bck_current_buffer"
-	}
+		redraw
+	done
+	set-buffer "$bck_current_buffer"
+}
 
-defun tile-vertical
-	:: Tile buffers vertically
-	function = {
-		options[tile-mode]='vertical'
-		tile-buffers
-	}
+@@ tile-vertical
+:: Tile buffers vertically
+function tile-vertical {
+	options[tile-mode]='vertical'
+	tile-buffers
+}
 
-defun tile-horizontal
-	:: Tile buffers horizontally
-	function = {
-		options[tile-mode]='horizontal'
-		tile-buffers
-	}
+@@ tile-horizontal
+:: Tile buffers horizontally
+function tile-horizontal {
+	options[tile-mode]='horizontal'
+	tile-buffers
+}
 
 defun tile-single
 	:: Makes currently selected buffer fullscreen

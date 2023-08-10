@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.8.4"
+version="0.8.5"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -104,7 +104,7 @@ function load-default-config {
 		:: "$(kbd C-d)" delete-line
 		:: 'DEL' backspace
 		:: '[deletechar]' delete
-		:: "$(kbd M-g)" menukey
+		:: "$(kbd M-g)" menu-key
 		:: '1b 5b 48 0' move-beginning-of-line
 		:: "$(kbd C-i)" indent-for-tab-command
 		:: '1b 5b 46 0' move-end-of-line
@@ -196,7 +196,7 @@ default_faces=(
 		menu "$(:background yellow :foreground black)"
 		menu-enabled-face "$(:background yellow :foreground black)"
 		button '\e[4m\e[1m'
-		menu-selected-face "$(:foreground light-yellow :background black)"
+		menu-selected-face "$(:background light-yellow :foreground black :weight bold)"
 		link "$(:foreground light-cyan)"
 		title "$(:weight bold)"
 		highlight "$(:weight bold :foreground light-red)"
@@ -300,8 +300,7 @@ default_faces=(
 	    :: '        BACK        ' menu-top
 		:: 'Exit        C-x C-c ' quit
 		:: 'New Line    C-l | ⏎ ' newline
-		:: 'Set target      M-r ' find-file
-		:: 'Visit file  C-x C-f ' read-buffer
+		:: 'Visit file  C-x C-f ' find-file
 		:: 'Save file   C-x C-s ' write-buffer
 		:: 'Delete Line     C-d ' delete-line
 		:: 'Prev Line       C-p ' previous-line
@@ -400,15 +399,16 @@ function @doc {
 	mapfile -t "description_${desc_count}"
 	descriptions["function_${1}_description"]="description_${desc_count}"
 	((desc_count++))
-} && @doc doc <<'+'
+}
+@doc doc <<'EOF'
 Adds description to a function
 doc <function>
 Description text is supplied from stdin, so mostly heredoc.
-+
+EOF
 	
-@doc load-default-config <<'+'
+@doc load-default-config <<'EOF'
 Load default config included with Ebashs.
-+
+EOF
 
 # reverse of defun :D
 function nufed {
@@ -1143,7 +1143,7 @@ function switch-mode {
 	redraw-statusline
 }
 @fn prefix switch-mode prefix
-	@doc prefix <<<'-> switch-mode prefix'
+	@doc prefix <<<'switches mode to prefix prefix'
 @fn prefix-help switch-mode prefix_help
 	@doc prefix-help <<<'-> switch-mode prefix-help'
 
@@ -2998,43 +2998,46 @@ function duplicate-line {
 	redraw
 }
 	
-defun newline
-	:: Inserts newline to current buffer at current cursor position
-	function = {
-		bf_d[modified]=1
-		save-state
-		buffer=('' "${buffer[@]:1:${bf_d[line]}-1}" '' "${buffer[@]:${bf_d[line]}}")
-		buffer[bf_d[line]]="${buffer[${bf_d[line]}+1]:0:${bf_d[column]}}"
-		buffer[bf_d[line]+1]="${buffer[${bf_d[line]}+1]:${bf_d[column]}:${#buffer[${bf_d[line]}+1]}}"
-		bf_d[column]=0
-		syntax-shift
-		no_cursor=1
-		redraw
-		no_cursor=0
-		next-line
-	}
+@@ newline
+:: Inserts newline to current buffer at current cursor position, shift lines
+:: below one line down and go down one line.
+function newline {
+	bf_d[modified]=1
+	save-state
+	buffer=('' "${buffer[@]:1:${bf_d[line]}-1}" '' "${buffer[@]:${bf_d[line]}}")
+	buffer[bf_d[line]]="${buffer[${bf_d[line]}+1]:0:${bf_d[column]}}"
+	buffer[bf_d[line]+1]="${buffer[${bf_d[line]}+1]:${bf_d[column]}:${#buffer[${bf_d[line]}+1]}}"
+	bf_d[column]=0
+	syntax-shift
+	no_cursor=1
+	redraw
+	no_cursor=0
+	next-line
+}
 
-defun syntax-shift
-	:: Moves syntax multibuffer from current cursor position one line to the bottom
-	:: Used in newline function
-	function = {
-		local -a tmp1
-		local -a tmp2
-		local extmp1
-		local extmp2
-		for ((l=bf_d[line];l<${#buffer[@]}+1;l++)); do
-			local -n linearray="${current_buffer}_syntax${l}"
-			copy-array linearray tmp1
-			copy-array tmp2 linearray
-			copy-array tmp1 tmp2
-			extmp1="${bf_e[l]}"
-			bf_e[l]="$extmp2"
-			extmp2="$extmp1"
-		done
-		bf_s[buffer_length]="${current_buffer}_syntax${bf_d[number-length]}"
-		unset tmp1 tmp2
-		make-render-area $((bf_d[line])) $((bf_d[line]+2))
-	}
+@@ syntax-shift
+:: Moves syntax multibuffer from current cursor position one line to the bottom.
+:: Used in newline function.
+::
+:: Is currently very badly implemented, TODO: fix.
+function syntax-shift {
+	local -a tmp1
+	local -a tmp2
+	local extmp1
+	local extmp2
+	for ((l=bf_d[line];l<${#buffer[@]}+1;l++)); do
+		local -n linearray="${current_buffer}_syntax${l}"
+		copy-array linearray tmp1
+		copy-array tmp2 linearray
+		copy-array tmp1 tmp2
+		extmp1="${bf_e[l]}"
+		bf_e[l]="$extmp2"
+		extmp2="$extmp1"
+	done
+	bf_s[buffer_length]="${current_buffer}_syntax${bf_d[number-length]}"
+	unset tmp1 tmp2
+	make-render-area $((bf_d[line])) $((bf_d[line]+2))
+}
 
 defun delete-line
 	:: Deletes line at current cursor position
