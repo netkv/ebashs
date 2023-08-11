@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.8.6"
+version="0.8.6.1"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -211,7 +211,7 @@ default_faces=(
 		tab-face "$(:weight dim :foreground gray)"
 		region "$(:weight bold :background gray)"
 		minibuffer-prompt "$(:weight normal)"
-		# ansi colors # currently just for reference
+		# ansi colors
 		ansi-color-black '\e[40m'
 		ansi-color-blue '\e[44m'
 		ansi-color-bold '\e[1m'
@@ -356,10 +356,12 @@ function load-doc {
 
 <tab> <a> goto doc_control : <f> link Controls </f> </a>
 <tab> <a> describe : <f> link Functions </f> </a>
+<tab> <a> goto doc_faces : <f> link Face setting </f> </a>
 EOF
 
 	mapfile -t -O 1 doc_control <<'EOF'
-<f> title <u> Controls </u> </f>
+<a> goto top_doc : <f> link Back </f> </a>
+<f> title [ <u> Controls </u> ] </f>
 
 Automatically generated list of keybindings. Click on function name to view it's documentation.
 Note that currently only key set via $(kbd C-char or M-char) will show up.
@@ -389,6 +391,51 @@ EOF
 	doc_control+=(
 		'</i>'
 	)
+
+	mapfile -t -O 1 doc_faces <<'EOF'
+<a> goto top_doc : <f> link Back </f> </a>
+<f> title [ <u> Face configuration </u> ] </f>
+
+Faces are set via theme arrays. Theme array consists pairs of name and value.
+The first is name, second is value, then again first... second... ... ... . The
+Theme array has to be then loaded via <a> doc-select load-theme : <f> link load-theme </f> </a> function.
+
+Faces configured via escape codes, for example:
+<-> <f> blue perfectblue '\e[44m' </f>
+Produces blue colored face
+
+But <[> title Ebashs is civilised and so has nicer settings for this:
+<-> <f> blue perfecterblue "$(:background blue)" </f>
+or one of 256 colors:
+<-> <f> blue blue256 "$(:background c18)" </f>
+or if you use nice terminal even full 24 bit hex. color:
+<-> <f> blue TRUEBLUE "$(:background " <-f> ansi-color-blue #0000ff </f-> ")" </f>
+
+The face-setting functions can be combined:
+<-> <f> red red <-f> cyan cyan </f> </f> <f> cyan "$(:background <f> ansi-color-cyan c44 </f> </f> <f> red :foreground <f> ansi-color-red c196 </f-> )" </f>
+
+<-> <-> see <a> doc-select :foreground : <f> link :foreground </f> </a> <a> doc-select :background : <f> link :background </f> </a> <a> doc-select setface : <f> link setface </f> </a>
+
+The boldness and dimness can be set via <a> doc-select :weight : <f> link :weight </f> </a> function.
+The inverseness can be set via <a> doc-select :mode : <f> link :mode </f> </a> function.
+The slant can be set via <a> doc-select :slant : <f> link :slant </f> </a> function.
+
+<f> title <u> Example </u> </f>
+
+To change faces used on this page
+
+<-> <f> title misleading_theme </f-> =( <i> 8
+<[> title title "$(:weight bold :background "#ffffff")"
+<[> link link "$(:weight bold :background light-yellow)"
+<[> ansi-color-blue ansi-color-blue "$(:background cyan)"
+<[> ansi-color-cyan ansi-color-cyan "$(:background green)"
+<[> blue blue "$(:foreground cyan)"
+<[> red red "$(:foreground yellow)"
+<[> font-lock-keyword-face font-lock-keyword-face ''
+<[> cyan cyan "$(:foreground green)" </i>
+<-> )
+<-> <f> font-lock-keyword-face load-theme </f> <f> title misleading-theme </f>
+EOF
 }
 
 ## syntaxy sugar sugary syntax
