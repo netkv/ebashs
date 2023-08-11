@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.8.5"
+version="0.8.6"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -197,10 +197,11 @@ default_faces=(
 		menu-enabled-face "$(:background yellow :foreground black)"
 		button '\e[4m\e[1m'
 		menu-selected-face "$(:background light-yellow :foreground black :weight bold)"
-		link "$(:foreground light-cyan)"
+		#link "$(:foreground light-cyan)"
+		link '\e[4;96m'
 		title "$(:weight bold)"
 		highlight "$(:weight bold :foreground light-red)"
-		name "$(:foreground light-green)"
+		name "$(:foreground magenta)"
 		mode-line '\e[m'
 		hint "$(:foreground light-yellow)"
 		file-name "$(:weight bold)"
@@ -831,12 +832,14 @@ function setface {
 	[ -n "$1" ] && "$@";
 }
 
-@@ :foreground set foreground color
-:: see setface for more info
+@@ :foreground
+:: Set foreground color.
+:: 'See <a> doc-goto setface : <f> link setface </f> </a> for more info.'
 function :foreground { mode=38; setface "$@"; }
 
-@@ :background set background color
-:: see setface for more info
+@@ :background
+:: Set background color.
+:: 'See <a> doc-goto setface : <f> link setface </f> </a> for more info.'
 function :background { mode=48; setface "$@"; }
 
 @@ :mode Sets text mode:
@@ -1126,7 +1129,8 @@ log_buffer+=('- LOADING BASH EXTENSIONS DONE -')
 ## rest of this garbageware
 
 @@ refresh Refreshes buffer
-:: '    clears screen, reset syntax, redraws'
+:: 'clears screen, reset syntax, redraws'
+:: 'See <a> doc-goto clear-screen : <f> link clear-screen </f> </a> for more info.'
 function refresh {
 	clear-screen
 	bf_s=''
@@ -1211,41 +1215,42 @@ function make-render {
 	make-render-area "${bf_d[base]}" $((bf_d[base] + bf_d[size-y] + bf_d[loc-y]))
 }
 
-fragment setrender <<'+'
-	line="$1"
+@@ make-render-area
+:: Creates syntax highlighting for lines from '$1' to '$2'
+function make-render-area {
+    local -i line="$1"
 	local -i syntaxline=$line
 	local -n linearray="${current_buffer}_syntax${syntaxline}"
 	linearray=()
 	bckeIFS="${IFS}"
 	IFS=
-+
-
-defun-fragment make-render-area
-	:: Creates syntax highlighting for lines from '$1' to '$2'
-	function = {
-		@ setrender
-		for ((l=syntaxline;l<${2};l++)); do
-			((l > $2)) && break
-			local -n linearray="${current_buffer}_syntax${syntaxline}"
-			linearray=()
-			bf_s[syntaxline]="${current_buffer}_syntax${syntaxline}"
-			((syntaxline++))
-			line="$l"
-			make-render-line-loop
-		done
-		IFS="$bckeIFS"
-	}
-	
-defun-fragment make-render-line
-	:: Syntax highlights single line '$1'
-	:: Defaults to currently selected line if no argument is passed
-	function = {
-		[ -n "$1" ] || local -i line=${bf_d[line]} ||
-			@ setrender
+	for ((l=syntaxline;l<${2};l++)); do
+		((l > $2)) && break
+		local -n linearray="${current_buffer}_syntax${syntaxline}"
+		linearray=()
+		bf_s[syntaxline]="${current_buffer}_syntax${syntaxline}"
+		((syntaxline++))
+		line="$l"
 		make-render-line-loop
-		IFS="$bckeIFS"
-	}
-nufed
+	done
+	IFS="$bckeIFS"
+}
+	
+@@ make-render-line
+:: Syntax highlights single line '$1'
+:: Defaults to currently selected line if no argument is passed
+function make-render-line {
+	local -i line=${1:-bf_d[line]}
+	local -i syntaxline=$line
+	local -n linearray="${current_buffer}_syntax${syntaxline}"
+	bf_s[syntaxline]="${current_buffer}_syntax${syntaxline}"
+	linearray=()
+	bckeIFS="${IFS}"
+	IFS=
+	make-render-line-loop
+	IFS="$bckeIFS"
+}
+
 
 
 @@ make-render-line-loop
@@ -1260,8 +1265,7 @@ function make-render-line-loop {
 	local word=''
 	bf_e[line]=''
 	column=0
-	while read -rsn1 char
-	do
+	while read -rsn1 char; do	
 		case "$char" in
 			' ')
 				syntax-word
@@ -2049,14 +2053,79 @@ function goto {
 	redraw
 }
 
-@@ syntax-format
-:: Syntax function for formated text
+@doc syntax-format <<'EOF'
+Convert formated text into Ebashs buffer understandable format.
+
+<f> title <u> Specifications </u> </f>
+
+<[> name <f> <f> hint face_name text... </f> <[> name </f>
+<-> Set <f> hint text </f> to face <f> hint face_name </f-> .
+
+<[> name <a> <f> hint command </f> <[> name : <f> hint text </f> <[> name </a>
+<-> Create clickable area that executes <f> hint command </f> on click and is labeled <f> hint text </f-> .
+<-> See <a> doc-goto link-enter : <f> link link-enter </f> </a> 
+
+<[> name <u> <f> hint text </f> <[> name </u>
+<-> Make <f> hint text </f> <u> uppercase. </u>
+
+<[> name <i> <f> hint number_of_spaces hint text </f-> ...\n...\n...\n... <[> name </i>
+<i-tab> Indent lines by <f> hint number of spaces </f-> .
+
+<[> name <i-tab>
+<-> Indent by tab (default 4 spaces).
+<-> Tab size is controlled via tab_format variable. </i>
+
+<[> name <s> <f> hint number_of_spaces </f>
+<-> Insert <f> hint number of spaces </f-> .
+
+<[> name <tab>
+<-> Insert tab.
+<-> <[> name <-> is alias for <[> name <tab>.
+
+<[> name <v> <f> hint variable_name </f> <[> name </v>
+<-> Insert contents of <f> hint variable </f> into text at formating time.
+
+<[> name <\> <f> hint text </f>
+<-> Escape <f> hint text </f>
+
+<[> name <[> <f> hint face_name text </f>
+<-> Escape <f> hint text </f> with <f> hint face </f-> .
+
+
+Some of these keywords also include versions to glue together with other words.
+For example:
+<-> text <[> name <-f> <f> name face </f> color! <[> name </f-> text
+Will turn into text <-f> lr c <-f> ly o <-f> lg l <-f> lc o <-f> lb r <-f> lm ! </f> </f> </f> </f> </f> </f-> text.
+EOF
 function syntax-format {
 	((newline==1)) && {
 		ichar="${indent_spaces}"
 	}
 	((newline==0)) && {
 		ichar=
+	}
+
+	((escape==2)) && {
+		escape=1
+		facename="$word"
+		skip_next_space=1
+		return
+	}
+	((escape==1)) && {
+		escape=0
+		face "$facename" "${ichar}$word"
+		return
+	}
+	[ "$word" = '<\>' ] && {
+		escape=1
+		skip_next_space=1
+		facename='unknown'
+		return
+	}
+	[ "$word" = '<[>' ] && {
+		escape=2
+		skip_next_space=1
+		return
 	}
 	
 	[ "$word" = '</v>' ] && {
@@ -2179,7 +2248,7 @@ function syntax-format {
 		skip_next_space=1
 		return
 	}
-	[ "$word" = '<tab>' ] && {
+	[ "$word" = '<tab>' ] || [ "$word" = '<->' ] && {
 		skip_next_space=1
 		for ((if=0; if< format_tab; if++)) {
 			linearray+=(' ')
@@ -2260,8 +2329,19 @@ function syntax-format {
 	face unknown "${ichar}$word"
 }
 
-@@ link-enter
-:: Open link
+@doc link-enter <<'EOF'
+Executes <f> name clickable area </f> of formated text to which current position
+of cursor points.
+Mostly used for <f> name hyperlinks </f-> .
+
+Internally <f> name clickable area </f> is defined via bf_c 2d array. Each line contains
+the <f> name clickable areas </f-> . Each of these is it's own associative array.
+Each <f> name clickable area </f> contains:
+<i-tab> <[> hint start - the first column of the area
+<[> hint end   - the last column of the area
+<[> hint exec  - what command should be executed when this function,
+<-> <f> name link-enter </f> is ran. </i>
+EOF
 function link-enter {
 	for link in ${bf_c[bf_d[line]]}; {
 		local -n bf_c_line="$link"
@@ -2283,7 +2363,7 @@ function link-enter {
 }
 
 @@ list-faces-display
-:: Displays list of fases
+:: Displays list of faces
 function list-faces-display {
 	save openfile
 	declare-new-buffer
@@ -2943,6 +3023,23 @@ defun doc-select
 		mapfile -t -O 3 buffer <<< "$(get-description "$function")"
 	    redraw
 	}
+nufed
+
+@@ doc-goto
+:: Replace function documentation with function \$1.
+:: 'See <a> doc-goto get-description : <f> link get-description </f> </a> for more details.'
+function doc-goto {
+	clear-buffer
+	bf_d[line]=1
+	bf_d[column]=0
+    buffer=(
+		''
+		"$format_nav"
+		''
+	)
+	mapfile -t -O 3 buffer <<< "$(get-description "$1")"
+	redraw
+}
 
 defun quit-doc
 	:: Quits and restores previous buffer.
@@ -2970,11 +3067,11 @@ defun get-description
 			for l in "${fn_desc[@]}"; {
 				printf "%s\n" "$l"
 			}
-			for i in {0..8}; {
-				printf '\n'
-			}
-			printf '<f> title [ Source ] </f>\n <change-syntax> 0 shell\n'		 
-			declare -f -- "$1"
+			#for i in {0..8}; {
+			#	printf '\n'
+			#}
+			#printf '<f> title [ Source ] </f>\n <change-syntax> 0 shell\n'		 
+			#declare -f -- "$1"
 		}
 	}
 
@@ -3729,7 +3826,7 @@ function redraw {
 	# Iterate over shown lines
 	local -i max=$((bf_d[size-y] - (toplines + bottomlines) + 1))
 	for ((i = bf_d[base]; i - bf_d[base] < max; i++)); do
-		# if the line is last, do not add newline
+	# if the line is last, do not add newline
 
 		if ((options[line-number-mode])); then
 			space=1
@@ -3756,9 +3853,10 @@ function redraw {
 				   ''\
 				   "$nlchar" &&
 			continue
+		
 		# to improve speed syntaxing has to be "lazy" -- having to be heavily cached as ram is far less expensive to waste
-		[ -z "${bf_s[i]}" ] && {
-			make-render-area $((base + i)) $((base + i + 1)) # idk why make-render-line doesnt work here
+		[ -z "${bf_s[base+i]}" ] && {
+			make-render-line $((base + i))
 		}
 		local -n linearray="${bf_s[i]}"
 		
