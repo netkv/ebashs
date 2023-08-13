@@ -53,6 +53,7 @@ function load-default-config {
 		:: tty-linuxfb 1 # enable truecolor support for framebuffer
 		:: full-redraw 0 # redraws whole buffer, can fix artifacting in linuxfb at cost of performance
 		:: welcome-buffer 1 # show welcome message instead of scratch
+		:: esc-to-meta 1
 		
 	## Key bindings configuration
 	#		A keybinding is defined via either
@@ -1000,6 +1001,8 @@ function define-key {
 		'RET') keys[a 0]="$3";;
 		#backspace & delete
 		'DEL') keys[7f 0]="$3";;
+		'[deletechar]') keys[1b 5b 33 7e 0]="$3";;
+		'ESC') keys[1b 0 0]="$3";;
 		'[deletechar]') keys[1b 5b 33 7e 0]="$3";;
 		*) keys["$2"]="$3"
 	esac
@@ -4197,7 +4200,7 @@ function main
 
 			# Hack to try preventing arrow codes being split into multiple and inserting garbage to buffer
 			[ "${k_hex[0]}" = '1b' ] && {
-				read -rsN1 k[1]
+				read -rsN1 -t "${esc_timeout}" k[1]
 				k_hex[1]="$(printf "%x\n" "'${k[1]}")"
 				[ "${k_hex[1]}" = '5b' ] && {
 					read -rsN1 k[2]
@@ -4388,6 +4391,11 @@ EOF
 		[	]='t' # tab
 		[ ]='s' # space
 	)
+	if ((options[esc-to-meta])); then
+		esc_timeout=123456789 # a very big number
+	else
+		esc_timeout=0.01
+	fi
 	log info 'Setting nlchar'
 	nlchar='\n'
 	printf '\e[?1049h'

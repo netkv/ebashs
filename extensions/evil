@@ -1,58 +1,80 @@
 #!/bin/bash
-options+=(
-	[default_mode]='command'
-	[cmd_prompt]=':'
-)
-declare -A keys_command
-keys_command=(
-	[${keys_def[previous_line]}]='previous-line'
-	[${keys_def[next_line]}]='next-line'
-	[${keys_def[forward_char]}]='forward-char'
-	[${keys_def[backward_char]}]='backward-char'
-	[${keys_def[scroll_down]}]='scroll-down'
-	[${keys_def[scroll_up]}]='scroll-up'
-	[68 0]='backward-char'
-	[6a 0]='next-line'
-	[6b 0]='previous-line'
-	[6c 0]='forward-char'
-	[69 0]='insertmode'
-	[61 0]='ansertmode'
-	[3a 0]='execute-extended-command'
-)
-keys_edit=(
-	[${keys_def[previous_line]}]='previous-line'
-	[${keys_def[next_line]}]='next-line'
-	[${keys_def[forward_char]}]='forward-char'
-	[${keys_def[backward_char]}]='backward-char'
-	[${keys_def[scroll_down]}]='scroll-down'
-	[${keys_def[scroll_up]}]='scroll-up'
-	[7f 0]='backspace'
-	[1b 0]='commandmode'
-)
-commands=(
-	[q]='quit'
-	[q!]='die'
-	[newline]='newline'
-	[set-buffer-file]='find-file'
-	[read-file]='read-buffer'
-	[w]='write-buffer'
-	[delete-line]='delete_line'
-	[toggle-mouse]='toggle-mouse'
-	[execute]='execute'
-	[shell]='shell'
-	[about]='about'
-	[backspace]='backspace'
-	[menu]='menu'
-	[menul]='menulinemenu'
-	[input]='inputcodes'
-	[scroll-up]='scroll-up'
-	[scroll-down]='scroll-down'
-	[dired]='dired'
-)
+## ebashs
 
-commandmode() { mode="command"; redraw; }
-insertmode() { mode="edit"; redraw; }
-ansertmode() {
-	forward-char
-	mode="edit"; redraw;
+# this is still really proof of concept and is missing lot of stuff,
+# contribution is welcome <3
+extension evil
+	version: wip-2
+
+set-options
+	:: default_mode command
+	:: command-prompt :
+	:: esc-to-meta 0
+
+keys_global=() # clear out default emacsy global mode
+global-set # pretty much only arrow keys and pgup & pgdown
+	:: '[up]' previous-line
+	:: '[down]' next-line
+	:: '[right]' forward-char
+	:: '[left]' backward-char
+	:: '[next]' scroll-down
+	:: '[prior]' scroll-up
+
+# default command mode
+add-mode command
+	:: "$(kbd l)" forward-char
+	:: "$(kbd h)" backward-char
+	:: "$(kbd j)" next-line
+	:: "$(kbd k)" previous-line
+	:: "$(kbd i)" set-insert-mode
+	:: "$(kbd a)" set-insert-mode-append
+	:: "$(kbd A)" set-insert-mode-append-end
+	:: "$(kbd :)" execute-extended-command
+	:: "$(kbd 0)" move-beginning-of-line
+	:: "$(kbd _)" move-beginning-of-line
+	:: "$(kbd ^)" move-beginning-of-line
+	:: "$(kbd $)" move-end-of-line
+	:: "$(kbd d)" delete-line
+	:: "$(kbd x)" delete
+	mode-options
+		:: else :
+
+# bare inserter mode
+add-mode insert
+	:: 'ESC' set-command-mode
+	mode-options
+		:: else 'insert'
+
+@@ set-command-mode Switch to command mode.
+function set-command-mode {
+	printf '\033[0 q'
+	bf_d[mode]=command
+	redraw-statusline
+	redraw-cursor
 }
+@@ set-insert-mode Switch to insert mode.
+function set-insert-mode {
+	printf '\033[5 q'
+	bf_d[mode]=insert
+	redraw-statusline
+	redraw-cursor
+}
+@@ set-insert-mode-append Move forward and switch to insert mode.
+function set-insert-mode-append {
+	printf '\033[5 q'
+	bf_d[mode]=insert
+	redraw-statusline
+	forward-char
+	redraw-cursor
+}
+@@ set-insert-mode-append-end Move to end of line and switch to insert mode.
+function set-insert-mode-append-end {
+	printf '\033[5 q'
+	bf_d[mode]=insert
+	move-end-of-line
+}
+
+set-alias
+	:: 'q!' 'die'
+	:: 'q' 'quit'
+	:: 'w' 'write-buffer'
