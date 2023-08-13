@@ -4,12 +4,15 @@
 # this is still really proof of concept and is missing lot of stuff,
 # contribution is welcome <3
 extension evil
-	version: wip-2
+	version: wip-2.1
 
 set-options
 	:: default_mode command
 	:: command-prompt :
 	:: esc-to-meta 0
+	:: keep-message 1
+	:: menu-line 0
+	:: tabchar '        '
 
 keys_global=() # clear out default emacsy global mode
 global-set # pretty much only arrow keys and pgup & pgdown
@@ -27,6 +30,7 @@ add-mode command
 	:: "$(kbd j)" next-line
 	:: "$(kbd k)" previous-line
 	:: "$(kbd i)" set-insert-mode
+	:: "$(kbd I)" set-insert-mode-beginning
 	:: "$(kbd a)" set-insert-mode-append
 	:: "$(kbd A)" set-insert-mode-append-end
 	:: "$(kbd :)" execute-extended-command
@@ -36,6 +40,7 @@ add-mode command
 	:: "$(kbd $)" move-end-of-line
 	:: "$(kbd d)" delete-line
 	:: "$(kbd x)" delete
+	:: "$(kbd v)" set-mark-command
 	mode-options
 		:: else :
 
@@ -50,6 +55,8 @@ function set-command-mode {
 	printf '\033[0 q'
 	bf_d[mode]=command
 	redraw-statusline
+	message=''
+	redraw-commandline
 	redraw-cursor
 }
 @@ set-insert-mode Switch to insert mode.
@@ -57,6 +64,8 @@ function set-insert-mode {
 	printf '\033[5 q'
 	bf_d[mode]=insert
 	redraw-statusline
+	message='-- INSERT --'
+	redraw-commandline
 	redraw-cursor
 }
 @@ set-insert-mode-append Move forward and switch to insert mode.
@@ -64,6 +73,8 @@ function set-insert-mode-append {
 	printf '\033[5 q'
 	bf_d[mode]=insert
 	redraw-statusline
+	message='-- INSERT --'
+	redraw-commandline
 	forward-char
 	redraw-cursor
 }
@@ -71,7 +82,15 @@ function set-insert-mode-append {
 function set-insert-mode-append-end {
 	printf '\033[5 q'
 	bf_d[mode]=insert
+	message='-- INSERT --'
 	move-end-of-line
+}
+@@ set-insert-mode-beginning Move to start of line and switch to insert mode.
+function set-insert-mode-beginning {
+	printf '\033[5 q'
+	bf_d[mode]=insert
+	message='-- INSERT --'
+	move-beginning-of-line
 }
 
 set-alias
