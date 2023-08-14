@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.8.7"
+version="0.8.7.1"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -203,7 +203,8 @@ default_faces=(
 		title "$(:weight bold)"
 		highlight "$(:weight bold :foreground light-red)"
 		name "$(:foreground magenta)"
-		mode-line '\e[m'
+		#mode-line '\e[m'
+		mode-line "$(:background yellow :foreground black)"
 		hint "$(:foreground light-yellow)"
 		file-name "$(:weight bold)"
 		line-number "$(:foreground gray)"

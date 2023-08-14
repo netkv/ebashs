@@ -13,6 +13,8 @@ set-options
 	:: keep-message 1
 	:: menu-line 0
 	:: tabchar '        '
+	:: line-number-mode 0
+	:: empty-line-char ''
 
 keys_global=() # clear out default emacsy global mode
 global-set # pretty much only arrow keys and pgup & pgdown
@@ -97,3 +99,17 @@ set-alias
 	:: 'q!' 'die'
 	:: 'q' 'quit'
 	:: 'w' 'write-buffer'
+
+function redraw-statusline {
+	printf '\e[?25l'
+	((options[mode-line])) &&
+		printf "\e[%s;%sH%b%*s\e[%sG%b%s\e[m" \
+			   $((bf_d[size-y] - 1 + bf_d[loc-y]))\
+			   "${bf_d[loc-x]}"\
+			   "${faces[mode-line]}"\
+			   "${bf_d[size-x]}"\
+			   "${bf_d[line]},${bf_d[column]}    $((100 * bf_d[line] / bf_d[length]))%"\
+			   "${bf_d[loc-x]}"\
+			   "${faces[file-name]}"\
+			   "${bf_d[file]}"
+}
