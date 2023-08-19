@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.8.7.1"
+version="0.8.8"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -354,16 +354,16 @@ default_faces=(
 ## Documentation
 function load-doc {
 	mapfile -t -O 1 top_doc <<'EOF'
-<f> title <u> Documentation </u> </f>
+<h> Documentation </h>
 
-<tab> <a> goto doc_control : <f> link Controls </f> </a>
-<tab> <a> describe : <f> link Functions </f> </a>
-<tab> <a> goto doc_faces : <f> link Face setting </f> </a>
+<tab> <link> goto doc_control : Controls </link>
+<tab> <link> describe : Functions </link>
+<tab> <link> goto doc_faces : Face setting </link>
 EOF
 
 	mapfile -t -O 1 doc_control <<'EOF'
-<a> goto top_doc : <f> link Back </f> </a>
-<f> title [ <u> Controls </u> ] </f>
+<link> goto top_doc : Back </link>
+<h> [ Controls ] </h>
 
 Automatically generated list of keybindings. Click on function name to view it's documentation.
 Note that currently only key set via $(kbd C-char or M-char) will show up.
@@ -371,13 +371,13 @@ EOF
 	for mode in "${modes[@]}"; do
 		doc_control+=(
 			'</i>'
-			"<f> title <u> ${mode} </u> </f>"
+			"<h> ${mode} </h>"
 			'<i-tab>'
 		)
 		local -n moderef="$mode"
 		for ch in\
 			C-a C-b C-c C-d C-e C-f C-g C-h C-i C-j C-k C-l C-m C-n C-o C-p C-q C-r C-s C-t C-u C-v C-w C-x C-y C-z :\
-			M-a M-b M-c M-d M-e M-f M-g M-h M-i M-j M-k M-l M-m M-n M-o M-p M-q M-r M-s M-t M-u M-v M-w M-x M-y M-z
+			M-a M-b M-c M-d M-e M-f M-g M-h M-i M-j M-k M-l M-m M-n M-o M-p M-q M-r M-s M-t M-u M-v M-w M-x M-y M-z	
 		do
 			[ "$ch" = ':' ] && {
 				doc_control+=('')
@@ -395,12 +395,12 @@ EOF
 	)
 
 	mapfile -t -O 1 doc_faces <<'EOF'
-<a> goto top_doc : <f> link Back </f> </a>
-<f> title [ <u> Face configuration </u> ] </f>
+<link> goto top_doc : Back </link>
+<h> [ Face configuration ] </h>
 
 Faces are set via theme arrays. Theme array consists pairs of name and value.
 The first is name, second is value, then again first... second... ... ... . The
-Theme array has to be then loaded via <a> doc-select load-theme : <f> link load-theme </f> </a> function.
+Theme array has to be then loaded via <link> doc-select load-theme : load-theme </link> function.
 
 Faces configured via escape codes, for example:
 <-> <f> blue perfectblue '\e[44m' </f>
@@ -416,13 +416,13 @@ or if you use nice terminal even full 24 bit hex. color:
 The face-setting functions can be combined:
 <-> <f> red red <-f> cyan cyan </f> </f> <f> cyan "$(:background <f> ansi-color-cyan c44 </f> </f> <f> red :foreground <f> ansi-color-red c196 </f-> )" </f>
 
-<-> <-> see <a> doc-select :foreground : <f> link :foreground </f> </a> <a> doc-select :background : <f> link :background </f> </a> <a> doc-select setface : <f> link setface </f> </a>
+<-> <-> see <link> doc-select :foreground : :foreground </link> <link> doc-select :background : :background </link> <link> doc-select setface : setface </link>
 
 The boldness and dimness can be set via <a> doc-select :weight : <f> link :weight </f> </a> function.
 The inverseness can be set via <a> doc-select :mode : <f> link :mode </f> </a> function.
 The slant can be set via <a> doc-select :slant : <f> link :slant </f> </a> function.
 
-<f> title <u> Example </u> </f>
+<h> Example </h>
 
 To change faces used on this page
 
@@ -2009,7 +2009,7 @@ function about {
 	mapfile -t -O 1 buffer <<EOF
 $format_nav
 
-<f> title Ebashs $version </f>
+<h> Ebashs $version </h>
 Copyright(č)ˇ 2022-2023 <f> title Netkv </f-> .
 ( <-f> title bed </f-> : Copyright(č)ˇ 2020 <f> title Comfies </f-> .)
 
@@ -2026,7 +2026,7 @@ Repo <s> 19 <f> link https://github.com/aeknt/spis </f>
 Based on <s> 15 <f> link https://github.com/comfies/bed </f>
 
 
-<tab> <f> hint For more information about usage of Ebashs, press <f> light-gray C-h C-r </f> to view manual </f>
+<tab> <f> hint For more information about usage of Ebashs, press <f> light-gray C-h C-r </f> to view </f> <link> manual : manual </link>
 
 <i> 5
 <f> dr                          .............. </f>
@@ -2112,9 +2112,16 @@ Convert formated text into Ebashs buffer understandable format.
 <[> name <f> <f> hint face_name text... </f> <[> name </f>
 <-> Set <f> hint text </f> to face <f> hint face_name </f-> .
 
+<[> name <h> <f> hint text... </f> <[> name </h>
+<-> Make <f> hint text </f> into title.
+
 <[> name <a> <f> hint command </f> <[> name : <f> hint text </f> <[> name </a>
 <-> Create clickable area that executes <f> hint command </f> on click and is labeled <f> hint text </f-> .
 <-> See <a> doc-goto link-enter : <f> link link-enter </f> </a> 
+
+<[> name <link> <f> hint command </f> <[> name : <f> hint text </f> <[> name </link>
+<-> Create clickable area that executes <f> hint command </f> on click and is labeled <f> hint text </f-> .
+<-> <[> name <link> also automatically adds <f> link link </f> face to text.
 
 <[> name <u> <f> hint text </f> <[> name </u>
 <-> Make <f> hint text </f> <u> uppercase. </u>
@@ -2149,6 +2156,16 @@ For example:
 Will turn into text <-f> lr c <-f> ly o <-f> lg l <-f> lc o <-f> lb r <-f> lm ! </f> </f> </f> </f> </f> </f-> text.
 EOF
 function syntax-format {
+	((skip_word==1)) && {
+		skip_next_space=1
+		[ "$word" = '-->' ] && skip_word=0
+		return
+	}
+	[ "$word" = '<!--' ] && {
+		skip_next_space=1
+		skip_word=1
+		return
+	}
 	((newline==1)) && {
 		ichar="${indent_spaces}"
 	}
@@ -2201,9 +2218,6 @@ function syntax-format {
 		skip_next_space=1
 		return
 	}
-	((upper==1)) && {
-		word="${word^^}"
-	}
 	[ "$word" = '<u>' ] && {
 		upper=1
 		skip_next_space=1
@@ -2213,9 +2227,8 @@ function syntax-format {
 		unset linearray[-1]
 		bf_e[line]=${bf_e[line]::-1}
 		((column--))
-		faceesc=0
+		unset facename
 		[ -n "$bckfacename" ] && {
- 			faceesc=1
 			facename="$bckfacename"
 			unset bckfacename
 		}
@@ -2226,9 +2239,7 @@ function syntax-format {
 		bf_e[line]=${bf_e[line]::-1}
 		((column--))
 		skip_next_space=1
-		faceesc=0
 		[ -n "$bckfacename" ] && {
- 			faceesc=1
 			facename="$bckfacename"
 			unset bckfacename
 		}
@@ -2240,19 +2251,9 @@ function syntax-format {
 		facename="$word"
 		return
 	}
-	((faceesc==1)) && {
-		case "$word" in
-			'<f>'|'<-f>') bckfacename="$facename";;
-			*)
-				((newline==1)) && newline=0
-				((column+=${#ichar} + ${#word}))
-				face "$facename" "${ichar}$word"
-				return
-		esac
-	}
 	[ "$word" = '<f>' ] && {
+		bckfacename="$facename"
 		skip_next_space=1
-		faceesc=1
 		facedef=1
 		return
 	}
@@ -2260,12 +2261,32 @@ function syntax-format {
 		unset linearray[-1]
 		bf_e[line]=${bf_e[line]::-1}
 		((column--))
-		faceesc=0
+		bckfacename="$facename"
 		skip_next_space=1
-		faceesc=1
 		facedef=1
 		return
 	}
+	
+	[ "$word" = '</h>' ] && {
+		unset linearray[-1]
+		bf_e[line]=${bf_e[line]::-1}
+		((column--))
+		unset facename
+		upper=0
+		[ -n "$bckfacename" ] && {
+			facename="$bckfacename"
+			unset bckfacename
+		}
+		return
+	}
+	[ "$word" = '<h>' ] && {
+		bckfacename="$facename"
+		skip_next_space=1
+		facename=title
+		upper=1
+		return
+	}
+	
 	((sethighlight==2)) && {
 		sethighlight=1
 		skip_next_space=1
@@ -2375,9 +2396,56 @@ function syntax-format {
 		linkfn=
 		return
 	}
+	((facelink==2)) && {
+		[ "$word" = ':' ] && {
+			((
+				skip_next_space=1,
+				facelink=1
+			))
+			facename='link'
+			return
+		}
+		skip_next_space=1
+		linkfn+="$word "
+		return
+	}
+	[ "$word" = '</link>' ] && {
+		((lc++))
+		((column--))
+		facelink=0
+		unset linearray[-1]
+		bf_e[line]=${bf_e[line]::-1}
+		bf_c[line]+="bf_c_${lc}_${current_buffer} "
+		declare -Ag "bf_c_${lc}_${current_buffer}"
+		local -n bf_c_line="bf_c_${lc}_${current_buffer}"
+		bf_c_line=(
+			[start]="$lsx"
+			[end]=$((column - 1))
+			[exec]="$linkfn"
+		)
+		unset facename
+		[ -n "$bckfacename" ] && {
+			facename="$bckfacename"
+			unset bckfacename
+		}
+		return
+	}
+	[ "$word" = '<link>' ] && {
+		((
+			facelink=2,
+			lsx=column,
+			skip_next_space=1
+		))
+		linkfn=
+		return
+	}
+	
 	((newline==1)) && newline=0
 	((column+=${#ichar} + ${#word}))
-	face unknown "${ichar}$word"
+	((upper==1)) && {
+		word="${word^^}"
+	}
+	face "${facename:-unknown}" "${ichar}$word"
 }
 
 @doc link-enter <<'EOF'
@@ -3418,6 +3486,7 @@ defun-fragment move-next-line
 			@ keepcolumn
 		@ end
 }
+nufed
 
 template move <<'+'
 	function @var 1 {
@@ -3488,40 +3557,48 @@ template char <<'+'
 	@: forward-char + ++ '@ forwardcheck'
 	@: backward-char - -- '@ backwardcheck'
 
-fragment charbreak <<'+'
-	case "${bf_e[bf_d[line]]:${bf_d[column]}:1}" in
-		't'|'s') break;;
-	esac
+@@ forward-word
+:: Moves forward to next word
+function forward-word {
+	((bf_d[column] == ${#bf_e[bf_d[line]]})) && {
+		next-line
+		move-beginning-of-line
+	}
+	while :; do
+		((bf_d[column] < ${#bf_e[bf_d[line]]})) && ((bf_d[column]++)) || break
+		case "${bf_e[bf_d[line]]:${bf_d[column]}:1}" in
+			't'|'s') break
+		esac
+	done
+	redraw
+}
+
+@@ backward-word
+:: Moves backward to previous word
+function backward-word {
+	((bf_d[column] == 0)) && {
+		previous-line
+		move-end-of-line
+	}
+	while :; do
+		((bf_d[column] > 0)) && ((bf_d[column]--)) || break
+		case "${bf_e[bf_d[line]]:${bf_d[column]}:1}" in
+			't'|'s') break
+		esac
+	done
+	redraw
+}
+
+
+@doc to-line <<'+'
+Move cursor to line number $1 and move the line into middle of visible buffer area.
 +
-
-defun-fragment forward-word
-	:: Moves forward to next word
-	function = {
-		((bf_d[column] == ${#bf_e[bf_d[line]]})) && {
-			next-line
-			move-beginning-of-line
-		}
-		while :; do
-			((bf_d[column] < ${#bf_e[bf_d[line]]})) && ((bf_d[column]++)) || break
-			@ charbreak
-		done
-		redraw
-	}
-
-defun-fragment backward-word
-	:: Moves backward to previous word
-	function = {
-		((bf_d[column] == 0)) && {
-			previous-line
-			move-end-of-line
-		}
-		while :; do
-			((bf_d[column] > 0)) && ((bf_d[column]--)) || break
-			@ charbreak
-		done
-		redraw
-	}
-
+function to-line {
+	bf_d[line]="$1"
+	bf_d[base]=$((bf_d[line] - bf_d[size-y] / 2 ))
+	redraw
+}
+	
 defun set-mark-command
 	:: Begins selection	
 	function =
