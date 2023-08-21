@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.8.8"
+version="0.8.9"
 log_buffer+=('' 'START')
 ## Ebashs
 #		Emacs-like editor written in pure Bash
@@ -71,7 +71,7 @@ function load-default-config {
 	global-set
 		:: "$(kbd C-x)" 'prefix'
 		:: "$(kbd M-x)" 'execute-extended-command'
-		:: '[f10]' 'menu-top'
+		:: '[f10]' 'menu-top_menu'
 		:: "$(kbd C-g)" 'quit-prefix'
 		:: '[up]' 'previous-line'
 		:: '[down]' 'next-line'
@@ -158,10 +158,31 @@ function load-default-config {
 			:: disable-global 1
 
 	add-mode format
+		:: '[left]' format-left
+		:: '[up]' format-up
+		:: '[right]' format-right
+		:: '[down]' format-down
 		:: 'RET' link-enter
 		:: "$(kbd C-c)" quit-view
+		:: '[next]' 'scroll-down'
+		:: '[prior]' 'scroll-up'
+		:: "$(kbd C-a)" 'move-beginning-of-line'
+		:: "$(kbd C-e)" 'move-end-of-line'
+		:: "$(kbd C-p)" 'previous-line'
+		:: "$(kbd C-n)" 'next-line'
+		:: "$(kbd C-f)" 'forward-char'
+		:: "$(kbd M-f)" 'forward-word'
+		:: "$(kbd C-b)" 'backward-char'
+		:: "$(kbd M-b)" 'backward-word'
+		:: "$(kbd M-v)" 'scroll-down'
+		:: "$(kbd C-v)" 'scroll-up'
+		:: "$(kbd C-x)" 'prefix'
+		:: "$(kbd M-x)" 'execute-extended-command'
+		:: '[f10]' 'menu-top_menu'
+		:: "$(kbd C-g)" 'quit-prefix'
 		mode-options
 			:: else :
+			:: disable-global 1
 
 	add-mode welcome
 		:: 'RET' link-enter
@@ -196,7 +217,7 @@ default_faces=(
 		NOTE "$(:background gray)"
 		menu "$(:background yellow :foreground black)"
 		menu-enabled-face "$(:background yellow :foreground black)"
-		button '\e[4m\e[1m'
+		menu-back '\e[4m\e[1m'
 		menu-selected-face "$(:background light-yellow :foreground black :weight bold)"
 		#link "$(:foreground light-cyan)"
 		link '\e[4;96m'
@@ -213,6 +234,9 @@ default_faces=(
 		tab-face "$(:weight dim :foreground gray)"
 		region "$(:weight bold :background gray)"
 		minibuffer-prompt "$(:weight normal)"
+		#button-text "$(:background gray :foreground white)"
+		#button-highlight "$(:background gray :foreground light-yellow)"
+		#button-shadow "$(:background gray :foreground yellow)"
 		# ansi colors
 		ansi-color-black '\e[40m'
 		ansi-color-blue '\e[44m'
@@ -269,14 +293,14 @@ default_faces=(
 		:: read-file 'read-buffer'
 		:: write-file 'write-buffer'
 		:: force-quit 'die'
-		:: menul 'menu-top'
+		:: menul 'menu-top_menu'
 		:: menu-file 'menu-file'
 		:: input 'inputcodes'
 		:: log 'view-log'
 
 	## Menus
 	#		Defined via ordered pseudo-associative double-arrays
-	#			All menu items calling 'menu-top' get applied the 'button' face
+	#			All menu items calling 'menu-top' get applied the 'menu-back' face
 	#
 	#		Menu top is the top menuline & f10 menu	
 	#		Menu dired is the top menuline in dired buffers	
@@ -287,8 +311,15 @@ default_faces=(
 		:: Debug menu-debug
 		:: Redraw refresh
 
+	add-menu top_menu
+		:: 'File   ' menu-file
+		:: 'Keys   ' menu-key
+		:: 'Help   ' menu-help
+		:: 'Debug  ' menu-debug
+		:: 'Redraw ' refresh
+
 	add-menu file
-		:: '        BACK        ' menu-top
+		:: '        BACK        ' menu-top_menu
 		:: 'Quit        C-x C-c ' quit
 		:: 'Visit file  C-x C-f ' find-file
 		:: 'Execute         C-t ' execute
@@ -300,7 +331,7 @@ default_faces=(
 		:: 'About               ' about
 
 	add-menu key
-	    :: '        BACK        ' menu-top
+	    :: '        BACK        ' menu-top_menu
 		:: 'Exit        C-x C-c ' quit
 		:: 'New Line    C-l | ⏎ ' newline
 		:: 'Visit file  C-x C-f ' find-file
@@ -314,7 +345,7 @@ default_faces=(
 		:: 'Shell           C-s ' shell
 		:: 'Force exist     M-q ' die
     add-menu debug
-		:: '   BACK   ' menu-top
+		:: '   BACK   ' menu-top_menu
 		:: 'clear     ' clear-screen
 		:: 'refresh   ' refresh
 		:: 'backspace ' backspace
@@ -346,9 +377,12 @@ default_faces=(
 		:: quit 'quit-view'
 	
 	# Navigation used in some inbuild buffers
-	format_nav="<a> about : <f> link About </f> </a> "
-	format_nav+="<a> manual : <f> link Manual </f> </a> "
-	format_nav+="<a> view-page : <f> link Documentation </f> </a>"
+	#format_nav="<a> about : <f> link About </f> </a> "
+	#format_nav+="<a> manual : <f> link Manual </f> </a> "
+	#format_nav+="<a> view-page : <f> link Documentation </f> </a>"
+	format_nav="<o> id: about select: about right: obj manual text: <f> link About </f> </o> "
+	format_nav+="<o> id: manual select: manual left: obj about right: obj doc text: <f> link Manual </f> </o> "
+	format_nav+="<o> id: doc select: view-page left: obj manual right: next-line text: <f> link Documentation </f> </o>"
 }
 
 ## Documentation
@@ -1095,13 +1129,13 @@ function add-menu {
 
 @@ define-menu
 :: Defines item in menu '$1' with name '$2' with command '$3'
-:: '    If command is "menu-top" face button is used.'
+:: '    If command is "menu-top_menu" face menu-back is used.'
 function define-menu {
 	local -n menu_0="menu_${1}_0"
 	local -n menu_1="menu_${1}_1"
 	local item_0
 	case "$3" in
-		'menu-top') item_0="$(printf '%b' "${faces[button]}")$2";;
+		'menu-top_menu') item_0="$(printf '%b' "${faces[menu-back]}")$2";;
 		*) item_0="$2"
 	esac
 	menu_0+=("$item_0")
@@ -1323,7 +1357,7 @@ function make-render-line-loop {
 				word=''
 				((skip_next_space==1)) && skip_next_space=0 && continue
 				bf_e[line]+='s'
-				face-no-expand default ' '
+				face-no-expand "${facename:-default}" ' '
 				((column++));;
 			'	')
 				syntax-word
@@ -2440,6 +2474,66 @@ function syntax-format {
 		return
 	}
 	
+	((object==1)) && {
+		skip_next_space=1
+		[ "$word" = 'text:' ] && {
+			object=0
+			set_obj=0
+			return
+		}
+		[ "$word" = 'select:' ] && { set_obj=1; obj_select=; return; }
+		[ "$word" = 'id:' ] && { set_obj=2; obj_id=; return; }
+		[ "$word" = 'left:' ] && { set_obj=3; obj_left=; return; }
+		[ "$word" = 'up:' ] && { set_obj=4; obj_up=; return; }
+		[ "$word" = 'right:' ] && { set_obj=5; obj_right=; return; }
+		[ "$word" = 'down:' ] && { set_obj=6; obj_down=; return; }
+
+		((set_obj==1)) && obj_select+="$word "
+		((set_obj==2)) && obj_id+="$word "
+		((set_obj==3)) && obj_left+="$word "
+		((set_obj==4)) && obj_up+="$word "
+		((set_obj==5)) && obj_right+="$word "
+		((set_obj==6)) && obj_down+="$word "
+		return
+	}
+	[ "$word" = '</o>' ] && {
+		((lc++))
+		((column--))
+		link=0
+		unset linearray[-1]
+		bf_e[line]=${bf_e[line]::-1}
+		bf_c[line]+="bf_c_${lc}_${current_buffer} "
+		declare -Ag "bf_c_${lc}_${current_buffer}"
+		local -n bf_c_line="bf_c_${lc}_${current_buffer}"
+		bf_c_line=(
+			[start]="$lsx"
+			[end]=$((column - 1))
+			[exec]="$obj_select"
+			[id]="$obj_id"
+			[left]="$obj_left"
+			[up]="$obj_up"
+			[right]="$obj_right"
+			[down]="$obj_down"
+		)
+		return
+	}
+	[ "$word" = '<o>' ] && {
+		((
+			object=1,
+			lsx=column,
+			skip_next_space=1
+		))
+		obj_id=
+		obj_text=
+		obj_select='true'
+		obj_left='backward-char'
+		obj_up='previous-line'
+		obj_right='forward-char'
+		obj_down='next-line'
+		set_obj=0
+		return
+	}
+	
 	((newline==1)) && newline=0
 	((column+=${#ichar} + ${#word}))
 	((upper==1)) && {
@@ -2473,12 +2567,67 @@ function link-enter {
 			((bf_d[column] <= bf_c_line[end])) && {
 				has=1
 				${bf_c_line[exec]}
+				return
 			}
 	}
-	((has==0)) && {
-		${bf_d[format-else]}
+	${bf_d[format-else]}
+}
+
+function format-left {
+	for link in ${bf_c[bf_d[line]]}; {
+		local -n bf_c_line="$link"
+		((bf_d[column] >= bf_c_line[start])) &&
+			((bf_d[column] <= bf_c_line[end])) && {
+				${bf_c_line[left]:-backward-char}
+				return
+			}
 	}
-	has=0
+	backward-char
+}
+function format-up {
+	for link in ${bf_c[bf_d[line]]}; {
+		local -n bf_c_line="$link"
+		((bf_d[column] >= bf_c_line[start])) &&
+			((bf_d[column] <= bf_c_line[end])) && {
+				${bf_c_line[up]:-previous-line}
+				return
+			}
+	}
+	previous-line
+}
+function format-right {
+	for link in ${bf_c[bf_d[line]]}; {
+		local -n bf_c_line="$link"
+		((bf_d[column] >= bf_c_line[start])) &&
+			((bf_d[column] <= bf_c_line[end])) && {
+				${bf_c_line[right]:-forward-char}
+				return
+			}
+	}
+	forward-char
+}
+function format-down {
+	for link in ${bf_c[bf_d[line]]}; {
+		local -n bf_c_line="$link"
+		((bf_d[column] >= bf_c_line[start])) &&
+			((bf_d[column] <= bf_c_line[end])) && {
+				${bf_c_line[down]:-next-line}
+				return
+			}
+	}
+	next-line
+}
+
+function obj {
+	for y in "${!bf_c[@]}"; {
+		for obj in ${bf_c[y]}; {
+			local -n bf_c_line="$obj"
+			[ "${bf_c_line[id]}" = "$1 " ] && {
+				((bf_d[line]=y, bf_d[column]=bf_c_line[start]))
+				redraw-cursor
+			}
+		}
+	}
 }
 
 @@ list-faces-display
@@ -4421,6 +4570,7 @@ Initialization options:
 --help,        display this help and exit
 --version,     display version information and exit
 --view, -v     open file for viewing if possible
+--exec, -e     execute file as script with Ebashs features
 EOF
 			abort;;
 		'--view'|'-v')
@@ -4428,6 +4578,14 @@ EOF
 			options[view]=1
 			load-default-config #loads default config
 			load-config
+			shift;;
+		'--exec'|'-e')
+			log_buffer+=('- LOAD DEFAULT CONFIG -')
+			options[view]=1
+			options[no-file]=1
+			load-default-config #loads default config
+			load-config
+			source "$2"
 			shift;;
 		*)
 			log_buffer+=('- LOAD DEFAULT CONFIG -')
@@ -4478,30 +4636,36 @@ EOF
 	nlchar='\n'
 	printf '\e[?1049h'
 	log info 'Setting mouse'
-	(("${options[mouse]}")) && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
-	
-	if [[ "$1" ]]; then # If a file was provided in the terminal pre-load it
-		log info "args: $1"
-		if [ -d "$1" ]; then
-			log info "[$1] is directory => dired"
-			cd "$1" || exit
-			dired # enter the file selector in specified folder
-		else
-			log info "[$1] is file => read-buffer"
-			read-buffer "$1"
-		fi
+	((options[mouse])) && echo -ne "\e[?1000;1006;1015h" #enable mouse tracking
+	if ((options[no-file])); then
+		${options[init-buffer]}
+		redraw
+		main
 	else
-		log info "no arg => scratch"
-		if ((options[welcome-buffer])); then
-			welcome-buffer
+		if [[ "$1" ]]; then # If a file was provided in the terminal pre-load it
+			log info "args: $1"
+			if [ -d "$1" ]; then
+				log info "[$1] is directory => dired"
+				cd "$1" || exit
+				dired # enter the file selector in specified folder
+			else
+				log info "[$1] is file => read-buffer"
+				read-buffer "$1"
+			fi
 		else
-			scratch
+			log info "no arg => scratch"
+			if ((options[welcome-buffer])); then
+				welcome-buffer
+			else
+				scratch
+			fi
 		fi
+		log info "drawing..."
+		redraw
+		log info 'entering main loop...'
+		main
+
 	fi
-	log info "drawing..."
-	redraw
-	log info 'entering main loop...'
-	main
 }
 
 log_buffer+=('INIT')
