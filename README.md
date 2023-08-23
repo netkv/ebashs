@@ -7,6 +7,10 @@ Versions of Ebashs ending in WIP-x are and will be broken, you can check version
 
 For more updated help run inside Ebashs `M-x describe` or `C-h C-f`
 
+Update: Ebashs was split into two parts, the editor (Ebashs) and the underlying tui framework (Buffermaker). This split isn't yet complete and using Buffermaker for programs other than Ebashs is very experimental (see testapp example).
+
+To continue using Ebashs also add buffermaker into PATH.
+
 # EBASHS
 
 ## DESCRIPTION

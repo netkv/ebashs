@@ -17,6 +17,13 @@ For more updated help run inside Ebashs $(code 'M-x describe') or $(code 'C-h C-
 EOF2
 )
 
+$(text <<EOF2
+Update: Ebashs was split into two parts, the editor (Ebashs) and the underlying tui framework (Buffermaker). This split isn't yet complete and using Buffermaker for programs other than Ebashs is very experimental (see testapp example).
+
+To continue using Ebashs also add buffermaker into PATH.
+EOF2
+)
+
 $(header EBASHS)
 
 $(title DESCRIPTION)
