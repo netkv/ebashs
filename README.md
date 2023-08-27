@@ -9,7 +9,7 @@ For more updated help run inside Ebashs `M-x describe` or `C-h C-f`
 
 Update: Ebashs was split into two parts, the editor (Ebashs) and the underlying tui framework (Buffermaker). This split isn't yet complete and using Buffermaker for programs other than Ebashs is very experimental (see testapp example).
 
-To continue using Ebashs also add buffermaker into PATH.
+Update 2: Buffermaker has been separated into https://github.com/aeknt/BufferMaker. Ebashs now includes its internal version of BufferMaker library to prevent breaking when I randomly decide to change core functions, and to make using Ebashs easier.
 
 # EBASHS
 
