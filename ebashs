@@ -1,5 +1,7 @@
 #!/bin/bash
 
+ebashs_version='0.9.1'
+
 ### BUFFERMAKER START
 
 #!/bin/bash
@@ -2407,8 +2409,6 @@ function main
 	
 
 ### BUFFERMAKER END
-
-ebashs_version='0.9'
 
 ## Ebashs
 #		Emacs-like editor written in pure Bash
