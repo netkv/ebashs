@@ -5,7 +5,7 @@ ebashs_version='0.9.1'
 ### BUFFERMAKER START
 
 #!/bin/bash
-buffermaker_version="0.10.2.1-ebashs-internal"
+buffermaker_version="0.10.4.1-ebashs-internal"
 log_buffer+=('' 'START')
 ## Buffermaker
 # Pure bash tui framework (wip)
@@ -87,12 +87,10 @@ function load-default-config {
 default_faces=(
 		reset '\e[m'
 		default "$(:weight normal)"
-		TODO "$(:background magenta)"
-		NOTE "$(:background gray)"
 		menu "$(:background yellow :foreground black)"
 		menu-highlight '\e[4;30;43m'
-		menu-enabled-face "$(:background yellow :foreground black)"
 		menu-back '\e[4m\e[1m'
+		menu-enabled-face "$(:background yellow :foreground black)"
 		menu-selected-face "$(:background light-yellow :foreground black :weight bold)"
 		button "$(:foreground light-cyan)"
 		link '\e[4;96m'
@@ -101,38 +99,19 @@ default_faces=(
 		highlight "$(:weight bold :foreground light-red)"
 		dim "$(:weight dim)"
 		name "$(:foreground magenta)"
-		#mode-line '\e[m'
-		mode-line "$(:background yellow :foreground black)"
 		hint "$(:foreground light-yellow)"
 		hint-highlight '\e[4;93m'
-		file-name "$(:weight bold)"
 		line-number "$(:foreground gray)"
 		line-number-empty "$(:weight dim :foreground gray)"
 		line-number-current-line "$(:weight bold :foreground light-red)"
 		tab-face "$(:weight dim :foreground gray)"
 		region "$(:weight bold :background gray)"
 		minibuffer-prompt "$(:weight normal)"
-		# ansi colors
-		ansi-color-black '\e[40m'
-		ansi-color-blue '\e[44m'
-		ansi-color-bold '\e[1m'
-		ansi-color-bright-black '\e[100m'
-		ansi-color-bright-blue '\e[104m'
-		ansi-color-bright-cyan '\e[106m'
-		ansi-color-bright-green '\e[102m'
-		ansi-color-bright-magenta '\e[105m'
-		ansi-color-bright-red '\e[101m'
-		ansi-color-bright-white '\e[107m'
-		ansi-color-bright-yellow '\e[103m'
-		ansi-color-cyan '\e[46m'
-		ansi-color-green '\e[42m'
-		ansi-color-inverse '\e[7m'
-		ansi-color-italic '\e[3m'
-		ansi-color-magenta '\e[45m'
-		ansi-color-red '\e[41m'
-		ansi-color-underline '\e[4m'
-		ansi-color-white '\e[47m'
-		ansi-color-yellow '\e[43m'
+		#
+		TODO "$(:background magenta)"
+		NOTE "$(:background gray)"
+		mode-line "$(:background yellow :foreground black)"
+		file-name "$(:weight bold)"
 		# common colors for format stuff
 		black      '\e[30m' gray          '\e[90m'
 		red        '\e[31m' light-red     '\e[91m'
@@ -142,6 +121,15 @@ default_faces=(
 		magenta    '\e[35m' light-magenta '\e[95m'
 		cyan       '\e[36m' light-cyan    '\e[96m'
 		light-gray '\e[37m' white         '\e[97m'
+
+		bg-black      '\e[40m' bg-gray          '\e[100m'
+		bg-red        '\e[41m' bg-light-red     '\e[101m'
+		bg-green      '\e[42m' bg-light-green   '\e[102m'
+		bg-yellow     '\e[43m' bg-light-yellow  '\e[103m'
+		bg-blue       '\e[44m' bg-light-blue    '\e[104m'
+		bg-magenta    '\e[45m' bg-light-magenta '\e[105m'
+		bg-cyan       '\e[46m' bg-light-cyan    '\e[106m'
+		bg-light-gray '\e[47m' bg-white         '\e[107m'
 )
 	load-theme default_faces
 }
@@ -948,7 +936,7 @@ function make-render-line-loop {
 				word=''
 				((skip_next_space==1)) && skip_next_space=0 && continue
 				bf_e[line]+='s'
-				face-no-expand "${facename:-default}" ' '
+				face-no-expand "${facename:-${bf_d[background]:-default}}" ' '
 				((column++));;
 			'	')
 				syntax-word
@@ -963,7 +951,7 @@ function make-render-line-loop {
 				syntax-word
 				word=''
 				skip_next_space=0
-				face-no-expand default ' '
+				face-no-expand "${bf_d[background]:-default}" ' '
 				newline=1 # tell syntax functions that the previous char was newline # used for format thing
 				return;;
 			*)
@@ -1059,12 +1047,11 @@ function clear-buffer {
 }
 
 ## list-directory
-# Basically like ls command
-	# '    If' \$hidden is 1 also show hidden files 
-	# '    If' \$hidden is 0 also show the special .. 
+# Basically like ls command 
 function list-directory {
+	((hidden==1)) && shopt -s dotglob
+	((hidden==0)) && shopt -u dotglob
 	printf '..\n'
-	((hidden==0)) || printf '%s\n' .*
 	printf '%s\n' *
 }
 
@@ -2083,12 +2070,13 @@ function redraw {
 		}
 		# due to escape codes present in bf_s,
 		# the bf_s has to be multidimensional nonsense for perfomance reasons
-		printf "${ln}%*s\e[%sG%b%s%b"\
+		printf "${ln}%b%*s\e[%sG%b%s\e[m%b"\
 			   ${lnargs[@]}\
+			   "${faces[${bf_d[background]:-default}]}"\
 			   $((bf_d[size-x] - bf_d[number-length]))\
 			   ''\
 			   $((bf_d[loc-x] + bf_d[number-length] + space))\
-			   "${faces[default]}"\
+			   "${faces[${bf_d[background]:-default}]}"\
 			   "${linearray[*]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length])}"\
 			   "$nlchar"
 	done
@@ -2098,6 +2086,14 @@ function redraw {
 	@ifs		
 	# redraw menu if open
 	[ "${bf_d[mode]}" = 'menu' ] && redraw-menu
+}
+
+## print-buffer-line
+function print-buffer-line {
+	IFS=''
+	local -n linearray="${bf_s[bf_d[line]]}"
+	printf '%s' "${linearray[*]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length])}"
+	@ifs
 }
 
 ## redraw-menuline Redraws top menu line
@@ -2405,8 +2401,7 @@ function main
 			k_hex[$i]='0'
 			input-key "${k[@]}" # Handle keypress event
 		}
-	done
-	
+	done	
 
 ### BUFFERMAKER END
 
