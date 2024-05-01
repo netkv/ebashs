@@ -1,0 +1,636 @@
+#!/bin/bash
+
+ebashs_version='0.11-WIP'
+
+source buffermaker
+
+declare -i edit_count=0
+
+set-highlight
+:: 'shell' bash ksh dash sh mksh zsh ash oksh i\*bash 'busybox sh'
+:: 'ebashs' ebashs
+:: 'config' conf
+:: 'execline' execlineb
+:: 'format-edit' format
+:: 'dired' i\*dired
+:: 'unknown' unknown
+
+edit_faces=(
+	# syntax highlighting
+	sh-quoted-exec "$(:foreground light-yellow)"
+	font-lock-variable-string-face "$(:foreground cyan)"
+	font-lock-comment-face "$(:weight dim)"
+	font-lock-variable-name-face "$(:foreground light-cyan)"
+	font-lock-argument-face "$(:foreground light-yellow)"
+	font-lock-flow-face "$(:foreground ligth-yellow)"
+	font-lock-pipe-face "$(:weight bold :foreground light-blue)"
+	font-lock-bracket-face "$(:weight bold :foreground light-gray)"
+	font-lock-constant-face "$(:foreground light-green)"
+	font-lock-string-face "$(:foreground green)"
+	font-lock-assign-face "$(:foreground light-blue)"
+	font-lock-function-name-face "$(:weight bold :foreground light-cyan)"
+	font-lock-keyword-face "$(:foreground light-red)"
+	font-lock-util-face "$(:foreground light-magenta)"
+	font-lock-declare-face "$(:foreground red)"
+)
+load-theme edit_faces
+
+## set-syntax
+# Picks syntax highlighting function for current filetype
+function set-syntax
+	if [ -n "${highlight[*]}" ] && bf_d[syntax]="syntax-${highlight[unknown]}"
+	then
+		for syntax_setting in "${!highlight[@]}"; {
+			[ "$syntax_setting" = "${bf_d[filetype]}" ] && {
+				bf_d[syntax]="syntax-${highlight[$syntax_setting]}"
+			}
+		}
+	else
+		log warn 'no highlight array... using unknown'
+	fi
+
+## syntax-shell
+# Syntax function for shell
+# Used faces:
+	# '* sh-quoted-exec'
+	# '* font-lock-declare-face'
+	# '* font-lock-variable-string-face'
+	# '* font-lock-comment-face & sets comment to 1 for syntax-word function'
+	# '* font-lock-variable-name-face'
+	# '* font-lock-argument-face'
+	# '* font-lock-function-name-face'
+	# '* font-lock-flow-face'
+	# '* font-lock-pipe-face'
+	# '* font-lock-bracket-face'
+	# '* font-lock-constant-face'
+	# '* font-lock-string-face'
+	# '* font-lock-assign-face'
+	# '* font-lock-keyword-face'
+	# '* font-lock-default-face'
+function syntax-shell
+	case "${word}" in
+		'$('*|'"$('*) set-face sh-quoted-exec;;
+		*'=()'|'declare'|'local'|'typeset') set-face font-lock-declare-face;;
+		'"$'*) set-face font-lock-variable-string-face;;
+		'#'*) set-face font-lock-comment-face && comment=1;;
+		'$'*) set-face font-lock-variable-name-face;;
+		'-'*) set-face font-lock-argument-face;;
+		*'()') set-face font-lock-function-name-face;;
+		'||'|'&&'|';'|'&') set-face font-lock-flow-face;;
+		'>'|'<'|'|'|'>>'|'<<'|'<<<') set-face font-lock-pipe-face;;
+		'('|')'|'{'|'}'|'[['|']]'|'['|']') set-face font-lock-bracket-face;;
+		'function') set-face font-lock-function-name-face;;
+		*"'"*) set-face font-lock-constant-face;;
+		*'"'*) set-face font-lock-string-face;;
+		*'='*) set-face font-lock-assign-face;;
+		'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|\
+		'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|\
+		'let'|'shopt'|'trap'|'set'|'eval'\
+			) set-face font-lock-keyword-face;;
+		*) set-face default;;
+	esac
+
+## syntax-ebashs
+# Syntax function for shell
+# Used faces:
+	# '* sh-quoted-exec'
+	# '* font-lock-declare-face'
+	# '* font-lock-variable-string-face'
+	# '* font-lock-comment-face & sets comment to 1 for syntax-word function'
+	# '* font-lock-variable-name-face'
+	# '* font-lock-argument-face'
+	# '* font-lock-function-name-face'
+	# '* font-lock-flow-face'
+	# '* font-lock-pipe-face'
+	# '* font-lock-bracket-face'
+	# '* font-lock-constant-face'
+	# '* font-lock-string-face'
+	# '* font-lock-assign-face'
+	# '* font-lock-keyword-face'
+	# '* font-lock-default-face'
+function syntax-ebashs
+	case "${word}" in
+		'$('*|'"$('*) set-face sh-quoted-exec;;
+		*'=()'|'declare'|'local'|'typeset') set-face font-lock-declare-face;;
+		'"$'*) set-face font-lock-variable-string-face;;
+		'#'*) set-face font-lock-comment-face && comment=1;;
+		'$'*|'@') set-face font-lock-variable-name-face;;
+		'-'*|'#') set-face font-lock-argument-face;;
+		*'()') set-face font-lock-function-name-face;;
+		'||'|'&&'|';'|'&') set-face font-lock-flow-face;;
+		'>'|'<'|'|'|'>>'|'<<'|'<<<') set-face font-lock-pipe-face;;
+		'('|')'|'{'|'}'|'[['|']]'|'['|']') set-face font-lock-bracket-face;;
+		'new'|'template'|'@def'|'@fn'|'@:') set-face font-lock-function-name-face;;
+		*"'"*) set-face font-lock-constant-face;;
+		*'"'*) set-face font-lock-string-face;;
+		*'='*|'function') set-face font-lock-assign-face;;
+		'echo'|'return'|'case'|'esac'|'for'|'while'|'do'|'done'|'if'|'elif'|\
+		'else'|'printf'|'fi'|'continue'|'exit'|'bind'|'then'|'break'|'read'|\
+		'let'|'shopt'|'trap'|'set'|'eval'\
+			) set-face font-lock-keyword-face;;
+		'set-options'|'global-set'|'define-key'|'local-set-key'|'add-mode'|'mode-options'|\
+		'load-theme'|'set-alias'|'add-menu'|'@ifs'|'doc'|'_'|'__'|'copy-array'|\
+		':foreground'|':background'|':mode'|'weight'|':slant'|'kbd'|'add-highlight'\
+			) set-face font-lock-keyword-face;;
+		*) set-face default;;
+	esac
+
+## syntax-execline
+# Syntax function for execline
+function syntax-execline
+	case "${word}" in
+		'"$'*) set-face font-lock-variable-string-face;;
+		'#'*) set-face font-lock-comment-face && comment=1;;
+		'$'*) set-face font-lock-variable-name-face;;
+		'-'*) set-face font-lock-argument-face;;
+		'{'|'}') set-face font-lock-bracket-face;;
+		*'"'*) set-face font-lock-string-face;;
+		'execlineb'|'execline-cd'|'posix-cd'|'cd'|'execline-umask'|'posix-umask'|'umask'|\
+		'emptyenv'|'envfile'|'export'|'unexport'|'fdclose'|'fdblock'|'fdmove'|'fdswap'|'fdreserve'|\
+		'redirfd'|'piperw'|'heredoc'|'wait'|'getcwd'|'getpid'|'exec'|'tryexec'|'exit'|'trap'|'withstdinas'|\
+		'foreground'|'background'|'case'|'if'|'ifelse'|'ifte'|'ifthenelse'|'backtick'|'pipeline'|'runblock'|\
+		'define'|'importas'|'elglob'|'elgetpositionals'|'multidefine'|'multisubstitute'|\
+		'fox'|'forstdin'|'forbacktickx'|'loopwhilex'|\
+		'elgetopt'|'shift'|'dollarat'|\
+		'eltest'|'homeof'|\
+		'execline') set-face font-lock-keyword-face;;
+		's6-basename'|'s6-cat'|'s6-chmod'|'s6-chown'|'s6-clock'|'s6-cut'|'s6-dirname'|'s6-dumpenv'|\
+		's6-echo'|'s6-env'|'s6-expr'|'s6-false'|'s6-format-filter'|'s6-grep'|'s6-head'|'s6-hiercopy'|\
+		's6-linkname'|'s6-ln'|'s6-ls'|'s6-maximumtime'|'s6-mkdir'|'s6-mkfifo'|'s6-nice'|'s6-nuke'|\
+		's6-pause'|'s6-printenv'|'s6-quote-filter'|'s6-quote'|'s6-rename'|'s6-rmrf'|'s6-seq'|\
+		's6-sleep'|'s6-sort'|'s6-sync'|'s6-tai64ndiff'|'s6-tail'|'s6-touch'|'s6-true'|'s6-uniquename'|\
+		's6-unquote-filter'|'s6-unquote'|'s6-update-symlinks'|'seekablepipe'|\
+		's6-portable-utils') set-face font-lock-util-face;;
+		'rngseed'|'s6-chroot'|'s6-freeramdisk'|'s6-hostname'|'s6-logwatch'|'s6-mount'|\
+		's6-pivotchroot'|'s6-ps'|'s6-swapoff'|'s6-swapon'|'s6-umount') set-face font-lock-util-face;;
+		*) set-face default;;
+	esac
+
+## syntax-format-edit
+# Syntax function for ebashs\'s formatter
+function syntax-format-edit
+	case "${word}" in
+		'<f>'|'<-f>'|'</f>'|'</f->'|'<u>'|'</u>'|'<tab>'|'<i>'|'</i>'|'<i-tab>'|'<h>'|'<s>'\
+			)set-face font-lock-keyword-face;;
+		*) set-face default;;
+	esac
+## syntax-unknown Default syntax function
+# Sets everything to default face
+fn syntax-unknown 'set-face default'
+
+## syntax-list-buffers
+# Syntax function for list-buffers
+function syntax-list-buffers {
+	((syntaxline==2)) && {
+		face hint "$word"
+		return
+	}
+	local -n cbf_d="${word}_bf_d"
+	face link "$(printf '%*s' -6 "$word")"
+	face file-name "$(printf '%*s' -16 "${cbf_d[file]}")"
+	face default "$(printf '%*s' -10 "${cbf_d[mode]}")"
+	face font-lock-comment-face "${cbf_d[modified]} "
+}
+
+## syntax-dired
+# Highlighting for dired buffers
+#     '* Directories → link'
+#     '* Files → default'
+function syntax-dired {
+	[ -d "$word" ] && set-face link
+	[ -f "$word" ] && set-face default
+}
+
+## syntax-config
+# Basic syntax function for config files
+# Used faces:
+#     '* default'
+#     '* font-lock-comment-face & sets comment to 1 for syntax-word function'	
+function syntax-config
+	case "${word}" in
+		'#'*) set-face font-lock-comment-face && comment=1;;
+		*) set-face default;;
+	esac
+
+function filetype {
+	[ ! -f "$1" ] && {
+		echo unknown
+		return
+	}
+	#very ugly, TODO: redo this
+	local filename shebang extension
+	local -a filenamesplit shebangsplit
+	[ $# = 0 ] && return
+	[ "${1:0:1}" = '.' ] || {
+		IFS='.'
+		filename="${1%/}"
+		filename="${filename##*/}"
+		[ "$filename" = 'COMMIT_EDITMSG' ] && echo conf && return
+		[ "$filename" = 'ebashs' ] && echo ebashs && return
+		filenamesplit=($filename)
+		extension="${filenamesplit[-1]}"
+		[ "${#filenamesplit[@]}" -gt 1 ] && echo "$extension" && return
+	}
+	mapfile -n 1 file_data < "$1"
+	shebang="$(echo -n "${file_data[@]}")"
+	case "${shebang:0:2}" in
+		'#!')
+			shebang="${shebang%/}"
+			IFS=' '
+			shebangsplit=("${shebang##*/}")
+			local shebangss=(${shebangsplit[-1]})
+			case "${shebangss[0]}" in
+				env)
+					printf '%s\n' "${shebangss[1]}";;
+				*)
+					printf '%s\n' "${shebangsplit[-1]}";;
+			esac
+			;;
+		'! ')
+			mapfile -d ' ' -t split <<< "${shebang}"
+			printf '%s\n' "${split[1]}"
+			;;
+		'##')
+			mapfile -d ' ' -t split <<< "${shebang}"
+			printf '%s\n' "${split[1]}"
+			;;
+		*) echo unknown
+	esac
+	@ifs
+}
+
+#add-mode edit
+#:: '[left]' backward-char
+#:: '[up]' previous-line
+#:: '[right]' forward-char
+#:: '[down]' next-line
+#:: C-c die
+#mode-options
+#:: else :
+
+add-mode edit
+#:: "$(kbd C-x)" 'prefix'
+#:: "$(kbd M-x)" 'execute-extended-command'
+#:: '[f10]' 'menu-top_menu'
+#:: "$(kbd C-g)" 'mode-back'
+:: '[up]' 'previous-line'
+:: '[down]' 'next-line'
+:: '[right]' 'forward-char'
+:: '[left]' 'backward-char'
+:: '[next]' 'scroll-down'
+:: '[prior]' 'scroll-up'
+:: "$(kbd C-a)" 'move-beginning-of-line'
+:: "$(kbd C-e)" 'move-end-of-line'
+:: "$(kbd C-p)" 'previous-line'
+:: "$(kbd C-n)" 'next-line'
+:: "$(kbd C-f)" 'forward-char'
+:: "$(kbd M-f)" 'forward-word'
+:: "$(kbd C-b)" 'backward-char'
+:: "$(kbd M-b)" 'backward-word'
+:: "$(kbd M-v)" 'scroll-down'
+:: "$(kbd C-v)" 'scroll-up'
+
+
+#:: '1b 5b 31 3b 32 41 0' select-previous
+#:: '1b 5b 31 3b 32 42 0' select-next
+#:: '1b 5b 31 3b 32 43 0' select-forward
+#:: '1b 5b 31 3b 32 44 0' select-backward
+#:: '1b 20 0' set-mark-command # in gnu emacs this is C-SPC but i cant get that to be detected in bash so M-SPC will suffice
+:: '20 0' insert-space
+#:: "$(kbd C-h)" prefix-help
+:: 'RET' newline
+:: "$(kbd C-l)" newline
+:: "$(kbd M-d)" duplicate-line
+#:: "$(kbd C-t)" execute
+:: "$(kbd C-d)" delete-line
+:: 'DEL' backspace
+#:: '[deletechar]' delete
+#:: "$(kbd M-g)" menu-key
+:: '1b 5b 48 0' move-beginning-of-line
+:: "$(kbd C-i)" indent-for-tab-command
+:: '1b 5b 46 0' move-end-of-line
+
+:: "$(kbd M-x)" execute-extended-command
+
+:: C-c die
+:: C-x quit
+mode-options
+:: else 'insert'
+
+fn self-insert 'insert-word $@'
+fn insert-space 'insert-word " "'
+fn indent-for-tab-command "insert-word '	'"
+
+## duplicate-line
+# Copies line
+function duplicate-line {
+	newline # create new empty line
+	buffer[bf_d[line]-1]="${buffer[bf_d[line]]}" # copy current line to previous line
+	#make-render-area $((bf_d[line]-1)) $((bf_d[line]))
+	local -n lap="${current_buffer}_syntax$((bf_d[line]-1))"
+	local -n lac="${current_buffer}_syntax$((bf_d[line]))"
+	copy-array lac lap
+	redraw
+}
+	
+## newline
+# Inserts newline to current buffer at current cursor position, shift lines
+# below one line down and go down one line.
+function newline {
+	bf_d[modified]=1
+	save-state
+	buffer=('' "${buffer[@]:1:${bf_d[line]}-1}" '' "${buffer[@]:${bf_d[line]}}")
+	buffer[bf_d[line]]="${buffer[${bf_d[line]}+1]:0:${bf_d[column]}}"
+	buffer[bf_d[line]+1]="${buffer[${bf_d[line]}+1]:${bf_d[column]}:${#buffer[${bf_d[line]}+1]}}"
+	bf_d[column]=0
+	syntax-shift
+	no_cursor=1
+	redraw
+	no_cursor=0
+	next-line
+}
+
+## syntax-shift
+# Moves syntax multibuffer from current cursor position one line to the bottom.
+# Used in newline function.
+#
+# Is currently very badly implemented, TODO: fix.
+function syntax-shift {
+	local -a tmp1
+	local -a tmp2
+	local extmp1
+	local extmp2
+	for ((l=bf_d[line];l<${#buffer[@]}+1;l++)); do
+		local -n linearray="${current_buffer}_syntax${l}"
+		copy-array linearray tmp1
+		copy-array tmp2 linearray
+		copy-array tmp1 tmp2
+		extmp1="${bf_e[l]}"
+		bf_e[l]="$extmp2"
+		extmp2="$extmp1"
+	done
+	bf_s[buffer_length]="${current_buffer}_syntax${bf_d[number-length]}"
+	unset tmp1 tmp2
+	make-render-area $((bf_d[line])) $((bf_d[line]+2))
+}
+
+# Deletes line at current cursor position
+function delete-line {
+	bf_d[modified]=1
+	buffer-delete-line "${bf_d[line]}"
+	((bf_d[line] == 1)) || previous-line
+	redraw
+}
+
+# Deletes line at \$1
+function buffer-delete-line {
+	local -i l=$1
+	save-state
+	buffer=("" "${buffer[@]:1:l-1}" "${buffer[@]:l+1}")
+	bf_s=("" "${bf_s[@]:1:l-1}")
+}
+
+function backspace {
+	#save-state
+	((bf_d[selection])) && {
+		delete-selection
+		return
+	}
+	((${#buffer[${bf_d[line]}]} == 0 )) && {
+		delete-line
+		bf_d[column]="${#buffer[${bf_d[line]}]}"
+		redraw
+		return 0
+	}
+
+	local -i rlr
+	unset ta
+	local ta
+	ta=${bf_e[${bf_d[line]}]:0:${bf_d[column]}}
+	ta=${ta//[^t]}
+	ta=${#ta}
+	rlr=$((bf_d[column] + ta / 4 - ta))
+	
+	((rlr==0)) && {
+		buffer[bf_d[line]-1]="${buffer[bf_d[line]-1]}${buffer[bf_d[line]]}"
+		delete-line
+		bf_d[column]=${#bf_e[${bf_d[line]}]}
+		redraw
+		return 0
+	}
+	buffer[${bf_d[line]}]="${buffer[${bf_d[line]}]:0:$(( rlr - 1 ))}${buffer[${bf_d[line]}]:${rlr}}"
+	backward-char #go back with cursor
+	make-render-line # copy the buffer into bf_s and bf_e
+	redraw #draw it
+	bf_d[modified]=1
+}
+
+function read-buffer {
+	((edit_count++))
+	edit_count=""
+	declare-buffer "edit_${edit_count}"
+	bf_d+=(
+		[size-y]=$((LINES - 1))
+		[loc-y]=1
+		[line]=1
+		[column]=0
+		[info]="editor"
+		[mode]=edit
+		[file]="$1"
+		[filetype]="$(filetype "$1")"
+#		[syntax]=syntax-shell
+		[syntax-exec]=0
+		[render-type]=per-char
+	)
+	bf_h=(
+		[redraw.cursor pre-redraw]='die'
+	)
+	set-syntax
+	
+	bf_h[redraw.content begin]=linenum.begin
+	bf_h[redraw.content loop-begin]=linenum.loop-begin
+	bf_h[redraw.cursor pre-redraw]=redraw-statusline
+
+	mapfile -t -O 1 buffer < "${bf_d[file]}"
+	
+	declare-buffer "modeline_${edit_count}"
+	bf_d+=(
+		[size-y]=1
+		[loc-y]=$((LINES))
+		[line]=1
+		[column]=0
+		[info]="mode-line"
+		[mode]=empty
+		[background]=menu
+		[syntax]=syntax-none
+		[syntax-exec]=0
+		[render-type]=per-word
+	)
+	set-statusline
+}
+
+function redraw-editor {
+	local target_x=$COLUMNS
+	local target_y=$((LINES-1))
+	
+	set-buffer "modeline_${edit_count}"
+	bf_d[size-x]=$target_x
+	bf_d[size-y]=1
+	bf_d[loc-y]=$target_y
+	redraw
+	
+	set-buffer "edit_${edit_count}"
+	bf_d[size-x]=$target_x
+	bf_d[size-y]=$((target_y - 1))
+	redraw
+}
+function set-statusline {
+	buffer=(
+		''
+		"NeoEbashs ${ebashs_version} @ $buffermaker_version file: edit_${edit_count}_bf_d[file] filetype: edit_${edit_count}_bf_d[filetype] syntax: edit_${edit_count}_bf_d[syntax] $RANDOM"
+	)
+}
+function redraw-statusline {
+	linenum.update
+	set-buffer "modeline_${edit_count}"
+	set-statusline
+	make-render-line
+	redraw
+	set-buffer "edit_${edit_count}"
+}
+
+## write-buffer
+# Writes current buffer into its target file	
+function write-buffer
+	if [ -w "${bf_d[file]}" ]; then
+		dump-buffer "${bf_d[file]}"
+		bf_d[modified]=0
+		message="Wrote ${#buffer[@]} lines to \'${bf_d[file]}\'"
+	else
+		return 1
+	fi
+
+add-mode quit
+	local-set-key "$(kbd y)" 'save-quit'
+	local-set-key "$(kbd n)" 'die'
+	local-set-key "$(kbd c)" 'quit-quit'
+	local-set-key "$(kbd C-y)" 'save-quit-force'
+
+## save-quit-force
+# Force saving file
+function save-quit-force {
+	dump-buffer "${bf_d[file]}"
+	die
+}
+	
+## save-quit
+# Writes buffer if target is writable
+function save-quit
+	if write-buffer; then
+		die
+	else
+		message='File is not writable! [n/c] (to force save C-y)'
+		redraw-commandline
+	fi
+
+## quit-quit
+# Quits quit message
+function quit-quit {
+	bf_d[mode]="$bckmode"
+	message='Quit canceled'
+	redraw
+}
+
+## quit
+# Displays quit message and sets mode to \'quit\'
+function quit {
+	[ -n "${bf_d[isfile]}" ] && ((bf_d[isfile]==0)) || ((bf_d[modified]==0)) && {
+		die
+	}	
+	[ -z "$bckmode" ] && bckmode="${bf_d[mode]}"
+	bf_d[mode]='quit'
+#	redraw-statusline
+	printf '\e[%s;0H' $((bf_d[size-y] + bf_d[loc-y]))
+	printf '%s' 'Buffer modified, save before close? [y/n/c]'
+}
+
+## execute-extended-command
+# 'Handles M-x command prompt & execution'
+function execute-extended-command {
+	read-command "${options[command-prompt]}" readin '' $LINES || return 1
+#	for lcmd in "${!alias[@]}"; {
+#		[ "$readin" = "$lcmd" ] && {
+#			${alias[$lcmd]}
+#			return
+#		}
+#	}
+	$readin
+	redraw
+#	((noredraw)) && noredraw=0 || redraw
+}
+
+## write-buffer
+# Writes current buffer into its target file	
+function write-buffer {
+	if [ -w "${bf_d[file]}" ]; then
+		dump-buffer "${bf_d[file]}"
+		bf_d[modified]=0
+		message="Wrote ${#buffer[@]} lines to \'${bf_d[file]}\'"
+	else
+		return 1
+	fi
+}
+
+add-mode quit
+	local-set-key "$(kbd y)" 'save-quit'
+	local-set-key "$(kbd n)" 'die'
+	local-set-key "$(kbd c)" 'quit-quit'
+	local-set-key "$(kbd C-y)" 'save-quit-force'
+
+## save-quit-force
+# Force saving file
+#function save-quit-force {
+#	dump-buffer "${bf_d[file]}"
+#	die
+#}
+	
+## save-quit
+# Writes buffer if target is writable
+function save-quit {
+	if write-buffer; then
+		die
+	else
+#		message='File is not writable! [n/c] (to force save C-y)'
+		#		redraw-commandline
+		true
+	fi
+}
+
+## quit-quit
+# Quits quit message
+function quit-quit {
+	bf_d[mode]="$bckmode"
+#	message='Quit canceled'
+	redraw
+}
+
+## quit
+# Displays quit message and sets mode to \'quit\'
+function quit {
+	[ -n "${bf_d[isfile]}" ] && ((bf_d[isfile]==0)) || ((bf_d[modified]==0)) && {
+		die
+	}
+	
+	[ -z "$bckmode" ] && bckmode="${bf_d[mode]}"
+	bf_d[mode]='quit'
+	redraw-statusline
+	printf '\e[%s;0H' $((bf_d[size-y] + bf_d[loc-y]))
+	printf '%s' 'Buffer modified, save before close? [y/n/c]'
+}
+
+load-default-config
+init-var
+read-buffer "$1"
+redraw-editor
+redraw
+input-loop
