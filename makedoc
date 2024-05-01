@@ -135,6 +135,7 @@ function readme {
 	done
 }
 function file {
+	exit # temporary
 	{
 		mapfile -t -O 1 fileload < "$file"
 		for line in "${fileload[@]}"; do

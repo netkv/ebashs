@@ -1,6 +1,6 @@
 #!/bin/bash
 
-ebashs_version='0.9.1'
+ebashs_version='0.9.2'
 
 ### BUFFERMAKER START
 
@@ -87,11 +87,11 @@ function load-default-config {
 default_faces=(
 		reset '\e[m'
 		default "$(:weight normal)"
-		menu "$(:background yellow :foreground black)"
-		menu-highlight '\e[4;30;43m'
+		menu "$(:mode inverse)"
+		menu-highlight '\e[7;30;43m'
 		menu-back '\e[4m\e[1m'
-		menu-enabled-face "$(:background yellow :foreground black)"
-		menu-selected-face "$(:background light-yellow :foreground black :weight bold)"
+		menu-enabled-face  "$(:mode inverse)"
+		menu-selected-face "$(:foreground yellow :mode inverse :weight bold)"
 		button "$(:foreground light-cyan)"
 		link '\e[4;96m'
 		link-highlight '\e[1;4;96m'
@@ -110,7 +110,7 @@ default_faces=(
 		#
 		TODO "$(:background magenta)"
 		NOTE "$(:background gray)"
-		mode-line "$(:background yellow :foreground black)"
+		mode-line "$(:mode inverse)"
 		file-name "$(:weight bold)"
 		# common colors for format stuff
 		black      '\e[30m' gray          '\e[90m'
@@ -3373,7 +3373,7 @@ $format_nav
 <h> Ebashs $ebashs_version </h>
 Buffermaker $buffermaker_version
 
-Copyright(č)ˇ 2022-2023 <f> title Netkv </f-> .
+Copyright(č)ˇ 2022-2024 <f> title Netkv </f-> .
 ( <-f> title bed </f-> : Copyright(č)ˇ 2020 <f> title Comfies </f-> .)
 
 This is Ebashs, one component of the Bash/Bash operating system.
