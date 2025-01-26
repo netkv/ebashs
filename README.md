@@ -9,7 +9,9 @@ For more updated help run inside Ebashs `M-x describe` or `C-h C-f`
 
 Update: Ebashs was split into two parts, the editor (Ebashs) and the underlying tui framework (Buffermaker). This split isn't yet complete and using Buffermaker for programs other than Ebashs is very experimental (see testapp example).
 
-Update 2: Buffermaker has been separated into https://github.com/aeknt/BufferMaker. Ebashs now includes its internal version of BufferMaker library to prevent breaking when I randomly decide to change core functions, and to make using Ebashs easier.
+Update 2: Buffermaker has been separated into https://github.com/netkv/BufferMaker. Ebashs now includes its internal version of BufferMaker library to prevent breaking when I randomly decide to change core functions, and to make using Ebashs easier.
+
+Update 3: I've began updating Ebashs into BufferMaker version 11, Ebashs now expects BufferMaker to exist in $PATH. See https://github.com/netkv/BufferMaker.
 
 # EBASHS
 
@@ -262,5 +264,5 @@ fff by Dylan Araps https://github.com/dylanaraps/fff as base for extensions/efff
 Licensed under the MIT license see extensions/efff for details
 
 Early versions of Ebashs/Bano can be found at
-https://github.com/aeknt/bashbox/blob/master/bin/nano
-https://github.com/aeknt/bashbox/blob/master/bin/bano
+https://github.com/netkv/bashbox/blob/master/bin/nano
+https://github.com/netkv/bashbox/blob/master/bin/bano
