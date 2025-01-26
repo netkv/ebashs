@@ -2,13 +2,10 @@
 
 ebashs_version='0.9.2-x'
 
-source buffermaker
-
-
 ### BUFFERMAKER START
 
 #!/bin/bash
-buffermaker_version="0.10.4.1-ebashs-internal-shim ${buffermaker_version}"
+buffermaker_version="0.10.4.1-ebashs-internal"
 log_buffer+=('' 'START')
 ## Buffermaker
 # Pure bash tui framework (wip)
@@ -140,8 +137,7 @@ default_faces=(
 ## syntaxy sugar sugary syntax
 log_buffer+=('- LOADING BASH EXTENSIONS -')
 function @ifs { IFS="$DEFIFS"; }
-
-#°
+	
 # Make bash not be bashy enough
 function @doc {
 	mapfile -t "description_${desc_count}"
@@ -149,7 +145,6 @@ function @doc {
 	((desc_count++))
 }
 
-#°
 # reverse of defun :D
 function nufed {
 	((_addfragment==1)) && {
@@ -169,7 +164,78 @@ function nufed {
 	unset '='
 }
 	
-#°
+	
+@doc copy-function <<'+'
+copies function \$1 to function \$2
+advantage of copying instead of creating wrapper alias functions should be in theory performance(?)
+
+Little test script:
+    1() {
+    	echo hi > /dev/null
+    }
+    echo 1
+    time for e in {0..100000}; do
+    	1
+    done
+    
+    2() {
+    	1
+    }
+    echo 2
+    time for e in {0..100000}; do
+    	2
+    done
+    
+    3() {
+    	2
+    }
+    echo 3
+    time for e in {0..100000}; do
+    	3
+    done
+    
+    4() {
+    	3
+    }
+    echo 4
+    time for e in {0..100000}; do
+    	4
+    done
+
+output:
+    1
+    
+    real	0m1,636s
+    user	0m1,081s
+    sys	0m0,540s
+    2
+    
+    real	0m1,986s
+    user	0m1,453s
+    sys	0m0,518s
+    3
+    
+    real	0m2,380s
+    user	0m1,873s
+    sys	0m0,491s
+    4
+    
+    real	0m2,768s
+    user	0m2,154s
+    sys	0m0,595s
+
+It seems like there's small performace gain.
++
+function copy-function {
+	local -a fn
+	local deffn="function $2"$'\n'
+	mapfile fn <<<"$(declare -f "$1")"
+	for ((i=1; i<${#fn[@]}; i++)) {
+		deffn+="${fn[i]}"
+	}
+	eval "$deffn"
+}
+
 function defun {
 	if [ -z "$1" ]; then
 		nufed
@@ -185,7 +251,6 @@ function defun {
 	fi
 }
 
-#&°
 function ::
 case "$_last_add" in
 	add-menu) local-set-menu "$@";;
@@ -199,12 +264,10 @@ case "$_last_add" in
 	set-buffer) local-set-buffer-data "$@"
 esac
 
-#°
 function add-doc {
 	local -n cdoc="description_${desc_count}"
 	cdoc+=("${_indent}$*")
 }
-#°
 function doc {
 	((desc_count++))
 	descriptions["function_${1}_description"]="description_${desc_count}"
@@ -217,13 +280,11 @@ function doc {
 }
 copy-function doc @@
 
-#°
 ## :+ Add documentation indent
 function :+ {
 	_indent+="    "
 	# "$*"
 }
-#°
 ## :- Remove documentation indent
 function :- {
 	_indent="${_indent:0:${#_indent}-4}"
@@ -231,13 +292,35 @@ function :- {
 }
 # hell
 
+## focus set magic # function
+function focus {
+	_last_add="$1"
+}
+
 ## declare-new-buffer Create new text buffer
 function declare-new-buffer {
 	_last_add='set-buffer'
 	((current_count++))
-	declare-buffer "bf_${current_count}"
+	set-buffer "bf_${current_count}"
+	buffers_l+=("$current_buffer")
 	last_line=1
-	bf_d[render-type]='per-char'
+	declare -Ag "${current_buffer}_bf_d"
+	bf_d=(
+		# some sane default values
+		[line]=0
+		[base]=1
+		[column]=0
+		[modified]=0
+	)
+}
+
+## local-set-buffer-data
+# set bf_d[] array of currently \"focused\" buffer
+function local-set-buffer-data {
+	while [ -n "$2" ]; do
+		bf_d["$1"]="$2"
+		shift 2
+	done
 }
 
 ## [auto] Checks bf_d[] array and set\'s needed missing values automatically
@@ -248,9 +331,6 @@ function [auto] {
 	[ -z "${bf_d[size-y]}" ] && bf_d[size-y]=$((LINES - 1))
 	[ -z "${bf_d[syntax]}" ] && set-syntax 
 }
-
-
-copy-function fn @fn
 
 ## defun-fragment Same as defun but includes fragments for the function
 function defun-fragment {
@@ -321,6 +401,175 @@ function @def {
 	}
 	eval "$_fn"
 }
+
+## _ Variable refernce helper
+function _ {
+	# this function is here to simplify stuff as writing overlong variables indexed by overloong variable index...
+	# ...is quite tiring <3
+	[ -z "$1" ] && {
+		for n in "${refalias[@]}"; do
+			unset "$n"
+		done
+		unset refalias
+		return
+	}
+	declare -gn "$1"="$2"
+	refalias+=("$1")
+}
+
+## __ Swap variable references
+function __ {
+	# swap two references
+	local -n _swap_1="$1"
+	local _swap_copy_1="${!_swap_1}"
+	local -n _swap_2="$2"
+	local _swap_copy_2="${!_swap_2}"
+	declare -gn "$1"="${_swap_copy_2}"
+	declare -gn "$2"="${_swap_copy_1}"
+}
+
+## @fn Shorthand for one line functions
+function @fn {
+	[ -z "$*" ] && exit 1 # error if empty
+	local name="$1"
+	shift
+	eval "function $name { $@; }"
+}
+
+## copy-array
+# A univeral function to copy both normal and associative arrays
+function copy-array {
+	local -n source="$1"
+	local -n target="$2"
+	target=()
+	for idx in "${!source[@]}"; {
+		target[idx]="${source[idx]}"
+	}
+}
+
+## append-array
+# Append array \$1 to \$2  
+function append-array {
+	local -n source="$1"
+	local -n target="$2"
+	for idx in "${!source[@]}"; {
+		target+=("${source[idx]}")
+	}
+}
+
+## setface Convert colors to escape codes
+# '$1' can be either one of colors:
+#     black
+#     red
+#     green
+#     yellow
+#     blue
+#     magenta
+#     cyan
+#     ligth-gray
+#     gray
+#     light-red
+#     light-green
+#     light-yellow
+#     light-blue
+#     light-magenta
+#     light-cyan
+#     white
+# 'or hex. color (like "#bb2040")'
+# 'or indexed 256 color with "c" as prefix (like c127)'
+# 'for background color $mode has to be 48 and for foreground 38'
+#
+# If \$TERM \(current "$TERM"\) is \'linux\' \& option tty-linuxfb is 1 try to use true color even for tty
+# Instead of normal '\e[$mode;r;g;bm' is used '\e]P$~1mode$Hexcode\e[$~2modem'
+#     '$mode 38 → $~1mode 2 & $~2mode 32'
+#     '$mode 48 → $~1mode 1 & $~2mode 41'
+# Note that the linuxfb colors are very experimental and suffer from cursor implicitly overwriting them on movenment
+function setface {
+	[ -z "$1" ] && return
+	case "$1" in
+		black)      [ "$mode" = '38' ] && printf '\\e[30m' || printf '\\e[40m';;
+		red)        [ "$mode" = '38' ] && printf '\\e[31m' || printf '\\e[41m';;
+		green)      [ "$mode" = '38' ] && printf '\\e[32m' || printf '\\e[42m';;
+		yellow)     [ "$mode" = '38' ] && printf '\\e[33m' || printf '\\e[43m';;
+		blue)       [ "$mode" = '38' ] && printf '\\e[34m' || printf '\\e[44m';;
+		magenta)    [ "$mode" = '38' ] && printf '\\e[35m' || printf '\\e[45m';;
+		cyan)       [ "$mode" = '38' ] && printf '\\e[36m' || printf '\\e[46m';;
+		light-gray) [ "$mode" = '38' ] && printf '\\e[37m' || printf '\\e[47m';;
+
+		gray)          [ "$mode" = '38' ] && printf '\\e[90m' || printf '\\e[100m';;
+		light-red)     [ "$mode" = '38' ] && printf '\\e[91m' || printf '\\e[101m';;
+		light-green)   [ "$mode" = '38' ] && printf '\\e[92m' || printf '\\e[102m';;
+		light-yellow)  [ "$mode" = '38' ] && printf '\\e[93m' || printf '\\e[103m';;
+		light-blue)    [ "$mode" = '38' ] && printf '\\e[94m' || printf '\\e[104m';;
+		light-magenta) [ "$mode" = '38' ] && printf '\\e[95m' || printf '\\e[105m';;
+		light-cyan)    [ "$mode" = '38' ] && printf '\\e[96m' || printf '\\e[106m';;
+		white)         [ "$mode" = '38' ] && printf '\\e[97m' || printf '\\e[107m';;
+		*) case "${1::1}" in
+			   '#')
+				   if [ "$TERM" = 'linux' ] && ((options[tty-linuxfb])); then # Hack for linux framebuffer tty
+					   case "$mode" in
+						   38) printf '\\e]P2%s\\e[32m' "${1:1:6}" ;;
+						   48) printf '\\e]P1%s\\e[41m' "${1:1:6}"
+					   esac
+				   else
+					   local r="${1:1:2}"
+					   local g="${1:3:2}"
+					   local b="${1:5:2}"
+					   printf '\\e[%d;2;%d;%d;%dm' "${mode}" $((16#$r)) $((16#$g)) $((16#$b))
+				   fi;;
+			   'c')
+				   printf '\\e[%d;5;%dm' "${mode}" "${1:1}"
+		   esac
+	esac
+	shift
+	[ -n "$1" ] && "$@";
+}
+
+## :foreground
+# Set foreground color.
+# 'See <a> doc-goto setface : <f> link setface </f> </a> for more info.'
+function :foreground { mode=38; setface "$@"; }
+
+## :background
+# Set background color.
+# 'See <a> doc-goto setface : <f> link setface </f> </a> for more info.'
+function :background { mode=48; setface "$@"; }
+
+## :mode Sets text mode:
+# '	inverse - inverses background and foreground'
+function :mode {
+	case "$1" in
+		inverse) printf '\\e[7m';;
+	esac
+	shift
+	[ -n "$1" ] && "$@";
+}
+	
+## :weight Sets thickness of text:
+:+     bold
+#     dim
+#     normal
+function :weight {
+	case "$1" in
+		bold) printf '\\e[1m';;
+		dim) printf '\\e[2m';;
+		normal) printf '\\e[m'
+	esac
+	shift
+	[ -n "$1" ] && "$@";
+}
+
+## :slant Sets slant of text:
+:+     italic
+#     normal
+function :slant {
+	case "$1" in
+		italic) printf '\\e[3m';;
+		normal) printf '\\e[m'
+	esac
+	shift
+	[ -n "$1" ] && "$@";
+}
 	
 ## kbd Converts Emacs like key notation into hex.
 function kbd {
@@ -360,7 +609,74 @@ function kbd {
 	printf '%s' "${out}"
 }
 
-#°
+## define-key defines keybinding
+#     '$1' can be either:
+#     '[function-key]'
+#     '[arrow-key]'
+#     '[prior | next]'
+#     'RET'
+#     'DEL'
+#     '[delechar]'
+#     'hex code ending with 0'
+function define-key {
+	local -n keys="keys_$1"
+	case "$2" in
+		#function keys
+		'[f1]') keys[1b 4f 50 0]="$3";;
+		'[f2]') keys[1b 4f 51 0]="$3";;
+		'[f3]') keys[1b 4f 52 0]="$3";;
+		'[f4]') keys[1b 4f 53 0]="$3";;
+		'[f5]')  keys[1b 5b 31 35 7e 0]="$3";;
+		'[f6]')  keys[1b 5b 31 37 7e 0]="$3";;
+		'[f7]')  keys[1b 5b 31 38 7e 0]="$3";;
+		'[f8]')  keys[1b 5b 32 39 7e 0]="$3";;
+		'[f9]')  keys[1b 5b 32 30 7e 0]="$3";;
+		'[f10]') keys[1b 5b 32 31 7e 0]="$3";;
+		'[f11]') keys[1b 5b 32 33 7e 0]="$3";;
+		'[f12]') keys[1b 5b 32 34 7e 0]="$3";;
+		#arrow keys
+		'[left]')  keys[1b 5b 44 0]="$3";;
+		'[up]')    keys[1b 5b 41 0]="$3";;
+		'[right]') keys[1b 5b 43 0]="$3";;
+		'[down]')  keys[1b 5b 42 0]="$3";;
+		#pg up & down
+		'[prior]') keys[1b 5b 36 7e 0]="$3";;
+		'[next]')  keys[1b 5b 35 7e 0]="$3";;
+		#return
+		'RET') keys[a 0]="$3";;
+		#backspace & delete
+		'DEL') keys[7f 0]="$3";;
+		'[deletechar]') keys[1b 5b 33 7e 0]="$3";;
+		'ESC') keys[1b 0 0]="$3";;
+		'[deletechar]') keys[1b 5b 33 7e 0]="$3";;
+		*) keys["$2"]="$3"
+	esac
+}
+
+## local-set-key
+# Sets keybinding of lastly defined mode
+# See define-key for details
+@fn local-set-key 'define-key "$_last_keys" "$@"'
+
+## global-set-key
+# Sets keybinding of global mode
+# See define-key for details
+@fn global-set-key 'define-key global "$@"'
+
+## define-mode-option
+# Sets option of mode '$1'
+function define-mode-option {
+	local -n ko="key_options_$1"
+	ko["$2"]="$3"
+}
+
+## local-set-mode-option See define-mode-option
+@fn local-set-mode-option 'define-mode-option "$_last_keys" "$@"'
+
+## mode-options Brings mode-options of lastly defined mode into \"focus\"
+@fn mode-options '_last_add="mode-options"'
+
+
 ## add-alias Adds alias '$1' of command '$2...' to M-x
 function add-alias {
 	local name="$1"
@@ -370,6 +686,32 @@ function add-alias {
 
 ## set-alias Brings into \"focus\" alias setting
 @fn set-alias '_last_add=set-alias'
+
+## add-highlight Sets highlighting mode '$1' for file types '$2...'
+function add-highlight {
+	local name="$1"
+	shift
+	for i in "$@"; {
+		highlight["$i"]="$name"
+	}
+}
+
+## set-alias Brings into \"focus\" highlight setting
+@fn set-highlight '_last_add=set-highlight'
+
+## clear-screen clears screen
+@fn clear-screen "printf '\033c'"
+
+## add-mode
+# Adds keybing mode
+function add-mode {
+	log_buffer+=("        ADD MODE $1")
+	_last_keys="$1"
+	_last_add='add-mode'
+	modes+=("keys_$1")
+	declare -Ag "keys_$1"
+	declare -Ag "key_options_$1"
+}
 
 ## add-menu
 # Adds menu
@@ -481,8 +823,76 @@ log_buffer+=('- LOADING BASH EXTENSIONS DONE -')
 
 ## rest of this garbageware
 
+## refresh Refreshes buffer
+# 'clears screen, reset syntax, redraws'
+# 'See <a> doc-goto clear-screen : <f> link clear-screen </f> </a> for more info.'
+function refresh {
+	clear-screen
+	bf_s=''
+	
+	message="reloaded..."
+	redraw
+}
+
+## switch-mode
+# Change current mode of buffer into '$1'
+function switch-mode {
+	bckmode="${bf_d[mode]}"
+	bf_d[mode]="$1"
+	redraw-statusline
+}
+
+## mode-back
+# Restores previous mode
+function mode-back {
+	bf_d[mode]="$bckmode"
+	unset bckmode
+	redraw-statusline
+}
+
+## read-command
+# Works like normal "'read'" but for bottom commanline
+function read-command {
+	printf '\e[%s;0H' $((bf_d[size-y] + bf_d[loc-y]))
+	printf '\e[?25h'
+	read -re -p "$1" -i "$3" "$2" || return 1
+}
+
+## base-name
+# Basically equivalent to the "'basename'" coreutil		
+function base-name
+	for file in "$@"; {
+		file="${file%/}"
+		printf '%s\n' "${file##*/}"
+	}
+
 ### TODO: make this make sense
 
+## make-render Creates syntax highlighting for currently visible lines
+function make-render {
+	make-render-area "${bf_d[base]}" $((bf_d[base] + bf_d[size-y] + bf_d[loc-y]))
+}
+
+## make-render-area
+# Creates syntax highlighting for lines from '$1' to '$2'
+function make-render-area {
+    local -i line="$1"
+	local -i syntaxline=$line
+	local -n linearray="${current_buffer}_syntax${syntaxline}"
+	linearray=()
+	bckeIFS="${IFS}"
+	IFS=
+	for ((l=syntaxline;l<${2};l++)); do
+		((l > $2)) && break
+		local -n linearray="${current_buffer}_syntax${syntaxline}"
+		linearray=()
+		bf_s[syntaxline]="${current_buffer}_syntax${syntaxline}"
+		((syntaxline++))
+		line="$l"
+		make-render-line-loop
+	done
+	IFS="$bckeIFS"
+}
 	
 ## make-render-line
 # Syntax highlights single line '$1'
@@ -498,6 +908,8 @@ function make-render-line {
 	make-render-line-loop
 	IFS="$bckeIFS"
 }
+
+
 
 ## make-render-line-loop
 # Backend for make-render-area \& make-render-line
@@ -548,6 +960,113 @@ function make-render-line-loop {
 	done  <<< "${buffer[line]}"
 }
 
+## syntax-word
+# Decides what a word should highlighted as:
+:+     'If todonote option is enabled, highlight "NOTE:" & "TODO:"'
+#     'If the word is supposed to be comment highlight it as it'
+#     'Else pass it to current syntax function'
+function syntax-word {
+	(("${options[todonote]}"==1)) && {
+		case "$word" in
+			'NOTE:') face NOTE "${word}"; return ;;
+			'TODO:') face TODO "${word}"; return ;;
+		esac
+	}
+	((comment)) && set-face font-lock-comment-face ||
+		"${bf_d[syntax]}"
+	((bf_d[syntax-exec])) || face "$syntax_face" "$word" # s_ex controls syntax extended
+}
+
+## face
+# Add highlighted word to multidimensional nonsense "'bf_s'" arry
+function face-rematch {
+	IFS=' '
+	[[ "$2" =~ ${2//?/(.)} ]]
+	linearray+=("${faces_raw[reset]}${faces_raw[${1}]}${BASH_REMATCH[@]:1}")
+	IFS=''
+	for ((iw=0; iw < ${#2}; iw++)); do
+		bf_e[line]+='0'
+	done
+}
+
+function face {
+	IFS=' ' read -ra chars <<< "$2"
+	linearray+=("${faces_raw[reset]}${faces_raw[${1}]}${chars[@]}")
+	for ((iw=0; iw < ${#2}; iw++)); do
+		bf_e[line]+='0'
+	done
+}
+
+## face-no-expand
+# Add highlighted word to multidimensional nonsense "'bf_s'" arry without adding anything to bf_e[] array
+function face-no-expand {
+	IFS=' '
+	[[ "$2" =~ ${2//?/(.)} ]]
+	linearray+=("${faces_raw[reset]}${faces_raw[${1}]}${BASH_REMATCH[@]:1}")
+	IFS=''
+}
+
+## set-face Sets face for syntax highlighting
+@fn set-face 'syntax_face="$1"'
+
+## size-full
+# Sets size of buffer to be fullscreen
+function size-full {
+	bf_d+=(
+		[loc-x]=1
+		[loc-y]=1
+		[size-x]=$COLUMNS
+		[size-y]=$((LINES - 1))
+	)
+}
+
+## set-buffer
+# Switch to buffer \$1 
+function set-buffer {
+	log info "switch to buffer [$1]"
+	current_buffer="$1"
+	declare -ng buffer="${current_buffer}_buffer"
+	declare -ng bf_s="${current_buffer}_bf_s"
+	declare -ng bf_e="${current_buffer}_bf_e"
+	declare -ng bf_d="${current_buffer}_bf_d"
+	declare -ng bf_c="${current_buffer}_bf_c"
+}
+
+## add-to-list
+# Adds a buffer into currently active buffer list
+function add-to-list {
+	log info "added into buffer list: $current_buffer"
+	buffers_l+=("$current_buffer")
+}
+
+## clear-buffer
+# Empties buffer bf_s bf_e \& bf_d
+function clear-buffer {
+	buffer=()
+	for l in "${bf_s[@]}"; {
+		unset "$l"
+	}
+	bf_s=()
+	bf_e=()
+	for l in "${bf_c[@]}"; {
+		unset "$l"
+	}
+	bf_c=()
+}
+
+## list-directory
+# Basically like ls command 
+function list-directory {
+	((hidden==1)) && shopt -s dotglob
+	((hidden==0)) && shopt -u dotglob
+	printf '..\n'
+	printf '%s\n' *
+}
+
+## current-time
+# Basically like coreutil "'date'"
+@fn current-time 'printf "%($1)T\\n"'
+
 ## log
 # Adds message into log
 # '    info -- everything *should* be well'
@@ -587,6 +1106,523 @@ function +debug {
 	trap 'log DEBUG "${BASH_COMMAND}"' DEBUG
 }
 
+## goto Load array into buffer
+function goto {
+	clear-buffer
+	bf_d[line]=1
+	bf_d[column]=0
+	copy-array "$1" buffer
+	redraw
+}
+
+@doc syntax-format <<'EOF'
+Convert formated text into Ebashs buffer understandable format.
+
+<f> title <u> Specifications </u> </f>
+
+<[> name <f> <f> hint face_name text... </f> <[> name </f>
+<-> Set <f> hint text </f> to face <f> hint face_name </f-> .
+
+<[> name <h> <f> hint text... </f> <[> name </h>
+<-> Make <f> hint text </f> into title.
+
+<[> name <a> <f> hint command </f> <[> name : <f> hint text </f> <[> name </a>
+<-> Create clickable area that executes <f> hint command </f> on click and is labeled <f> hint text </f-> .
+<-> See <a> doc-goto link-enter : <f> link link-enter </f> </a> 
+
+<[> name <link> <f> hint command </f> <[> name : <f> hint text </f> <[> name </link>
+<-> Create clickable area that executes <f> hint command </f> on click and is labeled <f> hint text </f-> .
+<-> <[> name <link> also automatically adds <f> link link </f> face to text.
+
+<[> name <u> <f> hint text </f> <[> name </u>
+<-> Make <f> hint text </f> <u> uppercase. </u>
+
+<[> name <i> <f> hint number_of_spaces hint text </f-> ...\n...\n...\n... <[> name </i>
+<i-tab> Indent lines by <f> hint number of spaces </f-> .
+
+<[> name <i-tab>
+<-> Indent by tab (default 4 spaces).
+<-> Tab size is controlled via tab_format variable. </i>
+
+<[> name <s> <f> hint number_of_spaces </f>
+<-> Insert <f> hint number of spaces </f-> .
+
+<[> name <tab>
+<-> Insert tab.
+<-> <[> name <-> is alias for <[> name <tab>.
+
+<[> name <v> <f> hint variable_name </f> <[> name </v>
+<-> Insert contents of <f> hint variable </f> into text at formating time.
+
+<[> name <\> <f> hint text </f>
+<-> Escape <f> hint text </f>
+
+<[> name <[> <f> hint face_name text </f>
+<-> Escape <f> hint text </f> with <f> hint face </f-> .
+
+
+Some of these keywords also include versions to glue together with other words.
+For example:
+<-> text <[> name <-f> <f> name face </f> color! <[> name </f-> text
+Will turn into text <-f> lr c <-f> ly o <-f> lg l <-f> lc o <-f> lb r <-f> lm ! </f> </f> </f> </f> </f> </f-> text.
+EOF
+function syntax-format {
+	((skip_word==1)) && {
+		skip_next_space=1
+		[ "$word" = '-->' ] && skip_word=0
+		return
+	}
+	[ "$word" = '<!--' ] && {
+		skip_next_space=1
+		skip_word=1
+		return
+	}
+	((newline==1)) && {
+		ichar="${indent_spaces}"
+	}
+	((newline==0)) && {
+		ichar=
+	}
+
+	((escape==2)) && {
+		escape=1
+		facename="$word"
+		skip_next_space=1
+		return
+	}
+	((escape==1)) && {
+		escape=0
+		face "$facename" "${ichar}$word"
+		return
+	}
+	[ "$word" = '<\>' ] && {
+		escape=1
+		skip_next_space=1
+		facename='unknown'
+		return
+	}
+	[ "$word" = '<[>' ] && {
+		escape=2
+		skip_next_space=1
+		return
+	}
+	
+	((variable==1)) && {
+		variable=0
+		word="${!word}"
+	}
+	[ "$word" = '<v>' ] && {
+		variable=1
+		varname=
+		skip_next_space=1
+		return
+	}
+
+	[ "$word" = '</u>' ] && {
+		upper=0
+		skip_next_space=1
+		return
+	}
+	[ "$word" = '<u>' ] && {
+		upper=1
+		skip_next_space=1
+		return
+	}
+	[ "$word" = '</f>' ] && {
+		unset linearray[-1]
+		bf_e[line]=${bf_e[line]::-1}
+		((column--))
+		unset facename
+		[ -n "$bckfacename" ] && {
+			facename="$bckfacename"
+			unset bckfacename
+		}
+		return
+	}
+	[ "$word" = '</f->' ] && {
+		unset linearray[-1]
+		bf_e[line]=${bf_e[line]::-1}
+		((column--))
+		skip_next_space=1
+		[ -n "$bckfacename" ] && {
+			facename="$bckfacename"
+			unset bckfacename
+		}
+		return
+	}
+	((facedef==1)) && {
+		skip_next_space=1
+		facedef=0
+		facename="$word"
+		return
+	}
+	[ "$word" = '<f>' ] && {
+		bckfacename="$facename"
+		skip_next_space=1
+		facedef=1
+		return
+	}
+	[ "$word" = '<-f>' ] && {
+		unset linearray[-1]
+		bf_e[line]=${bf_e[line]::-1}
+		((column--))
+		bckfacename="$facename"
+		skip_next_space=1
+		facedef=1
+		return
+	}
+	
+	[ "$word" = '</h>' ] && {
+		unset linearray[-1]
+		bf_e[line]=${bf_e[line]::-1}
+		((column--))
+		unset facename
+		upper=0
+		[ -n "$bckfacename" ] && {
+			facename="$bckfacename"
+			unset bckfacename
+		}
+		return
+	}
+	[ "$word" = '<h>' ] && {
+		bckfacename="$facename"
+		skip_next_space=1
+		facename=title
+		upper=1
+		return
+	}
+	
+	((sethighlight==2)) && {
+		sethighlight=1
+		skip_next_space=1
+		tmp_sex="$word"
+		return
+	}
+	((sethighlight==1)) && {
+		sethighlight=0
+		skip_next_space=1
+		bf_d[syntax-exec]="$tmp_sex"
+		bf_d[syntax]="syntax-$word"
+		return
+	}
+	[ "$word" = '<change-syntax>' ] && {
+		skip_next_space=1
+		sethighlight=2
+		return
+	}
+	((space_next==1)) && {
+		space_next=0
+		skip_next_space=1
+		for ((if=0; if< word; if++)) {
+			linearray+=(' ')
+			bf_e[line]+='s'
+			((column++))
+		}
+		return
+	}
+	[ "$word" = '<s>' ] && {
+		space_next=1
+		skip_next_space=1
+		return
+	}
+	[ "$word" = '<tab>' ] || [ "$word" = '<->' ] && {
+		skip_next_space=1
+		for ((if=0; if< format_tab; if++)) {
+			linearray+=(' ')
+			bf_e[line]+='s'
+			((column++))
+		}
+		return
+	}
+	[ "$word" = '</i>' ] && {
+		indent_spaces=
+		return
+	}
+	((indent==1)) && {
+		indent=0
+		skip_next_space=1
+		indent_spaces=
+		indent_spaces_e=
+		for ((if=0; if< word; if++)) {
+			indent_spaces+=' '
+			indent_spaces_e+='s'
+		}
+		return
+	}
+	[ "$word" = '<i>' ] && {
+		indent=1
+		skip_next_space=1
+		return
+	}
+	[ "$word" = '<i-tab>' ] && {
+		skip_next_space=1
+		indent_spaces=
+		indent_spaces_e=
+		for ((if=0; if< format_tab; if++)) {
+			indent_spaces+=' '
+			indent_spaces_e+='s'
+		}
+		return
+	}
+	((link==2)) && {
+		[ "$word" = ':' ] && {
+			((
+				skip_next_space=1,
+				link=1
+			))
+			return
+		}
+		skip_next_space=1
+		linkfn+="$word "
+		return
+	}
+	[ "$word" = '</a>' ] && {
+		((lc++))
+		((column--))
+		link=0
+		unset linearray[-1]
+		bf_e[line]=${bf_e[line]::-1}
+		bf_c[line]+="bf_c_${lc}_${current_buffer} "
+		declare -Ag "bf_c_${lc}_${current_buffer}"
+		local -n bf_c_line="bf_c_${lc}_${current_buffer}"
+		bf_c_line=(
+			[start]="$lsx"
+			[end]=$((column - 1))
+			[exec]="$linkfn"
+		)
+		return
+	}
+	[ "$word" = '<a>' ] && {
+		((
+			link=2,
+			lsx=column,
+			skip_next_space=1
+		))
+		linkfn=
+		return
+	}
+	((facelink==2)) && {
+		[ "$word" = ':' ] && {
+			((
+				skip_next_space=1,
+				facelink=1
+			))
+			facename='link'
+			return
+		}
+		skip_next_space=1
+		linkfn+="$word "
+		return
+	}
+	[ "$word" = '</link>' ] && {
+		((lc++))
+		((column--))
+		facelink=0
+		unset linearray[-1]
+		bf_e[line]=${bf_e[line]::-1}
+		bf_c[line]+="bf_c_${lc}_${current_buffer} "
+		declare -Ag "bf_c_${lc}_${current_buffer}"
+		local -n bf_c_line="bf_c_${lc}_${current_buffer}"
+		bf_c_line=(
+			[start]="$lsx"
+			[end]=$((column - 1))
+			[exec]="$linkfn"
+		)
+		unset facename
+		[ -n "$bckfacename" ] && {
+			facename="$bckfacename"
+			unset bckfacename
+		}
+		return
+	}
+	[ "$word" = '<link>' ] && {
+		((
+			facelink=2,
+			lsx=column,
+			skip_next_space=1
+		))
+		linkfn=
+		return
+	}
+	
+	((object==1)) && {
+		skip_next_space=1
+		[ "$word" = 'text:' ] && {
+			object=0
+			set_obj=0
+			return
+		}
+		[ "$word" = 'select:' ] && { set_obj=1; obj_select=; return; }
+		[ "$word" = 'id:' ] && { set_obj=2; obj_id=; return; }
+		[ "$word" = 'left:' ] && { set_obj=3; obj_left=; return; }
+		[ "$word" = 'up:' ] && { set_obj=4; obj_up=; return; }
+		[ "$word" = 'right:' ] && { set_obj=5; obj_right=; return; }
+		[ "$word" = 'down:' ] && { set_obj=6; obj_down=; return; }
+
+		((set_obj==1)) && obj_select+="$word "
+		((set_obj==2)) && obj_id+="$word "
+		((set_obj==3)) && obj_left+="$word "
+		((set_obj==4)) && obj_up+="$word "
+		((set_obj==5)) && obj_right+="$word "
+		((set_obj==6)) && obj_down+="$word "
+		return
+	}
+	[ "$word" = '</o>' ] && {
+		((lc++))
+		((column--))
+		link=0
+		unset linearray[-1]
+		bf_e[line]=${bf_e[line]::-1}
+		bf_c[line]+="bf_c_${lc}_${current_buffer} "
+		declare -Ag "bf_c_${lc}_${current_buffer}"
+		local -n bf_c_line="bf_c_${lc}_${current_buffer}"
+		bf_c_line=(
+			[start]="$lsx"
+			[end]=$((column - 1))
+			[exec]="$obj_select"
+			[id]="$obj_id"
+			[left]="$obj_left"
+			[up]="$obj_up"
+			[right]="$obj_right"
+			[down]="$obj_down"
+		)
+		return
+	}
+	[ "$word" = '<o>' ] && {
+		((
+			object=1,
+			lsx=column,
+			skip_next_space=1
+		))
+		obj_id=
+		obj_text=
+		obj_select='true'
+		obj_left='backward-char'
+		obj_up='previous-line'
+		obj_right='forward-char'
+		obj_down='next-line'
+		set_obj=0
+		return
+	}
+	
+	((newline==1)) && newline=0
+	((column+=${#ichar} + ${#word}))
+	((upper==1)) && {
+		word="${word^^}"
+	}
+	face "${facename:-unknown}" "${ichar}$word"
+}
+
+@doc link-enter <<'EOF'
+Executes <f> name clickable area </f> of formated text to which current position
+of cursor points.
+Mostly used for <f> name hyperlinks </f-> .
+
+Internally <f> name clickable area </f> is defined via bf_c 2d array. Each line contains
+the <f> name clickable areas </f-> . Each of these is it's own associative array.
+Each <f> name clickable area </f> contains:
+<i-tab> <[> hint start - the first column of the area
+<[> hint end   - the last column of the area
+<[> hint exec  - what command should be executed when this function,
+<-> <f> name link-enter </f> is ran. </i>
+EOF
+function link-enter {
+	for link in ${bf_c[bf_d[line]]}; {
+		local -n bf_c_line="$link"
+		#echo "    $link" >> d
+		#echo "${bf_c_line[start]}" >> d
+		#echo "${bf_c_line[end]}" >> d
+		#echo "${bf_c_line[exec]}" >> d
+		
+		((bf_d[column] >= bf_c_line[start])) &&
+			((bf_d[column] <= bf_c_line[end])) && {
+				has=1
+				${bf_c_line[exec]}
+				return
+			}
+	}
+	${bf_d[format-else]}
+}
+
+function format-left {
+	for link in ${bf_c[bf_d[line]]}; {
+		local -n bf_c_line="$link"
+		((bf_d[column] >= bf_c_line[start])) &&
+			((bf_d[column] <= bf_c_line[end])) && {
+				${bf_c_line[left]:-backward-char}
+				return
+			}
+	}
+	backward-char
+}
+function format-up {
+	for link in ${bf_c[bf_d[line]]}; {
+		local -n bf_c_line="$link"
+		((bf_d[column] >= bf_c_line[start])) &&
+			((bf_d[column] <= bf_c_line[end])) && {
+				${bf_c_line[up]:-previous-line}
+				return
+			}
+	}
+	previous-line
+}
+function format-right {
+	for link in ${bf_c[bf_d[line]]}; {
+		local -n bf_c_line="$link"
+		((bf_d[column] >= bf_c_line[start])) &&
+			((bf_d[column] <= bf_c_line[end])) && {
+				${bf_c_line[right]:-forward-char}
+				return
+			}
+	}
+	forward-char
+}
+function format-down {
+	for link in ${bf_c[bf_d[line]]}; {
+		local -n bf_c_line="$link"
+		((bf_d[column] >= bf_c_line[start])) &&
+			((bf_d[column] <= bf_c_line[end])) && {
+				${bf_c_line[down]:-next-line}
+				return
+			}
+	}
+	next-line
+}
+
+function obj {
+	for y in "${!bf_c[@]}"; {
+		for obj in ${bf_c[y]}; {
+			local -n bf_c_line="$obj"
+			[ "${bf_c_line[id]}" = "$1 " ] && {
+				((bf_d[line]=y, bf_d[column]=bf_c_line[start]))
+				redraw-cursor
+			}
+		}
+	}
+}
+	
+@fn is-function 'declare -F -- "$1" > /dev/null'
+
+## Dumps current buffer into a file	
+function dump-buffer {
+	true >"$1" # Set the file to an empty text file
+	for ln in "${buffer[@]}"; do # Write in the buffer to the file
+		echo "$ln" >>"$1"
+	done
+}
+
+## die
+# Closes Ebashs with exit code \$errno, if errno is empty exit with 0
+# If \$nocleanup is 1, do not restore the terminal to sane mode and do not cleanup 
+# Else restore to sane mode 
+function die {
+	((nocleanup)) && exit "${errno:-0}"
+	${on_die:-true}
+	echo -e "\e[?1000;1006;1015l" #disable mouse tracking
+	clear-screen # TODO fix the buffer switching
+	printf '\e[?25h\e[?7h\e[?1049l' # Reset terminal to sane mode
+	exit "${errno:-0}" # Assume that we are exiting without an error
+}
 
 # Sets \$nocleanup to 1 and dies	
 function abort {
@@ -601,12 +1637,32 @@ fragment keepcolumn <<'+'
 
 # Moves up \$1 lines, if \$ is empty move up 1 line
 function move-previous-line {
-	move.previous-line "$@"
+	for ((i = 0; i < ${1:-1}; i++)); do
+		((bf_d[line] > 1)) && ((bf_d[line]--)) # As long as we can keep going up, go up
+		((bf_d[line] < bf_d[base] + 1)) && {
+			((bf_d[base]--)) # Push back the top if we need to
+			move_base=1 # Send signal to redraw-cursor that the buffer was moved, thus needs to be redraw fully
+			((bf_d[base] <= 0)) && bf_d[base]=1 # Don't push back if our base is at 1
+		}
+		[ -z "$bckrl" ] && bckrl="${bf_d[column]}"	
+		(( ${#bf_e[bf_d[line]]} < bf_d[column] )) && bf_d[column]=${#bf_e[bf_d[line]]}
+		(( ${#bf_e[bf_d[line]]} > bckrl )) && bf_d[column]=${bckrl}
+	done
 }
 
 # Moves down \$1 lines, if \$ is empty move down 1 line
 function move-next-line {
-	move.next-line "$@"
+	for ((i = 0; i < ${1:-1}; i++)); do
+		((bf_d[line] < ${#buffer[@]}+1)) && ((bf_d[line]++)) # If we can go down, go down
+		# Move window down if needed
+		((bf_d[line] > bf_d[base] + bf_d[size-y] - 3 - bottomlines)) && {
+			((bf_d[base]++))
+			move_base=1
+		}
+		[ -z "$bckrl" ] && bckrl="${bf_d[column]}"	
+		(( ${#bf_e[bf_d[line]]} < bf_d[column] )) && bf_d[column]=${#bf_e[bf_d[line]]}
+		(( ${#bf_e[bf_d[line]]} > bckrl )) && bf_d[column]=${bckrl}
+	done
 }
 
 function previous-line {
@@ -645,6 +1701,10 @@ function scroll-up {
 		redraw-cursor
 	fi
 }
+	
+@fn move-beginning-of-line 'bf_d[column]=0; redraw'
+@fn move-end-of-line 'bf_d[column]="${#bf_e[${bf_d[line]}]}"; redraw'
+
 
 function move-select {
 	((bf_d[selection])) || {
@@ -715,7 +1775,48 @@ function backward-char {
 	fi
 }
 	
-		
+## forward-word
+# Moves forward to next word
+function forward-word {
+	((bf_d[column] == ${#bf_e[bf_d[line]]})) && {
+		next-line
+		move-beginning-of-line
+	}
+	while :; do
+		((bf_d[column] < ${#bf_e[bf_d[line]]})) && ((bf_d[column]++)) || break
+		case "${bf_e[bf_d[line]]:${bf_d[column]}:1}" in
+			't'|'s') break
+		esac
+	done
+	redraw
+}
+
+## backward-word
+# Moves backward to previous word
+function backward-word {
+	((bf_d[column] == 0)) && {
+		previous-line
+		move-end-of-line
+	}
+	while :; do
+		((bf_d[column] > 0)) && ((bf_d[column]--)) || break
+		case "${bf_e[bf_d[line]]:${bf_d[column]}:1}" in
+			't'|'s') break
+		esac
+	done
+	redraw
+}
+
+
+@doc to-line <<'+'
+Move cursor to line number $1 and move the line into middle of visible buffer area.
++
+function to-line {
+	bf_d[line]="$1"
+	bf_d[base]=$((bf_d[line] - bf_d[size-y] / 2 ))
+	redraw
+}
+			
 # Handle clicking on top menu with mouse		
 function menuline-mouse {
 	local -n top_0="menu_${bf_d[menuline]}_0"
@@ -757,8 +1858,17 @@ function menudown {
 }
 
 # Execute selected item in menu
-function menuselect { menu.select; }
-function menuleave { menu.exit; }
+function menuselect
+for i in "${!menu_1[@]}"; {
+	((i == menuselection)) && "${menu_1[i]}"
+}
+
+# Closes a menu
+function menuleave {
+	ismenu=0
+	bf_d[mode]="${modebackup}"
+	redraw
+}
 
 # Opens a menu \$1	
 function menu {
@@ -770,7 +1880,24 @@ function menu {
 	bf_d[mode]='menu'
 	redraw
 }
-		
+
+# deletes current buffer
+function delete-buffer {
+	local -a copy
+	local i=0
+	local index
+	for b in "${buffers_l[@]}"
+	do
+		[[ "$b" != "$current_buffer"  ]] && copy+=("$b")
+		[[ "$b" = "$current_buffer"  ]] && index="$i"
+		((i++))
+	done
+	unset buffers_l
+	copy-array copy buffers_l
+	current_buffer="${buffers_l[index-1]}"
+	redraw
+}
+						
 # Draw multiline region
 function selection-draw
 if ((i == bf_d["${1}_y"])); then
@@ -806,6 +1933,13 @@ else
 		   "${faces[region]}" "${buffer[i]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length] + 1)}"\
 		   "${faces[default]}" "$nlchar"
 fi
+
+# Handle changing size of terminal
+function change-size-screen {
+	bf_d[size-x]="$COLUMNS"
+	bf_d[size-y]=$((LINES-1))
+	redraw
+}
 	
 ## redraw
 # Redraw screen
@@ -962,6 +2096,14 @@ function redraw {
 	[ "${bf_d[mode]}" = 'menu' ] && redraw-menu
 }
 
+## print-buffer-line
+function print-buffer-line {
+	IFS=''
+	local -n linearray="${bf_s[bf_d[line]]}"
+	printf '%s' "${linearray[*]:bf_d[basecolumn]:bf_d[size-x] - (bf_d[number-length])}"
+	@ifs
+}
+
 ## redraw-menuline Redraws top menu line
 function redraw-menuline {
 	local -n top_0="menu_${bf_d[menuline]}_0"
@@ -973,10 +2115,24 @@ function redraw-menuline {
 	printf '\e[%sG%s\e[0m\n' "${bf_d[loc-x]}" "${top_0[*]}"
 }
 
+# Draw cursor on the line
 function redraw-cursor-line {
-	redraw-line.cursor
+	((options[full-redraw]==0)) && {
+		# redraw if buffer needs to be moved horizontally
+		((bf_d[column] > bf_d[size-x] - bf_d[number-lenght] - space)) && {
+			redraw
+			return
+		}
+		((bf_d[basecolumn]==0)) || {
+			redraw
+			return
+		}
+		printf '\e[%sG\e[?25h'\
+			   $((bf_d[column] - bf_d[basecolumn] + bf_d[number-length] + bf_d[loc-x] + bf_d[number-space])) ||
+			redraw
+	}
 }
-
+	
 # Draw cursor and if move_base is 1 redraw
 function redraw-cursor {
 	((options[full-redraw])) && {
@@ -1053,7 +2209,45 @@ function redraw-commandline {
 ## handle-mouse
 # Handle mouse click
 function handle-mouse {
-	keypress.mouse
+	local -i x y
+	#parse mouse stuff somewhatish weirdly
+	[ "${k_hex[*]:0:5}" = '1b 5b 3c 36 34' ] && previous-line && return
+	[ "${k_hex[*]:0:5}" = '1b 5b 3c 36 35' ] && next-line && return
+	[ "${k_hex[*]:0:5}" = '1b 5b 3c 38 30' ] && previous-line 9 && return
+	[ "${k_hex[*]:0:5}" = '1b 5b 3c 38 31' ] && next-line 9 && return
+	((skipnext==1)) && skipnext=0 && return
+	((skipnext==0)) && [ "${k_hex[*]:0:2}" = '1b 5b' ] && {
+		mapfile -t -d '' inputarray <<< "${1}"
+		inputarray[-1]="${inputarray[-1]%?}"
+		[ -z "${inputarray[2]}" ] && skipnext=1
+		mapfile -t -d ';' inputarray <<< "${inputarray[1]}"
+		inputarray[-1]="${inputarray[-1]%?}"	
+		mousemode="${inputarray[0]}"
+		x="${inputarray[1]}"
+		y="${inputarray[2]::-1}"
+		#limitations of movenment
+		#TODO:
+		[ $y = "${bf_d[loc-y]}" ] && menuline-mouse $x && return #handle menuline
+		((x < (bf_d[number-length] + bf_d[loc-x] + 2))) && {
+			if [ "$mousemode" = '[<0' ]; then
+				bf_d[line]=$(( bf_d[base] + ( (y - bf_d[loc-y]) - toplines) ))
+				redraw
+			elif [ "$mousemode" = '[<2' ]; then #VERY BAD SOLUTION, TODO: FIX
+				clear-screen
+				echo 'Enter the index: '
+				read -re line
+				redraw
+			fi
+			return
+		}
+		bf_d[line]=$(( bf_d[base] + ( y - bf_d[loc-y] - 1) ))
+		bf_d[column]=$(( x - (bf_d[loc-x] + bf_d[number-length] + 1) ))
+		((bf_d[line] > ${#bf_e[@]})) &&
+			bf_d[line]=${#bf_e[@]}
+		((bf_d[column] > ${#bf_e[bf_d[line]]})) &&
+			bf_d[column]=${#bf_e[bf_d[line]]}
+		redraw
+	}
 }
 
 ## insert-word
@@ -1078,7 +2272,59 @@ function insert-word {
 
 ## input-key Handles input
 # Either \$1 raw character input or k_hex array containing hex values of characters is used
-function input-key { keypress; }
+function input-key {
+	#arg $1 is the pressed key in normal text form
+	#k_hex is pressed key in hex array ending with 0
+		
+	local -i mode_contains=0
+	local -n modekeys="keys_${bf_d[mode]}"\
+	         key_options="key_options_${bf_d[mode]}"
+
+	# global keys
+	((key_options[disable-global])) ||
+		for str in "${!keys_global[@]}"
+		{
+			[ "$str" = "${k_hex[*]}" ] && {
+				"${keys_global[$str]}"
+				return
+			}
+		}
+
+	# Execute the 'always' key option
+	((${#key_options[@]})) &&
+		[ -n "${key_options[always]}" ] && "${key_options[always]}"
+
+	# Loop over current mode keybindings to match current keypress
+	for str in "${!modekeys[@]}"
+	{
+		[ "$str" = "${k_hex[*]}" ] && {
+			"${modekeys[$str]}"
+			mode_contains=1
+		}
+	}
+
+	# If mode keybinding doesn't contain current keypress, execute this
+	((${#key_options[@]})) &&
+		((mode_contains == 0)) &&
+		[ -n "${key_options[else]}" ] && {
+			[ "${key_options[else]}" = 'insert' ] || {
+				"${key_options[else]}" && return
+			}
+		}
+
+	# Do not continue if mode contains keypress to prevent control chars flooding file
+	((mode_contains==1)) && return
+
+	# If mouse is enabled, do whatever the hell that ugly piece of code does
+	(("${options[mouse]}"==1)) && {
+		handle-mouse "$1"
+		return
+	}
+
+	# Insert the pressed character
+	[[ $1 =~ [[:cntrl:]] ]] && return # If char is control char, return
+	insert-word "$1"
+}
 
 function init-var {
 	((options[log])) && init-log || unset buffer_log # set up log buffer (M-x log)
@@ -1129,7 +2375,41 @@ function init-var {
 }
 
 ## main Main keyboard loop
-function main { input-loop; }
+function main
+	while :; do
+		local -a k=()
+		local -i i=1
+		k_hex=() # Also convert the input sequence into hex for way easier handling
+		# Check for ready input
+		read -rsN1 k[0] && {
+			k_hex[0]="$(printf "%x\n" "'${k[0]}")"
+
+			# Hack to try preventing arrow codes being split into multiple and inserting garbage to buffer
+			[ "${k_hex[0]}" = '1b' ] && {
+				read -rsN1 -t "${esc_timeout}" k[1]
+				k_hex[1]="$(printf "%x\n" "'${k[1]}")"
+				[ "${k_hex[1]}" = '5b' ] && {
+					read -rsN1 k[2]
+					k_hex[2]="$(printf "%x\n" "'${k[2]}")"
+					case "${k_hex[2]}" in
+						'41'|'42'|'43'|'44')
+							k_hex[3]='0'
+							input-key "${k[@]}"
+							continue
+					esac
+					i=2
+				}
+				((i++))
+			}
+			# Multibyte hack
+			while read -rsN1 -t0.0001 k[$i]; do
+				k_hex[$i]="$(printf "%x\n" "'${k[$i]}")"
+				((i++))
+			done
+			k_hex[$i]='0'
+			input-key "${k[@]}" # Handle keypress event
+		}
+	done	
 
 ### BUFFERMAKER END
 
@@ -1465,9 +2745,9 @@ Note that currently only key set via $(kbd C-char or M-char) will show up.
 EOF
 	for mode in "${modes[@]}"; do
 		doc_control+=(
-			'</indent>'
+			'</i>'
 			"<h> ${mode} </h>"
-			'<indent> &tab'
+			'<i-tab>'
 		)
 		local -n moderef="$mode"
 		for ch in\
@@ -1486,7 +2766,7 @@ EOF
 		done
 	done
 	doc_control+=(
-		'</indent>'
+		'</i>'
 	)
 
 	mapfile -t -O 1 doc_faces <<'EOF'
@@ -1521,7 +2801,7 @@ The slant can be set via <a> doc-select :slant : <f> link :slant </f> </a> funct
 
 To change faces used on this page
 
-<-> <f> title misleading_theme </f-> =( <indent> &tab
+<-> <f> title misleading_theme </f-> =( <i> 8
 <[> title title "$(:weight bold :background "#ffffff")"
 <[> link link "$(:weight bold :background light-yellow)"
 <[> ansi-color-blue ansi-color-blue "$(:background cyan)"
@@ -1529,7 +2809,7 @@ To change faces used on this page
 <[> blue blue "$(:foreground cyan)"
 <[> red red "$(:foreground yellow)"
 <[> font-lock-keyword-face font-lock-keyword-face ''
-<[> cyan cyan "$(:foreground green)" </indent>
+<[> cyan cyan "$(:foreground green)" </i>
 <-> )
 <-> <f> font-lock-keyword-face load-theme </f> <f> title misleading-theme </f>
 EOF
@@ -1701,7 +2981,7 @@ function syntax-execline
 :: Syntax function for ebashs\'s formatter
 function syntax-format-edit
 	case "${word}" in
-		'<f>'|'<-f>'|'</f>'|'</f->'|'<u>'|'</u>'|'<tab>'|'<indent>'|'</indent>'|'<h>'|'<s>'\
+		'<f>'|'<-f>'|'</f>'|'</f->'|'<u>'|'</u>'|'<tab>'|'<i>'|'</i>'|'<i-tab>'|'<h>'|'<s>'\
 			)set-face font-lock-keyword-face;;
 		*) set-face default;;
 	esac
@@ -2025,11 +3305,11 @@ function init-log {
 		"<f> title Ebashs version $version </f>"
 		"<tab> <f> highlight [ LOG START ] </f>"
 		''
-		'<f> title System info: </f> <indent> &tab'
+		'<f> title System info: </f> <i-tab>'
 		"Bash version:  ${BASH_VERSION}"
 		"System:        ${OSTYPE}"
 		"Terminal type: ${TERM}"
-		"Locale:        ${LANG} </indent>" 
+		"Locale:        ${LANG} </i>" 
 		''
 		'<f> title Loaded extensions: </f>'
 	)
@@ -2119,7 +3399,7 @@ Based on <s> 15 <f> link https://github.com/comfies/bed </f>
 
 <tab> <f> hint For more information about usage of Ebashs, press <f> light-gray C-h C-r </f> to view </f> <link> manual : manual </link>
 
-<indent> &tab
+<i> 5
 <f> dr                          .............. </f>
 <f> lr                       @***%@@@@@@@@@@@@... </f>
 <f> dr                ** .*@@@@@@@@@@@@@@@@@@@@@.. </f>
@@ -2143,10 +3423,10 @@ Based on <s> 15 <f> link https://github.com/comfies/bed </f>
 <f> lw                   ..,,,,*##@@@@@@@@@@@@@@@.      .###################. </f>
 <f> dw                 @@@@@@@@@@@@@@@@@@@@..        @@@@@@@@@@@@@@@@@@@@@@ </f>
 <f> gr              /@@@@@@@/........              @@@@@@@@@@@@@@@@@@@@. </f>
-</indent>                                                                              
+</i>                                                                              
                                                                                 
 
-<indent> &tab <f> hint ─[ <-f> light-cyan bsd0 </f-> ]───────────────────────────────────────────────────────────────────────────────────── </f->
+<i> 2 <f> hint ─[ <-f> light-cyan bsd0 </f-> ]───────────────────────────────────────────────────────────────────────────────────── </f->
 Permission to use, copy, modify, and/or distribute this software for any purpose
 with or without fee is hereby granted.
 
@@ -2156,7 +3436,7 @@ IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CON
 DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
 WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-<f> hint ──────────────────────────────────────────────────────────────────────────────────────────── </f> </indent>
+<f> hint ──────────────────────────────────────────────────────────────────────────────────────────── </f> </i>
 
 EOF
 	redraw
@@ -2814,11 +4094,11 @@ defun describe
 		    "$format_nav"
 			''
 			'<f> title <u> Functions </u> </f>'
-			'<indent> &tab'
+			'<i-tab>'
 			'Documentation of these function is defined via internal pseudo-comments.'
 			'It consists of the description and the source code. The source code is formated automatically'
 			'by Bash and differs greatly from the formating of real source code.'
-			'</indent>'
+			'</i>'
 )
 		while read -r fn;  do
 			buffer+=("<a> doc-select ${fn:11} : <f> link ${fn:11} </f> </a>")
@@ -3365,9 +4645,9 @@ function welcome-buffer {
 	buffer=(
 		''
 		'<f> title <u> Ebashs </u> </f>'
-		'<indent> &tab'
+		'<i-tab>'
 		' Welcome to Ebashs the editor of pure Bash.'
-		'</indent>'
+		'</i>'
 		'<f> title <u> Actions </u> </f>'
 		'<tab> <a> find-file : <f> red Open <f> title f </f-> ile </f> </a>'
 		'<tab> <a> dired : <f> yellow <f> title B </f-> rowse files </f> </a>'
